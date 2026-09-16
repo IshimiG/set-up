@@ -322,6 +322,12 @@ hl.bind(mainMod .. " + SPACE", hl.dsp.exec_cmd(menu))
 hl.bind(mainMod .. " + P", hl.dsp.window.pseudo())
 hl.bind(mainMod .. " + J", hl.dsp.layout("togglesplit")) -- dwindle only
 
+-- Notificaciones. SUPER+N abre el centro con lo que ya se ha ido de la
+-- pantalla; SUPER+ALT+N pone y quita el silencio. No se usa SUPER+SHIFT+N
+-- porque bindings.conf ya lo tiene cogido para el editor.
+hl.bind(mainMod .. " + N", hl.dsp.exec_cmd("~/.config/hypr/scripts/notify-ctl.sh centro"))
+hl.bind(mainMod .. " + ALT + N", hl.dsp.exec_cmd("~/.config/hypr/scripts/notify-ctl.sh silencio"))
+
 -- Move focus with mainMod + arrow keys
 hl.bind(mainMod .. " + left", hl.dsp.focus({ direction = "left" }))
 hl.bind(mainMod .. " + right", hl.dsp.focus({ direction = "right" }))
@@ -573,6 +579,18 @@ hl.layer_rule({
 	ignore_alpha = 0.5,
 })
 
+-- La pila de notificaciones. Mismo trato que las demás superficies de
+-- Quickshell: cada tarjeta anima su propia entrada, así que el compositor no
+-- debe animar la superficie, y el ignore_alpha mantiene el desenfoque bajo el
+-- cristal y fuera del hueco transparente que queda entre tarjetas.
+hl.layer_rule({
+	name = "notifications-anim",
+	match = { namespace = "^notifications$" },
+	no_anim = true,
+	blur = true,
+	ignore_alpha = 0.5,
+})
+
 -- Hyprland-run windowrule
 hl.window_rule({
 	name = "move-hyprland-run",
@@ -593,9 +611,13 @@ hl.on("hyprland.start", function()
 	hl.exec_cmd("~/.local/bin/dotfiles-sync.sh")
 	hl.exec_cmd("pkill waybar; waybar")
 	hl.exec_cmd("pkill hyprpaper; hyprpaper")
-	-- Cuántos paquetes hay pendientes, en un disco en el centro de la
-	-- pantalla. El script espera a que haya red antes de contar y no enseña
-	-- nada si no hay ninguno, así que puede lanzarse sin más.
+	-- El daemon de notificaciones. Va antes que nada de lo que pueda querer
+	-- notificar: es quien toma org.freedesktop.Notifications en el bus, y sin
+	-- él ninguna aplicación puede avisar de nada.
+	hl.exec_cmd("qs -c notifications -d")
+	-- Cuántos paquetes hay pendientes, en una tarjeta colgada del borde de
+	-- arriba. El script espera a que haya red antes de contar y no enseña nada
+	-- si no hay ninguno, así que puede lanzarse sin más.
 	hl.exec_cmd("~/.config/hypr/scripts/updates-notify.sh")
 end)
 

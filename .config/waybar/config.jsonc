@@ -10,8 +10,13 @@
   "modules-left": [
     "hyprland/workspaces"
   ],
+  // El reloj, y pegados a él la campana de notificaciones y el botón de
+  // sesión. Estaban al final del bloque derecho, detrás de toda la telemetría;
+  // aquí son lo que se busca a propósito, no algo que se lee de pasada.
   "modules-center": [
-    "clock"
+    "clock",
+    "custom/notifications",
+    "custom/power"
   ],
   // Telemetría y periféricos; la bandeja cierra pegada al borde derecho.
   "modules-right": [
@@ -23,8 +28,7 @@
     "memory",
     "custom/gpu",
     "custom/mouse",
-    "group/tray-expander",
-    "custom/power"
+    "group/tray-expander"
   ],
   "hyprland/workspaces": {
     "on-click": "activate",
@@ -177,6 +181,20 @@
     "interval": 60,
     "format": "󰍽  {}"
   },
+  // Campana: clic abre el centro de notificaciones con el historial, clic
+  // derecho pone y quita el silencio. Sin intervalo, como el botón de sesión:
+  // el estado sólo cambia cuando uno lo cambia, y quien lo cambia avisa por
+  // SIGRTMIN+10.
+  "custom/notifications": {
+    "exec": "$HOME/.config/waybar/scripts/notifications.sh",
+    "return-type": "json",
+    "signal": 10,
+    "format": "{}",
+    "tooltip": true,
+    "on-click": "$HOME/.config/hypr/scripts/notify-ctl.sh centro",
+    "on-click-right": "$HOME/.config/hypr/scripts/notify-ctl.sh silencio"
+  },
+
   // Botón de sesión: abre un menú con bloquear, suspender, cerrar sesión,
   // reiniciar y apagar. Va el último de la barra porque es la esquina donde se
   // busca por costumbre, y el clic derecho bloquea directo, que es la única de
