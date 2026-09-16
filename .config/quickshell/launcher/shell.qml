@@ -4,6 +4,7 @@ import QtQuick.Layouts
 import Quickshell
 import Quickshell.Wayland
 import Quickshell.Widgets
+import "shared"
 
 PanelWindow {
     id: root
@@ -25,41 +26,11 @@ PanelWindow {
         right: true
     }
 
-    // --- Glassmorphism ---------------------------------------------------
-    // La paleta sale de waybar (~/Projects/set-up/.config/waybar/style.css) y
-    // no al revés: la barra es la referencia y no se toca, así que lo que
-    // flota sobre el escritorio se ajusta a ella. Allí el cuerpo es
-    // rgba(0, 0, 0, 0.7), el texto es blanco y el color sólo aparece en los
-    // estados (verde "algo está sonando", naranja, rojo). Aquí no hay estados
-    // que señalar, de modo que todo es blanco sobre negro translúcido.
-    //
-    // El material sigue siendo una lámina de vidrio: el cuerpo es negro
-    // translúcido con un degradado vertical —algo más denso arriba, donde la
-    // lámina recoge la luz— y el canto es una lámina blanca aparte que va de
-    // brillante a casi invisible, como la luz resbalando por el borde.
-    //
-    // El alfa del cuerpo no puede bajar de 0.5: el layer_rule de
-    // ~/.config/hypr/hyprland.lua usa ignore_alpha = 0.5 y por debajo de ese
-    // umbral Hyprland deja de desenfocar esta superficie y el cristal se queda
-    // liso, sin el frosted.
-    readonly property color cGlassTop: Qt.rgba(0, 0, 0, 0.76)
-    readonly property color cGlassBottom: Qt.rgba(0, 0, 0, 0.64)
-
-    // Canto: blanco puro, igual que el borde de ventana de Hyprland. Sólo
-    // varía el alfa, y va mucho más contenido que sobre cristal claro porque
-    // un filo brillante sobre negro se lee como un subrayado.
-    readonly property color cEdgeTop: Qt.rgba(1, 1, 1, 0.30)
-    readonly property color cEdgeBottom: Qt.rgba(1, 1, 1, 0.08)
-
-    readonly property color cText: Qt.rgba(1, 1, 1, 0.78)
-    readonly property color cSelected: "#ffffff"
-    // Mismo atenuado que usa la barra para lo que está ahí pero no reclama la
-    // vista (#custom-power y #custom-expand-icon en reposo van a opacity 0.55).
-    readonly property color cMuted: Qt.rgba(1, 1, 1, 0.55)
-    // El resalte no es un color de marca: es otra lámina de cristal, blanca y
-    // casi transparente, encima de la anterior.
-    readonly property color cAccent: "#ffffff"
-    readonly property color cRule: Qt.rgba(1, 1, 1, 0.12)
+    // El cristal, el texto y la tipografía salen del Theme compartido
+    // (~/.config/quickshell/shared/Theme.qml), que llega por el symlink
+    // "shared" de este directorio. Allí está el porqué de cada valor, incluido
+    // el alfa mínimo de 0.5 que el ignore_alpha del layer_rule necesita para
+    // seguir desenfocando.
 
     property string query: ""
     property bool shown: false
@@ -133,11 +104,11 @@ PanelWindow {
         gradient: Gradient {
             GradientStop {
                 position: 0.0
-                color: root.cEdgeTop
+                color: Theme.edgeTop
             }
             GradientStop {
                 position: 1.0
-                color: root.cEdgeBottom
+                color: Theme.edgeBottom
             }
         }
 
@@ -153,11 +124,11 @@ PanelWindow {
             gradient: Gradient {
                 GradientStop {
                     position: 0.0
-                    color: root.cGlassTop
+                    color: Theme.glassTop
                 }
                 GradientStop {
                     position: 1.0
-                    color: root.cGlassBottom
+                    color: Theme.glassBottom
                 }
             }
         }
@@ -226,8 +197,8 @@ PanelWindow {
 
                 Text {
                     text: "›"
-                    color: root.cAccent
-                    font.family: "JetBrainsMono Nerd Font"
+                    color: Theme.accent
+                    font.family: Theme.font
                     font.pixelSize: 22
                 }
 
@@ -236,9 +207,9 @@ PanelWindow {
                     Layout.fillWidth: true
                     focus: true
                     placeholderText: "Buscar aplicación…"
-                    placeholderTextColor: root.cMuted
-                    color: root.cText
-                    font.family: "JetBrainsMono Nerd Font"
+                    placeholderTextColor: Theme.muted
+                    color: Theme.text
+                    font.family: Theme.font
                     font.pixelSize: 17
                     padding: 0
                     background: Rectangle {
@@ -271,7 +242,7 @@ PanelWindow {
             Rectangle {
                 Layout.fillWidth: true
                 implicitHeight: 1
-                color: root.cRule
+                color: Theme.rule
             }
 
             ScriptModel {
@@ -303,7 +274,7 @@ PanelWindow {
                 // de la superficie en vez de limitarse a colorearla.
                 highlight: Rectangle {
                     radius: 12
-                    color: Qt.rgba(root.cAccent.r, root.cAccent.g, root.cAccent.b, 0.14)
+                    color: Qt.rgba(Theme.accent.r, Theme.accent.g, Theme.accent.b, 0.14)
                     border.width: 1
                     border.color: Qt.rgba(1, 1, 1, 0.22)
                 }
@@ -364,8 +335,8 @@ PanelWindow {
                         Text {
                             Layout.fillWidth: true
                             text: row.modelData.name
-                            color: list.currentIndex === row.index ? root.cSelected : root.cText
-                            font.family: "JetBrainsMono Nerd Font"
+                            color: list.currentIndex === row.index ? Theme.strong : Theme.text
+                            font.family: Theme.font
                             font.pixelSize: 15
                             elide: Text.ElideRight
                         }

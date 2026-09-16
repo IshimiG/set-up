@@ -4,6 +4,7 @@ import QtQuick.Layouts
 import Quickshell
 import Quickshell.Wayland
 import Quickshell.Hyprland
+import "shared"
 
 // Recordatorio rápido: SUPER+R, se escribe cuándo y qué, y Enter lo programa.
 //
@@ -43,20 +44,11 @@ PanelWindow {
         right: true
     }
 
-    // --- Glassmorphism ---------------------------------------------------
-    // Mismos valores que el resto de superficies, que salen de waybar. El alfa
-    // del cuerpo no puede bajar de 0.5 o el layer_rule deja de desenfocar.
-    readonly property color cGlassTop: Qt.rgba(0, 0, 0, 0.76)
-    readonly property color cGlassBottom: Qt.rgba(0, 0, 0, 0.64)
-    readonly property color cEdgeTop: Qt.rgba(1, 1, 1, 0.30)
-    readonly property color cEdgeBottom: Qt.rgba(1, 1, 1, 0.08)
-    readonly property color cText: Qt.rgba(1, 1, 1, 0.78)
-    readonly property color cStrong: "#ffffff"
-    readonly property color cMuted: Qt.rgba(1, 1, 1, 0.55)
-    readonly property color cFaint: Qt.rgba(1, 1, 1, 0.35)
-    readonly property color cRule: Qt.rgba(1, 1, 1, 0.12)
-
-    readonly property string font: "JetBrainsMono Nerd Font"
+    // El cristal, el texto y la tipografía salen del Theme compartido
+    // (~/.config/quickshell/shared/Theme.qml), que llega por el symlink
+    // "shared" de este directorio. Allí está el porqué de cada valor, incluido
+    // el alfa mínimo de 0.5 que el ignore_alpha del layer_rule necesita para
+    // seguir desenfocando.
     readonly property int cardW: 460
     readonly property int pad: 22
 
@@ -110,11 +102,11 @@ PanelWindow {
         gradient: Gradient {
             GradientStop {
                 position: 0.0
-                color: root.cEdgeTop
+                color: Theme.edgeTop
             }
             GradientStop {
                 position: 1.0
-                color: root.cEdgeBottom
+                color: Theme.edgeBottom
             }
         }
 
@@ -143,11 +135,11 @@ PanelWindow {
             gradient: Gradient {
                 GradientStop {
                     position: 0.0
-                    color: root.cGlassTop
+                    color: Theme.glassTop
                 }
                 GradientStop {
                     position: 1.0
-                    color: root.cGlassBottom
+                    color: Theme.glassBottom
                 }
             }
         }
@@ -169,8 +161,8 @@ PanelWindow {
 
                 Text {
                     text: "󰀠"
-                    color: root.cMuted
-                    font.family: root.font
+                    color: Theme.muted
+                    font.family: Theme.font
                     font.pixelSize: 18
                 }
 
@@ -180,9 +172,9 @@ PanelWindow {
                     Layout.fillWidth: true
                     focus: true
                     placeholderText: "en 20m · mañana 9:00 · 18:30"
-                    placeholderTextColor: root.cFaint
-                    color: root.cStrong
-                    font.family: root.font
+                    placeholderTextColor: Theme.faint
+                    color: Theme.strong
+                    font.family: Theme.font
                     font.pixelSize: 16
                     padding: 0
                     background: Rectangle {
@@ -198,7 +190,7 @@ PanelWindow {
             Rectangle {
                 Layout.fillWidth: true
                 implicitHeight: 1
-                color: root.cRule
+                color: Theme.rule
             }
 
             // Qué.
@@ -207,9 +199,9 @@ PanelWindow {
 
                 Layout.fillWidth: true
                 placeholderText: "¿de qué te aviso?"
-                placeholderTextColor: root.cFaint
-                color: root.cText
-                font.family: root.font
+                placeholderTextColor: Theme.faint
+                color: Theme.text
+                font.family: Theme.font
                 font.pixelSize: 14
                 padding: 0
                 background: Rectangle {
@@ -230,8 +222,8 @@ PanelWindow {
                 Layout.topMargin: 4
                 horizontalAlignment: Text.AlignRight
                 text: root.listo ? "Enter para programar" : "Tab para pasar al texto"
-                color: root.cFaint
-                font.family: root.font
+                color: Theme.faint
+                font.family: Theme.font
                 font.pixelSize: 11
             }
         }

@@ -1,4 +1,16 @@
-@import "../omarchy/current/theme/waybar.css";
+/* Estilo de la barra.
+ *
+ * La paleta es la misma del resto del escritorio, cuya fuente de verdad está en
+ * ~/.config/quickshell/shared/Theme.qml. Esto es GTK y no puede leer QML, así
+ * que aquí los valores van repetidos a mano: es el último duplicado que queda,
+ * y se muere con waybar cuando la bandeja del sistema pase a Quickshell.
+ *
+ * Antes esto importaba una cadena de temas heredada de Omarchy que terminaba en
+ * waybar/colors.css, una paleta clara de macOS de otra época del escritorio. De
+ * ella sólo se usaban dos colores definidos, "background" y "primary", y el
+ * primero resolvía a blanco puro: los tooltips salían con fondo blanco y texto
+ * blanco, el del calendario incluido. La cadena entera está borrada.
+ */
 
 * {
   background-color: transparent;
@@ -14,11 +26,9 @@
 .modules-left,
 .modules-right,
 .modules-center {
-  background-color: @background;
   background: rgba(0, 0, 0, 0.7);
   padding-left: 10px;
   padding-right: 10px;
-  border-color: @primary;
 }
 
 #workspaces button {
@@ -32,9 +42,19 @@
   opacity: 0.5;
 }
 
+/* Los tooltips son ventanas GTK propias, no superficies de layer-shell, así que
+   Hyprland no las desenfoca. El negro va casi opaco (0.92) en vez del 0.76 del
+   cristal de los paneles: sin blur detrás, un 0.76 se enturbia con lo que haya
+   debajo. El aire pasa de 2px a 8px porque el tooltip del calendario es un
+   bloque monoespaciado y a 2px iba pegado al borde. */
 tooltip {
-  background-color: @background;
-  padding: 2px;
+  background-color: rgba(0, 0, 0, 0.92);
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  padding: 8px;
+}
+
+tooltip label {
+  color: rgba(255, 255, 255, 0.85);
 }
 
 /* ---------------------------------------------------------------- reloj --- */

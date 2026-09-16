@@ -3,6 +3,7 @@ import QtQuick.Layouts
 import Quickshell
 import Quickshell.Wayland
 import Quickshell.Hyprland
+import "shared"
 
 // Aviso de paquetes pendientes al iniciar sesión: una tarjeta colgada de la
 // parte de arriba de la pantalla con cuántas actualizaciones hay y un botón
@@ -50,16 +51,11 @@ PanelWindow {
 
     color: "transparent"
 
-    // --- Glassmorphism ---------------------------------------------------
-    // Mismos valores que el lanzador y el menú de sesión, que a su vez salen de
-    // waybar. Si cambias uno, cambia los tres.
-    readonly property color cGlassTop: Qt.rgba(0, 0, 0, 0.76)
-    readonly property color cGlassBottom: Qt.rgba(0, 0, 0, 0.64)
-    readonly property color cEdgeTop: Qt.rgba(1, 1, 1, 0.30)
-    readonly property color cEdgeBottom: Qt.rgba(1, 1, 1, 0.08)
-    readonly property color cText: Qt.rgba(1, 1, 1, 0.78)
-    readonly property color cSelected: "#ffffff"
-    readonly property color cMuted: Qt.rgba(1, 1, 1, 0.55)
+    // El cristal, el texto y la tipografía salen del Theme compartido
+    // (~/.config/quickshell/shared/Theme.qml), que llega por el symlink
+    // "shared" de este directorio. Allí está el porqué de cada valor, incluido
+    // el alfa mínimo de 0.5 que el ignore_alpha del layer_rule necesita para
+    // seguir desenfocando.
 
     readonly property int cardW: 320
     readonly property int pad: 22
@@ -131,11 +127,11 @@ PanelWindow {
         gradient: Gradient {
             GradientStop {
                 position: 0.0
-                color: root.cEdgeTop
+                color: Theme.edgeTop
             }
             GradientStop {
                 position: 1.0
-                color: root.cEdgeBottom
+                color: Theme.edgeBottom
             }
         }
 
@@ -168,11 +164,11 @@ PanelWindow {
             gradient: Gradient {
                 GradientStop {
                     position: 0.0
-                    color: root.cGlassTop
+                    color: Theme.glassTop
                 }
                 GradientStop {
                     position: 1.0
-                    color: root.cGlassBottom
+                    color: Theme.glassBottom
                 }
             }
         }
@@ -202,8 +198,8 @@ PanelWindow {
             Text {
                 Layout.alignment: Qt.AlignHCenter
                 text: root.total
-                color: root.cSelected
-                font.family: "JetBrainsMono Nerd Font"
+                color: Theme.strong
+                font.family: Theme.font
                 font.pixelSize: 54
                 font.bold: true
             }
@@ -211,8 +207,8 @@ PanelWindow {
             Text {
                 Layout.alignment: Qt.AlignHCenter
                 text: root.total === 1 ? "actualización" : "actualizaciones"
-                color: root.cText
-                font.family: "JetBrainsMono Nerd Font"
+                color: Theme.text
+                font.family: Theme.font
                 font.pixelSize: 13
             }
 
@@ -223,8 +219,8 @@ PanelWindow {
                 Layout.topMargin: 4
                 visible: root.aur > 0
                 text: root.repos + " repos  ·  " + root.aur + " AUR"
-                color: root.cMuted
-                font.family: "JetBrainsMono Nerd Font"
+                color: Theme.muted
+                font.family: Theme.font
                 font.pixelSize: 11
             }
 
@@ -259,15 +255,15 @@ PanelWindow {
 
                     Text {
                         text: "󰚰"
-                        color: root.cSelected
-                        font.family: "JetBrainsMono Nerd Font"
+                        color: Theme.strong
+                        font.family: Theme.font
                         font.pixelSize: 15
                     }
 
                     Text {
                         text: "Actualizar ahora"
-                        color: root.cSelected
-                        font.family: "JetBrainsMono Nerd Font"
+                        color: Theme.strong
+                        font.family: Theme.font
                         font.pixelSize: 13
                     }
                 }

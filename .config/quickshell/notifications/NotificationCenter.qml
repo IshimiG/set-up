@@ -4,6 +4,7 @@ import Quickshell
 import Quickshell.Widgets
 import Quickshell.Wayland
 import Quickshell.Hyprland
+import "shared"
 
 // El centro de notificaciones: el panel con lo que ya se ha ido de la pantalla.
 //

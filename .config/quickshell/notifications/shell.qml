@@ -5,6 +5,7 @@ import Quickshell.Io
 import Quickshell.Wayland
 import Quickshell.Hyprland
 import Quickshell.Services.Notifications
+import "shared"
 
 // Daemon de notificaciones del escritorio.
 //

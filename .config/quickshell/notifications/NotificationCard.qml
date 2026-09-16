@@ -3,6 +3,7 @@ import QtQuick.Layouts
 import Quickshell
 import Quickshell.Widgets
 import Quickshell.Services.Notifications
+import "shared"
 
 // Una notificación en pantalla: la lámina de cristal con el icono de la
 // aplicación, el título, el cuerpo y los botones de acción que la propia
