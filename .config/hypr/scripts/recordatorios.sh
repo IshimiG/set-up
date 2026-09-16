@@ -28,13 +28,45 @@ cuando_a_epoch() {
 	local texto=$1 ahora
 	ahora=$(date +%s)
 
-	# Las tildes y mayúsculas sobran para comparar.
+	# date entiende bastante inglés pero nada de español, así que lo poco que
+	# hace falta se traduce antes de pasárselo. Las mayúsculas sobran para
+	# comparar.
 	local limpio=${texto,,}
+	limpio=${limpio//pasado mañana/+2 days}
+	limpio=${limpio//pasado manana/+2 days}
 	limpio=${limpio//mañana/tomorrow}
 	limpio=${limpio//manana/tomorrow}
-	limpio=${limpio//pasado tomorrow/+2 days}
+	limpio=${limpio//hoy/today}
+
+	# Los días de la semana, para "el jueves que viene" y "viernes 18:00".
+	limpio=${limpio//lunes/monday}
+	limpio=${limpio//martes/tuesday}
+	limpio=${limpio//miércoles/wednesday}
+	limpio=${limpio//miercoles/wednesday}
+	limpio=${limpio//jueves/thursday}
+	limpio=${limpio//viernes/friday}
+	limpio=${limpio//sábado/saturday}
+	limpio=${limpio//sabado/saturday}
+	limpio=${limpio//domingo/sunday}
+
+	# "el jueves que viene" y "el próximo jueves" son la misma cosa para date,
+	# que lo escribe "next thursday".
+	limpio=${limpio// que viene/}
+	limpio=${limpio//próximo /}
+	limpio=${limpio//proximo /}
+	if [[ $texto == *"que viene"* || $texto == *"próximo"* || $texto == *"proximo"* ]]; then
+		limpio="next $limpio"
+	fi
+
+	limpio=${limpio//el /}
+	limpio=${limpio//las /}
+	limpio=${limpio//la /}
+	limpio=${limpio//a //}
 	limpio=${limpio//en /}
+	# Los recortes de arriba dejan espacios de más por el camino.
+	limpio=$(printf '%s' "$limpio" | tr -s ' ')
 	limpio=${limpio# }
+	limpio=${limpio% }
 
 	if [[ $limpio =~ ^([0-9]+)m(in(utos?)?)?$ ]]; then
 		printf '%s\n' "$((ahora + BASH_REMATCH[1] * 60))"

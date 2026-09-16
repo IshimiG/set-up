@@ -328,6 +328,15 @@ hl.bind(mainMod .. " + J", hl.dsp.layout("togglesplit")) -- dwindle only
 hl.bind(mainMod .. " + N", hl.dsp.exec_cmd("~/.config/hypr/scripts/notify-ctl.sh centro"))
 hl.bind(mainMod .. " + ALT + N", hl.dsp.exec_cmd("~/.config/hypr/scripts/notify-ctl.sh silencio"))
 
+-- Recordatorio rápido. Mismo interruptor que los demás: si ya está abierta, se
+-- cierra, en vez de apilar otra encima.
+hl.bind(
+	mainMod .. " + R",
+	hl.dsp.exec_cmd(
+		"sh -c 'if qs list --all 2>/dev/null | grep -q /reminder/shell.qml; then qs kill -c reminder; else qs -c reminder; fi'"
+	)
+)
+
 -- Move focus with mainMod + arrow keys
 hl.bind(mainMod .. " + left", hl.dsp.focus({ direction = "left" }))
 hl.bind(mainMod .. " + right", hl.dsp.focus({ direction = "right" }))
@@ -586,6 +595,15 @@ hl.layer_rule({
 hl.layer_rule({
 	name = "notifications-anim",
 	match = { namespace = "^notifications$" },
+	no_anim = true,
+	blur = true,
+	ignore_alpha = 0.5,
+})
+
+-- La ventana de recordatorio rápido, que anima su propia tarjeta.
+hl.layer_rule({
+	name = "reminder-anim",
+	match = { namespace = "^reminder$" },
 	no_anim = true,
 	blur = true,
 	ignore_alpha = 0.5,
