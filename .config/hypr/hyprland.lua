@@ -561,6 +561,18 @@ hl.layer_rule({
 	ignore_alpha = 0.5,
 })
 
+-- El aviso de paquetes pendientes es un disco centrado que anima su propia
+-- entrada, así que el compositor no debe animar la superficie. Mismo
+-- ignore_alpha que los otros dos, y por lo mismo: mantiene el desenfoque bajo
+-- el cristal del disco.
+hl.layer_rule({
+	name = "updates-anim",
+	match = { namespace = "^updates$" },
+	no_anim = true,
+	blur = true,
+	ignore_alpha = 0.5,
+})
+
 -- Hyprland-run windowrule
 hl.window_rule({
 	name = "move-hyprland-run",
@@ -581,5 +593,9 @@ hl.on("hyprland.start", function()
 	hl.exec_cmd("~/.local/bin/dotfiles-sync.sh")
 	hl.exec_cmd("pkill waybar; waybar")
 	hl.exec_cmd("pkill hyprpaper; hyprpaper")
+	-- Cuántos paquetes hay pendientes, en un disco en el centro de la
+	-- pantalla. El script espera a que haya red antes de contar y no enseña
+	-- nada si no hay ninguno, así que puede lanzarse sin más.
+	hl.exec_cmd("~/.config/hypr/scripts/updates-notify.sh")
 end)
 
