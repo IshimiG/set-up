@@ -5,7 +5,7 @@
   color: white;
 
   border: none;
-  border-radius: 10;
+  border-radius: 10px;
   min-height: 0;
   font-family: 'JetBrainsMono Nerd Font';
   font-size: 12px;
@@ -21,12 +21,6 @@
   border-color: @primary;
 }
 
-.modules-left { 
-}
-
-.modules-right {
-}
-
 #workspaces button {
   all: initial;
   padding: 0 6px;
@@ -38,83 +32,121 @@
   opacity: 0.5;
 }
 
-#cpu,
-#battery,
-#pulseaudio,
-#custom-omarchy,
-#custom-update {
-  min-width: 12px;
-  margin: 0 7.5px;
-}
-
-#tray {
-  margin-right: 16px;
-}
-
-#bluetooth {
-  margin-right: 17px;
-}
-
-#network {
-  margin-right: 13px;
-}
-
-#custom-expand-icon {
-  margin-right: 18px;
-}
-
 tooltip {
   background-color: @background;
   padding: 2px;
 }
 
-#custom-update {
-  font-size: 10px;
-}
+/* ---------------------------------------------------------------- reloj --- */
 
 #clock {
   margin-left: 8.75px;
+  padding: 0 2px;
 }
 
-#custom-weather {
-  margin-left: 7.5px;
-  margin-right: 7.5px;
+/* -------------------------------------------------------- bloque derecho --- */
+
+/* Separación uniforme para todo lo que ahora lleva cifra, no solo icono. */
+#custom-media,
+#pulseaudio,
+#cpu,
+#memory,
+#custom-gpu,
+#custom-mouse {
+  margin: 0 9px;
 }
 
-#custom-weather.unavailable {
-  min-width: 0;
-  margin: 0;
-  padding: 0;
+/* La CPU y su temperatura se leen como un único dato, así que van pegadas. */
+#cpu {
+  margin-right: 4px;
 }
 
-.hidden {
-  opacity: 0;
+#temperature {
+  margin: 0 9px 0 0;
 }
 
-#custom-screenrecording-indicator,
-#custom-idle-indicator,
-#custom-notification-silencing-indicator {
-  min-width: 12px;
-  margin-left: 5px;
+/* Estados compartidos: naranja al apretar, rojo cuando ya duele. */
+#cpu.warning,
+#memory.warning,
+#custom-gpu.warning,
+#custom-mouse.warning {
+  color: #e59625;
+}
+
+#cpu.critical,
+#memory.critical,
+#temperature.critical,
+#custom-gpu.critical,
+#custom-mouse.critical {
+  color: #e90b25;
+}
+
+#custom-mouse.charging {
+  color: #6dc89e;
+}
+
+#custom-media {
+  color: #6dc89e;
+}
+
+/* En pausa el título sigue ahí pero deja de reclamar la vista. */
+#custom-media.paused {
+  color: white;
+  opacity: 0.5;
+}
+
+#pulseaudio.muted {
+  opacity: 0.45;
+}
+
+/* La bandeja va al final del bloque, ya sólo con el botón de sesión detrás.
+   Antes el expansor era un objetivo invisible: sin glifo no había forma de
+   saber que la bandeja se desplegaba pasando el ratón por ahí. */
+#custom-expand-icon {
+  margin-left: 12px;
   margin-right: 0;
-  font-size: 10px;
-  padding-bottom: 1px;
+  opacity: 0.55;
+  font-size: 11px;
 }
 
-#custom-screenrecording-indicator.active {
-  color: #a55555;
+#tray {
+  margin-left: 8px;
+  margin-right: 0;
 }
 
-#custom-idle-indicator.active,
-#custom-notification-silencing-indicator.active {
-  color: #a55555;
+/* Loopback de micrófono. Encendido va en el mismo verde que el reproductor,
+   porque ambos significan "algo está sonando ahora mismo"; apagado se atenúa
+   como el pulseaudio silenciado, para que siga siendo clicable sin pesar. */
+#custom-loopback {
+  margin: 0 9px;
 }
 
-#custom-voxtype {
-  min-width: 12px;
-  margin: 0 0 0 7.5px;
+#custom-loopback.on {
+  color: #6dc89e;
 }
 
-#custom-voxtype.recording {
-  color: #a55555;
+#custom-loopback.off {
+  opacity: 0.45;
+}
+
+/* Botón de sesión: cierra la barra pegado al borde derecho. En reposo va
+   atenuado como el expansor de la bandeja, porque es un botón que casi nunca
+   se pulsa y no debe competir con la telemetría; al pasar por encima se
+   enciende en el mismo rojo que los estados críticos, para que quede claro
+   que detrás hay algo que apaga el equipo. */
+#custom-power {
+  margin-left: 14px;
+  margin-right: 0;
+  padding: 0 2px;
+  font-size: 13px;
+  opacity: 0.55;
+}
+
+/* Encendido mientras el menú está abierto, no sólo bajo el ratón: el menú
+   cuelga visualmente de este botón, así que el botón tiene que seguir siendo
+   su origen aunque el cursor se haya ido a elegir una opción. */
+#custom-power:hover,
+#custom-power.open {
+  color: #e90b25;
+  opacity: 1;
 }
