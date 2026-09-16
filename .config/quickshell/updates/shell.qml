@@ -4,13 +4,14 @@ import Quickshell
 import Quickshell.Wayland
 import Quickshell.Hyprland
 
-// Aviso de paquetes pendientes al iniciar sesión: un disco en el centro de la
-// pantalla con cuántas actualizaciones hay.
+// Aviso de paquetes pendientes al iniciar sesión: una tarjeta colgada de la
+// parte de arriba de la pantalla con cuántas actualizaciones hay y un botón
+// para lanzarlas.
 //
 // Las cuentas no se hacen aquí. Las trae ya hechas
 // ~/.config/hypr/scripts/updates-notify.sh en dos variables de entorno, y ese
-// script sólo arranca esta configuración cuando hay algo que contar. Así el
-// disco nunca aparece para decir que no hay nada, ni se queda un rato con un
+// script sólo arranca esta configuración cuando hay algo que contar. Así la
+// tarjeta nunca aparece para decir que no hay nada, ni se queda un rato con un
 // "comprobando…" mientras checkupdates habla con los servidores.
 PanelWindow {
     id: root
@@ -25,10 +26,14 @@ PanelWindow {
     WlrLayershell.keyboardFocus: WlrKeyboardFocus.None
     exclusionMode: ExclusionMode.Ignore
 
-    // Sin anclas: el compositor centra la superficie. Y la superficie es sólo
-    // un poco mayor que el disco, no la pantalla entera, para no quedarse con
-    // los clics del resto del escritorio durante los segundos que dura.
-    implicitWidth: 300
+    // Anclada sólo arriba: el compositor la centra horizontalmente y la deja
+    // colgando del borde superior, por debajo de la barra. La superficie es
+    // algo mayor que la tarjeta para que el rebote de la animación no se corte
+    // contra su propio borde, y no ocupa la pantalla entera para no quedarse
+    // con los clics del resto del escritorio.
+    anchors.top: true
+    margins.top: 38
+    implicitWidth: 420
     implicitHeight: 300
 
     screen: {
@@ -56,10 +61,18 @@ PanelWindow {
     readonly property color cSelected: "#ffffff"
     readonly property color cMuted: Qt.rgba(1, 1, 1, 0.55)
 
-    readonly property int diameter: 220
+    readonly property int cardW: 320
+    readonly property int pad: 22
+
+    // Actualiza repos y AUR de una vez. No lleva sudo delante a propósito:
+    // paru lo pide por su cuenta cuando le hace falta y se niega a arrancar
+    // como root, porque compilar paquetes del AUR con privilegios es
+    // justamente lo que no se debe hacer. La terminal se queda abierta al
+    // terminar para poder leer lo que ha pasado.
+    readonly property string updateCmd: "paru -Syu; printf '\\n'; read -r -p 'Pulsa Enter para cerrar… '"
 
     // Las cuentas llegan por entorno. Un valor que no se pueda leer cuenta
-    // como cero en vez de dejar un "NaN" en mitad del disco.
+    // como cero en vez de dejar un "NaN" en mitad de la tarjeta.
     function count(name) {
         const raw = parseInt(Quickshell.env(name), 10);
         return isNaN(raw) ? 0 : raw;
@@ -78,6 +91,11 @@ PanelWindow {
         quitTimer.start();
     }
 
+    function runUpdate() {
+        Quickshell.execDetached(["ghostty", "--title=Actualizar", "-e", "bash", "-c", root.updateCmd]);
+        root.dismiss();
+    }
+
     Component.onCompleted: root.shown = true
 
     Timer {
@@ -86,11 +104,12 @@ PanelWindow {
         onTriggered: Qt.quit()
     }
 
-    // Se va solo. Ocho segundos son suficientes para leer un número de dos
-    // cifras sin que el aviso llegue a estorbar.
+    // Se va sola, pero no mientras el ratón esté encima: con un botón dentro,
+    // desaparecer justo cuando vas a pulsarlo sería lo peor que podría hacer.
+    // Al apartar el ratón vuelve a contar desde cero, que es tiempo de sobra.
     Timer {
-        running: true
-        interval: 8000
+        running: !cardHover.hovered
+        interval: 20000
         onTriggered: root.dismiss()
     }
 
@@ -99,12 +118,15 @@ PanelWindow {
     // única forma de conseguir un borde con degradado en QML, porque un
     // Rectangle solo admite un border.color plano.
     Rectangle {
-        id: disc
+        id: card
 
-        anchors.centerIn: parent
-        width: root.diameter
-        height: root.diameter
-        radius: width / 2
+        anchors.horizontalCenter: parent.horizontalCenter
+        anchors.top: parent.top
+        anchors.topMargin: 10
+
+        width: root.cardW
+        height: content.implicitHeight + root.pad * 2
+        radius: 20
 
         gradient: Gradient {
             GradientStop {
@@ -117,14 +139,18 @@ PanelWindow {
             }
         }
 
-        scale: root.shown ? 1 : 0.7
+        // Cae desde el borde de arriba: el origen de la escala es la parte
+        // superior, así que la tarjeta se despliega hacia abajo en vez de
+        // crecer desde su centro.
+        transformOrigin: Item.Top
+        scale: root.shown ? 1 : 0.86
         opacity: root.shown ? 1 : 0
 
         Behavior on scale {
             NumberAnimation {
                 duration: root.shown ? 440 : 200
                 easing.type: root.shown ? Easing.OutBack : Easing.InCubic
-                easing.overshoot: 2.6
+                easing.overshoot: 2.2
             }
         }
         Behavior on opacity {
@@ -137,7 +163,7 @@ PanelWindow {
         Rectangle {
             anchors.fill: parent
             anchors.margins: 1
-            radius: width / 2
+            radius: Math.max(0, card.radius - 1)
 
             gradient: Gradient {
                 GradientStop {
@@ -151,8 +177,26 @@ PanelWindow {
             }
         }
 
+        HoverHandler {
+            id: cardHover
+        }
+
+        // Un clic en la tarjeta la quita de en medio sin esperar al plazo. El
+        // botón está por delante y se queda con los suyos, así que pulsarlo no
+        // cuenta como descartar.
+        MouseArea {
+            anchors.fill: parent
+            acceptedButtons: Qt.LeftButton | Qt.RightButton | Qt.MiddleButton
+            onPressed: root.dismiss()
+        }
+
         ColumnLayout {
-            anchors.centerIn: parent
+            id: content
+
+            anchors.left: parent.left
+            anchors.right: parent.right
+            anchors.top: parent.top
+            anchors.margins: root.pad
             spacing: 2
 
             Text {
@@ -160,7 +204,7 @@ PanelWindow {
                 text: root.total
                 color: root.cSelected
                 font.family: "JetBrainsMono Nerd Font"
-                font.pixelSize: 58
+                font.pixelSize: 54
                 font.bold: true
             }
 
@@ -176,22 +220,67 @@ PanelWindow {
             // con todo viniendo de los repos, la línea no diría nada nuevo.
             Text {
                 Layout.alignment: Qt.AlignHCenter
-                Layout.topMargin: 6
+                Layout.topMargin: 4
                 visible: root.aur > 0
                 text: root.repos + " repos  ·  " + root.aur + " AUR"
                 color: root.cMuted
                 font.family: "JetBrainsMono Nerd Font"
                 font.pixelSize: 11
             }
-        }
 
-        // Un clic en el disco lo quita de en medio sin esperar a que se cumpla
-        // el plazo. Va dentro del disco y no en la superficie entera para que
-        // el resto de la pantalla siga siendo del escritorio.
-        MouseArea {
-            anchors.fill: parent
-            acceptedButtons: Qt.LeftButton | Qt.RightButton | Qt.MiddleButton
-            onPressed: root.dismiss()
+            // El botón es otra lámina de cristal, una capa por encima: blanca y
+            // casi transparente, con un filo que la levanta de la superficie.
+            Rectangle {
+                id: button
+
+                Layout.fillWidth: true
+                Layout.topMargin: 16
+                implicitHeight: 40
+                radius: 12
+
+                color: Qt.rgba(1, 1, 1, buttonHover.hovered ? 0.20 : 0.10)
+                border.width: 1
+                border.color: Qt.rgba(1, 1, 1, buttonHover.hovered ? 0.38 : 0.20)
+
+                Behavior on color {
+                    ColorAnimation {
+                        duration: 120
+                    }
+                }
+                Behavior on border.color {
+                    ColorAnimation {
+                        duration: 120
+                    }
+                }
+
+                RowLayout {
+                    anchors.centerIn: parent
+                    spacing: 9
+
+                    Text {
+                        text: "󰚰"
+                        color: root.cSelected
+                        font.family: "JetBrainsMono Nerd Font"
+                        font.pixelSize: 15
+                    }
+
+                    Text {
+                        text: "Actualizar ahora"
+                        color: root.cSelected
+                        font.family: "JetBrainsMono Nerd Font"
+                        font.pixelSize: 13
+                    }
+                }
+
+                HoverHandler {
+                    id: buttonHover
+                    cursorShape: Qt.PointingHandCursor
+                }
+
+                TapHandler {
+                    onTapped: root.runUpdate()
+                }
+            }
         }
     }
 }
