@@ -71,11 +71,67 @@ PanelWindow {
     readonly property int radiusPill: 10
     readonly property int radiusPanel: 18
 
-    readonly property int durOpen: 340
-    readonly property int durClose: 200
+    // --- Los tiempos y las curvas -----------------------------------------
+    // Salen del vocabulario que ya usa el escritorio en hyprland.lua, para que
+    // la isla no invente un ritmo propio:
+    //
+    //   - Lo que entra rebota una vez y se asienta. Allí es el muelle
+    //     "subtleBounce" (rigidez 200, amortiguación 19, razón de
+    //     amortiguamiento ~0.67), que se pasa del punto de reposo alrededor de
+    //     un 5 % y vuelve en el primer vaivén. Aquí se imita con OutBack, que
+    //     hace exactamente eso mismo y además tiene duración fija, que es lo que
+    //     permite que ancho, alto y radio vayan acompasados. Un muelle de
+    //     verdad (SpringAnimation) tiene duración emergente y las tres
+    //     dimensiones acabarían llegando en momentos distintos.
+    //   - Lo que sale NO rebota. Allí es el bezier "easeInOutQuint"; aquí,
+    //     InOutQuint. Un rebote al esconder algo se lee como un fallo.
+    //
+    // Las duraciones son las de las capas de Hyprland traducidas a
+    // milisegundos: su "speed" va en decisegundos, así que layersIn 4.2 son 420
+    // y layersOut 3 son 300. Así la isla y waybar entran y salen a la vez
+    // cuando se esconde la barra con SUPER+SHIFT+V.
+    readonly property int durOpen: 420
+    readonly property int durClose: 220
     // Reajustar de un contenido a otro va más rápido que abrir desde cero: la
     // isla ya está ahí, sólo cambia de tamaño.
-    readonly property int durMorph: 260
+    readonly property int durMorph: 300
+    readonly property int durHide: 300
+
+    // Cuánto se pasa del punto de reposo. Medido en la máquina: con 1.4, un panel
+    // de 388 px llega a 407 y vuelve, o sea un 4.9 % de más. Es justo el carácter
+    // del muelle "subtleBounce" de hyprland.lua, que se pasa alrededor de un 5 %.
+    readonly property real overshoot: 1.4
+
+    // --- Por qué la curva es una propiedad y no una expresión --------------
+    // Estas tres no se escriben directamente en los Behavior como
+    // `island.open ? A : B`. Se probó y estaba mal: al cerrar, la isla seguía
+    // usando la curva de abrir y se pasaba del reposo *hacia dentro*, con lo que
+    // la pastilla se encogía hasta 1 px y volvía a salir. Medido en el log:
+    // 309, 241, ... 4, 1, 1, 3, 8, ... 26.
+    //
+    // El motivo es que un Behavior lee las propiedades de su animación en el
+    // instante en que arranca, y arranca cuando se escribe el valor nuevo. Si la
+    // curva es otro binding que depende de lo mismo, no hay garantía de que se
+    // haya recalculado antes: QML no ordena las actualizaciones de bindings
+    // hermanos.
+    //
+    // La solución es fijarlas donde se calcula el destino, dentro del propio
+    // binding de la geometría. Un efecto lateral en un binding no es bonito,
+    // pero aquí es exactamente lo que hace falta: la escritura que dispara el
+    // Behavior ocurre *después* de que la expresión termine, así que cuando el
+    // Behavior mira, ya están puestas.
+    property int curva: Easing.OutBack
+    property int duracion: island.durOpen
+    property int curvaRevelado: Easing.OutBack
+    property int duracionRevelado: island.durOpen
+
+    // Devuelve el destino y, de paso, deja puestas la curva y la duración que le
+    // corresponden. Lo llaman los bindings de ancho y alto del cristal.
+    function conCurva(abierta, valor) {
+        island.curva = abierta ? Easing.OutBack : Easing.InOutQuint;
+        island.duracion = abierta ? (island.content !== "" ? island.durMorph : island.durOpen) : island.durClose;
+        return valor;
+    }
 
     WlrLayershell.namespace: "isla"
     // Top y no Overlay: esto es la barra, y tiene que comportarse como ella.
@@ -96,10 +152,34 @@ PanelWindow {
 
     color: "transparent"
 
-    // Escondida con SUPER+SHIFT+V. Un panel abierto la saca igualmente: si con
-    // la barra escondida se pide el historial con su atajo, lo que se quiere es
-    // verlo, no que no pase nada. Al cerrarlo vuelve a esconderse sola.
-    visible: !island.shell.hidden || island.open
+    // --- Esconder y sacar (SUPER+SHIFT+V) ----------------------------------
+    // Un panel abierto la saca igualmente: si con la barra escondida se pide el
+    // historial con su atajo, lo que se quiere es verlo, no que no pase nada. Al
+    // cerrarlo vuelve a esconderse sola.
+    readonly property bool wanted: !island.shell.hidden || island.open
+
+    // El estado de la animación, de 0 (escondida) a 1 (fuera). No se puede
+    // atar "visible" directamente a "wanted": poner visible a false destruye la
+    // superficie de layer-shell al instante y no habría nada que animar. Así que
+    // la superficie se mantiene viva mientras queda algo que enseñar, y sólo
+    // desaparece cuando la animación ha terminado de verdad.
+    property real reveal: {
+        // Mismo truco que en la geometría: la curva se fija aquí, donde se
+        // calcula el valor, no en un binding hermano dentro del Behavior.
+        island.curvaRevelado = island.wanted ? Easing.OutBack : Easing.InOutQuint;
+        island.duracionRevelado = island.wanted ? island.durOpen : island.durHide;
+        return island.wanted ? 1 : 0;
+    }
+
+    Behavior on reveal {
+        NumberAnimation {
+            duration: island.duracionRevelado
+            easing.type: island.curvaRevelado
+            easing.overshoot: island.overshoot
+        }
+    }
+
+    visible: island.reveal > 0.001
 
     // La máscara de entrada es justo el cristal. Todo lo que caiga fuera le
     // llega al escritorio como si esta superficie no existiera, y sigue a la
@@ -156,8 +236,8 @@ PanelWindow {
 
         // Crece simétricamente alrededor del centro de la pantalla, así que la
         // hora no se mueve de su sitio mientras el cristal se abre a los lados.
-        width: island.open ? Math.max(pill.implicitWidth + island.pillPad * 2, island.panelW) : pill.implicitWidth + island.pillPad * 2
-        height: island.open ? island.pillH + island.panelH : island.pillH
+        width: island.conCurva(island.open, island.open ? Math.max(pill.implicitWidth + island.pillPad * 2, island.panelW) : pill.implicitWidth + island.pillPad * 2)
+        height: island.conCurva(island.open, island.open ? island.pillH + island.panelH : island.pillH)
         radius: island.open ? island.radiusPanel : island.radiusPill
         clip: true
 
@@ -172,24 +252,39 @@ PanelWindow {
             }
         }
 
-        // El despliegue. Un solo Behavior por dimensión, con la duración
-        // dependiendo de qué está pasando: abrir desde cero se toma su tiempo,
-        // cerrar es más seco, y reajustar de un contenido a otro va en medio.
+        // Esconderse y salir: se va hacia arriba, por detrás del borde de la
+        // pantalla, igual que hace waybar con su animación de capa "slide". No
+        // se anima el ancho ni el alto aquí, sólo la posición y la opacidad, de
+        // modo que esconder una isla desplegada no la obliga además a encogerse.
+        opacity: island.reveal
+        transform: Translate {
+            y: -(1 - island.reveal) * (island.marginTop + glassEdge.height + 6)
+        }
+
+        // El despliegue. Un solo Behavior por dimensión, con la duración y la
+        // curva dependiendo de qué está pasando: abrir desde cero rebota una vez
+        // y se asienta, reajustar de un contenido a otro hace lo mismo un poco
+        // más rápido, y cerrar baja liso, sin rebote.
         Behavior on width {
             NumberAnimation {
-                duration: island.open ? (island.content !== "" ? island.durMorph : island.durOpen) : island.durClose
-                easing.type: island.open ? Easing.OutCubic : Easing.InOutCubic
+                duration: island.duracion
+                easing.type: island.curva
+                easing.overshoot: island.overshoot
             }
         }
         Behavior on height {
             NumberAnimation {
-                duration: island.open ? (island.content !== "" ? island.durMorph : island.durOpen) : island.durClose
-                easing.type: island.open ? Easing.OutCubic : Easing.InOutCubic
+                duration: island.duracion
+                easing.type: island.curva
+                easing.overshoot: island.overshoot
             }
         }
+        // El radio no rebota aunque lo hagan el ancho y el alto: un borde que se
+        // pasa de redondo y vuelve no se lee como elasticidad, se lee como que
+        // la esquina parpadea.
         Behavior on radius {
             NumberAnimation {
-                duration: island.open ? island.durOpen : island.durClose
+                duration: island.duracion
                 easing.type: Easing.OutCubic
             }
         }
@@ -253,6 +348,22 @@ PanelWindow {
             anchors.bottom: parent.bottom
             clip: true
 
+            // El contenido entra empujado desde arriba, como si lo soltara la
+            // propia pastilla, y llega con el mismo rebote que el cristal. Va en
+            // el contenedor y no en cada panel porque los tres se mueven igual y
+            // sólo uno está visible a la vez.
+            transform: Translate {
+                y: island.open ? 0 : -10
+
+                Behavior on y {
+                    NumberAnimation {
+                        duration: island.duracion
+                        easing.type: island.curva
+                        easing.overshoot: island.overshoot
+                    }
+                }
+            }
+
             CalendarPanel {
                 id: calendar
                 anchors.fill: parent
@@ -261,7 +372,7 @@ PanelWindow {
                 visible: opacity > 0
                 Behavior on opacity {
                     NumberAnimation {
-                        duration: 160
+                        duration: 200
                         easing.type: Easing.OutCubic
                     }
                 }
@@ -275,7 +386,7 @@ PanelWindow {
                 visible: opacity > 0
                 Behavior on opacity {
                     NumberAnimation {
-                        duration: 160
+                        duration: 200
                         easing.type: Easing.OutCubic
                     }
                 }
@@ -289,7 +400,7 @@ PanelWindow {
                 visible: opacity > 0
                 Behavior on opacity {
                     NumberAnimation {
-                        duration: 160
+                        duration: 200
                         easing.type: Easing.OutCubic
                     }
                 }
