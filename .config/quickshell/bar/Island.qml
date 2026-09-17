@@ -96,6 +96,11 @@ PanelWindow {
 
     color: "transparent"
 
+    // Escondida con SUPER+SHIFT+V. Un panel abierto la saca igualmente: si con
+    // la barra escondida se pide el historial con su atajo, lo que se quiere es
+    // verlo, no que no pase nada. Al cerrarlo vuelve a esconderse sola.
+    visible: !island.shell.hidden || island.open
+
     // La máscara de entrada es justo el cristal. Todo lo que caiga fuera le
     // llega al escritorio como si esta superficie no existiera, y sigue a la
     // isla mientras se anima porque se declara por Item y no por rectángulo.

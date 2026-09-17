@@ -454,7 +454,11 @@ hl.bind(mainMod .. " + T", hl.dsp.window.float({ action = "toggle" }))
 -- process really destroys and re-creates the surface, which is what makes the
 -- layersOut/layersIn animations above run. Waybar maps its surface again about
 -- 90ms after launch, so the rebound starts essentially on keypress.
-hl.bind(mainMod .. " + SHIFT + V", hl.dsp.exec_cmd("sh -c 'pkill -x waybar || waybar'"))
+-- Esconder y sacar la barra entera. Ya no basta con apagar waybar: el bloque
+-- central es la isla de Quickshell, que es otra capa de layer-shell, y las dos
+-- mitades tienen que irse juntas. El script se encarga de mantenerlas
+-- emparejadas.
+hl.bind(mainMod .. " + SHIFT + V", hl.dsp.exec_cmd(os.getenv("HOME") .. "/.config/hypr/scripts/barra.sh"))
 
 -- SUPER + C centers the window (close is now on SUPER + W above)
 hl.bind(mainMod .. " + C", hl.dsp.window.center())

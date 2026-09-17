@@ -35,6 +35,19 @@ ShellRoot {
 
     readonly property bool open: root.mode !== ""
 
+    // La barra escondida a mano, con SUPER+SHIFT+V. Es el mismo atajo que apaga
+    // y enciende waybar, porque las dos mitades de la barra tienen que irse
+    // juntas: esconder sólo una dejaría los escritorios y la telemetría
+    // flotando sin nada en medio.
+    property bool hidden: false
+
+    function toggleHidden() {
+        root.hidden = !root.hidden;
+        if (root.hidden)
+            root.close();
+        return root.hidden;
+    }
+
     function toggle(screenName, which) {
         if (root.mode === which && root.modeScreen === screenName) {
             root.close();
@@ -249,6 +262,17 @@ ShellRoot {
         // de un toggle sólo dice qué pasó en ese instante.
         function state(): string {
             return (root.mode === "" ? "cerrada" : root.mode) + " " + root.modeScreen;
+        }
+
+        // Esconder y sacar la barra. Devuelve en cuál de los dos estados se ha
+        // quedado, para que quien llame pueda dejar a waybar igual: la isla es
+        // la que decide y waybar la sigue, así no se pueden desparejar.
+        function toggleBar(): string {
+            return root.toggleHidden() ? "oculta" : "visible";
+        }
+
+        function barState(): string {
+            return root.hidden ? "oculta" : "visible";
         }
 
         function toggleCenter(): string {
