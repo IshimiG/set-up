@@ -16,8 +16,6 @@ set -uo pipefail
 SCHEMA_DIR="$HOME/.local/share/glib-2.0/schemas"
 SCHEMA="org.gnome.shell.extensions.loopback-toggle"
 LATENCY_MSEC=25
-# SIGRTMIN+8: waybar redibuja el módulo al instante en vez de esperar al poll.
-WAYBAR_SIGNAL=8
 VOLUME_STEP=0.05
 VOLUME_MAX=2.0
 
@@ -99,20 +97,13 @@ is_active() {
 	[[ -n $(loopback_modules) ]]
 }
 
-refresh_waybar() {
-	pkill -RTMIN+$WAYBAR_SIGNAL waybar 2>/dev/null
-	return 0
-}
-
 cmd_on() {
 	start && gset loopback-enabled true
-	refresh_waybar
 }
 
 cmd_off() {
 	unload_all
 	gset loopback-enabled false
-	refresh_waybar
 }
 
 cmd_toggle() {
@@ -128,7 +119,6 @@ cmd_toggle() {
 cmd_restore() {
 	unload_all
 	[[ $(gget loopback-enabled) == true ]] && start
-	refresh_waybar
 }
 
 cmd_volume() {
@@ -144,7 +134,6 @@ cmd_volume() {
 	for mod in $(loopback_modules); do
 		apply_volume "$mod"
 	done
-	refresh_waybar
 }
 
 cmd_status() {
@@ -155,9 +144,15 @@ cmd_status() {
 	fi
 }
 
-# Salida para waybar. El módulo se queda siempre visible (atenuado en apagado)
-# porque si se ocultara no habría dónde hacer clic para encenderlo.
-cmd_waybar() {
+# Estado en JSON para la barra (~/.config/quickshell/bar/Telemetry.qml). El
+# módulo se queda siempre visible, atenuado cuando está apagado, porque si se
+# ocultara no habría dónde hacer clic para encenderlo.
+#
+# Antes este subcomando se llamaba "waybar" y además mandaba SIGRTMIN+8 para que
+# la barra se redibujara al instante. Las dos cosas se fueron con ella: la barra
+# de Quickshell se entera de los cambios de fuera por su suscripción a
+# `pactl subscribe`, y de los suyos propios porque es quien los provoca.
+cmd_json() {
 	local state icon tooltip
 	if is_active; then
 		state=on
@@ -184,9 +179,9 @@ restore) cmd_restore ;;
 up) cmd_volume "$VOLUME_STEP" ;;
 down) cmd_volume "-$VOLUME_STEP" ;;
 status) cmd_status ;;
-waybar) cmd_waybar ;;
+json) cmd_json ;;
 *)
-	echo "uso: ${0##*/} {on|off|toggle|restore|up|down|status|waybar}" >&2
+	echo "uso: ${0##*/} {on|off|toggle|restore|up|down|status|json}" >&2
 	exit 1
 	;;
 esac

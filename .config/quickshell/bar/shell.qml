@@ -3,6 +3,7 @@ import Quickshell
 import Quickshell.Io
 import Quickshell.Hyprland
 import Quickshell.Services.Notifications
+import Quickshell.Services.SystemTray
 import "shared"
 
 // La isla central de la barra, y todo lo que sale de ella.
@@ -271,6 +272,10 @@ ShellRoot {
             return root.toggleHidden() ? "oculta" : "visible";
         }
 
+        function trayCount(): string {
+            return SystemTray.items.values.length + "";
+        }
+
         function barState(): string {
             return root.hidden ? "oculta" : "visible";
         }
@@ -305,17 +310,52 @@ ShellRoot {
 
     // --- Las superficies ---------------------------------------------------
 
-    // Una isla por monitor, desde un solo proceso. Esto es lo que quita de raíz
-    // la carrera que tenía waybar con los módulos duplicados: no hay dos
-    // lectores de nada porque no hay dos procesos.
+    // Las lecturas de la barra: cpu, memoria, temperatura, gpu, ratón y el
+    // loopback del micrófono. Una sola vez para los dos monitores.
+    Telemetry {
+        id: telemetria
+
+        shell: root
+    }
+
+    // Las tres piezas de la barra, una terna por monitor y todas desde este
+    // proceso. Esto es lo que quita de raíz la carrera que tenía waybar con los
+    // módulos duplicados: no hay dos lectores de nada porque no hay dos
+    // procesos.
+    //
+    // Son tres superficies de layer-shell y no una porque cada una se ancla a un
+    // sitio distinto y la del centro tiene que poder crecer; unirlas obligaría a
+    // una única superficie a pantalla completa con una máscara de tres huecos,
+    // que es más difícil de seguir y no gana nada.
     Variants {
         model: Quickshell.screens
 
-        Island {
+        Scope {
             required property var modelData
 
-            screen: modelData
-            shell: root
+            // La franja que reserva el hueco de la barra. Va aparte porque
+            // ninguna de las otras tres puede hacerlo: están ancladas a los
+            // cuatro lados y layer-shell entonces ignora la zona exclusiva.
+            Strut {
+                screen: modelData
+                shell: root
+            }
+
+            WorkspacesBlock {
+                screen: modelData
+                shell: root
+            }
+
+            Island {
+                screen: modelData
+                shell: root
+            }
+
+            TelemetryBlock {
+                screen: modelData
+                shell: root
+                tel: telemetria
+            }
         }
     }
 

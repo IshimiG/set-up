@@ -78,7 +78,7 @@ local menu = "sh -c 'if qs list --all 2>/dev/null | grep -q /launcher/shell.qml;
 -- module-loopback huérfano: dos cargados a la vez suenan con eco metálico
 -- (comb filtering), que fue el fallo original de este montaje en GNOME.
 hl.on("hyprland.start", function()
-	hl.exec_cmd(os.getenv("HOME") .. "/.config/waybar/scripts/loopback.sh restore")
+	hl.exec_cmd(os.getenv("HOME") .. "/.config/hypr/scripts/loopback.sh restore")
 end)
 
 -------------------------------
@@ -389,7 +389,7 @@ hl.bind(
 -- Es el mismo toggle que el glifo del micro en la barra. L de loopback.
 hl.bind(
 	mainMod .. " + SHIFT + L",
-	hl.dsp.exec_cmd(os.getenv("HOME") .. "/.config/waybar/scripts/loopback.sh toggle")
+	hl.dsp.exec_cmd(os.getenv("HOME") .. "/.config/hypr/scripts/loopback.sh toggle")
 )
 hl.bind("XF86MonBrightnessUp", hl.dsp.exec_cmd("brightnessctl -e4 -n2 set 5%+"), { locked = true, repeating = true })
 hl.bind("XF86MonBrightnessDown", hl.dsp.exec_cmd("brightnessctl -e4 -n2 set 5%-"), { locked = true, repeating = true })
@@ -448,16 +448,14 @@ hl.bind(mainMod .. " + SHIFT + ALT + X", hl.dsp.exec_cmd(browser .. ' --new-wind
 -- Toggle floating (moved here from SUPER + V)
 hl.bind(mainMod .. " + T", hl.dsp.window.float({ action = "toggle" }))
 
--- Show/hide waybar. Waybar's own SIGUSR1 hide only sets the GTK window's
--- opacity to 0 and leaves the layer surface mapped, so Hyprland never sees it
--- appear or disappear and cannot animate it. Stopping and restarting the
--- process really destroys and re-creates the surface, which is what makes the
--- layersOut/layersIn animations above run. Waybar maps its surface again about
--- 90ms after launch, so the rebound starts essentially on keypress.
--- Esconder y sacar la barra entera. Ya no basta con apagar waybar: el bloque
--- central es la isla de Quickshell, que es otra capa de layer-shell, y las dos
--- mitades tienen que irse juntas. El script se encarga de mantenerlas
--- emparejadas.
+-- Esconder y sacar la barra entera. Ya no hay procesos que matar: la barra son
+-- cuatro superficies de un mismo Quickshell, y esconderse es una propiedad que
+-- anima el cristal hacia arriba. El script sólo se lo pide.
+--
+-- Cuando la barra era waybar había que matarla y volver a lanzarla para que se
+-- animara: su propio SIGUSR1 sólo pone la ventana GTK a opacidad cero y deja la
+-- superficie mapeada, así que Hyprland nunca la veía aparecer ni desaparecer y
+-- no podía animar nada.
 hl.bind(mainMod .. " + SHIFT + V", hl.dsp.exec_cmd(os.getenv("HOME") .. "/.config/hypr/scripts/barra.sh"))
 
 -- SUPER + C centers the window (close is now on SUPER + W above)
@@ -545,15 +543,6 @@ hl.window_rule({
 -- })
 -- overlayLayerRule:set_enabled(false)
 
--- Curve/speed come from the global layersIn/layersOut spring above (see
--- "LOOK AND FEEL"); only the per-namespace style differs here, since
--- hl.animation() only accepts Hyprland's fixed set of animation leaves.
-hl.layer_rule({
-	name = "waybar-anim",
-	match = { namespace = "^waybar$" },
-	animation = "slide",
-})
-
 -- The launcher is a fullscreen transparent Quickshell surface that animates its
 -- own card in QML, so the compositor must not animate the surface itself.
 -- ignore_alpha keeps the blur on the card (alpha 0.72) and off the dim layer
@@ -633,11 +622,9 @@ hl.window_rule({
 -----------------------
 
 -- Pulls github.com/IshimiG/set-up on every Hyprland start so the
--- symlinked configs in ~/.config stay in sync with the git repo,
--- then (re)starts waybar with that synced config.
+-- symlinked configs in ~/.config stay in sync with the git repo.
 hl.on("hyprland.start", function()
 	hl.exec_cmd("~/.local/bin/dotfiles-sync.sh")
-	hl.exec_cmd("pkill waybar; waybar")
 	hl.exec_cmd("pkill hyprpaper; hyprpaper")
 	-- La isla central de la barra, que lleva dentro el daemon de
 	-- notificaciones. Va antes que nada de lo que pueda querer notificar: es

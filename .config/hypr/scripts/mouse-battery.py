@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Waybar custom/mouse: nivel de batería del Razer Viper V3 Pro SE.
+"""Nivel de batería del Razer Viper V3 Pro SE, para la barra.
 
 OpenRazer no cubre este ratón (su PID, 0x00df, no está ni en master: la lista
 llega hasta 0x00d7), así que en vez de un módulo DKMS que no lo detectaría
@@ -30,20 +30,24 @@ CRITICAL_AT = 15
 ATTEMPTS = 3
 RETRY_DELAY = 0.15
 
-# Waybar dibuja una barra por monitor y cada barra ejecuta su propia copia de
-# este script, las dos a la vez. Dos procesos hablando con el mismo nodo hidraw
-# se pisan: uno escribe su petición encima de la del otro y al leer recoge una
-# respuesta que no es la suya, con estado correcto pero la batería a cero. El
-# resultado era un 0% rojo en una pantalla y el valor real en la otra.
+# Historia de por qué hay un cerrojo aquí: waybar dibujaba una barra por monitor
+# y cada barra ejecutaba su propia copia de este script, las dos a la vez. Dos
+# procesos hablando con el mismo nodo hidraw se pisan —uno escribe su petición
+# encima de la del otro y al leer recoge una respuesta que no es la suya, con
+# estado correcto pero la batería a cero—, y el resultado era un 0% rojo en una
+# pantalla y el valor real en la otra.
 #
-# El cerrojo serializa las consultas y la caché hace que la segunda barra
-# reutilice la lectura de la primera en vez de volver a despertar al ratón. El
-# TTL es algo menor que el intervalo del módulo (60 s) para que cada ciclo
-# siga trayendo un dato fresco.
+# Ese problema ya no existe: la barra es un solo proceso de Quickshell y llama a
+# esto una vez. El cerrojo y la caché se quedan de todas formas, porque no
+# cuestan nada y protegen de que cualquier otra cosa —una prueba a mano, un
+# script futuro— vuelva a hablar con el ratón a la vez.
+#
+# El TTL es algo menor que el intervalo con que lo llama la barra (60 s) para que
+# cada ciclo siga trayendo un dato fresco.
 CACHE_TTL = 45
 _RUNTIME_DIR = os.environ.get("XDG_RUNTIME_DIR") or "/tmp"
-LOCK_PATH = os.path.join(_RUNTIME_DIR, "waybar-mouse-battery.lock")
-CACHE_PATH = os.path.join(_RUNTIME_DIR, "waybar-mouse-battery.json")
+LOCK_PATH = os.path.join(_RUNTIME_DIR, "mouse-battery.lock")
+CACHE_PATH = os.path.join(_RUNTIME_DIR, "mouse-battery.json")
 
 
 def _ioctl_feature(direction: int, length: int) -> int:
