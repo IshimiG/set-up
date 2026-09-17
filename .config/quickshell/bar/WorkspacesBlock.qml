@@ -125,11 +125,23 @@ SideBlock {
 
             TapHandler {
                 onTapped: {
-                    if (punto.ws)
+                    if (punto.ws) {
                         punto.ws.activate();
+                        return;
+                    }
+                    // Un persistente que todavía no existe: se crea al ir a él,
+                    // que es lo que hacía "on-click: activate" en waybar. Aquí
+                    // no hay objeto al que pedírselo, así que va por despacho.
+                    //
+                    // Y el despacho depende de cómo esté escrita la
+                    // configuración de Hyprland: con hyprlang se manda el nombre
+                    // del dispatcher de siempre, pero esta máquina usa Lua
+                    // (~/.config/hypr/hyprland.lua) y entonces Hyprland evalúa
+                    // lo que le llega como una expresión Lua. Mandarle
+                    // "workspace 3" da un error de sintaxis y no pasa nada.
+                    if (Hyprland.usingLua)
+                        Hyprland.dispatch("hl.dsp.focus({ workspace = " + punto.modelData.id + " })");
                     else
-                        // Un persistente que todavía no existe: se crea al ir a
-                        // él, que es lo que hacía "on-click: activate".
                         Hyprland.dispatch("workspace " + punto.modelData.id);
                 }
             }

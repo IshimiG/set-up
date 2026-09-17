@@ -181,11 +181,65 @@ PanelWindow {
 
     visible: island.reveal > 0.001
 
-    // La máscara de entrada es justo el cristal. Todo lo que caiga fuera le
-    // llega al escritorio como si esta superficie no existiera, y sigue a la
-    // isla mientras se anima porque se declara por Item y no por rectángulo.
-    mask: Region {
-        item: glassEdge
+    // La máscara de entrada es justo el cristal: todo lo que caiga fuera le llega
+    // al escritorio como si esta superficie no existiera.
+    //
+    // Va atada a la geometría propiedad por propiedad y NO con `item: glassEdge`,
+    // aunque eso último sea más corto. Con `item` la máscara se queda con el
+    // tamaño que tenía el cristal al crearse —el de la pastilla, 26 px de alto—
+    // y no vuelve a mirarlo: la isla se desplegaba bien pero el ratón no llegaba
+    // al panel, ni para pulsar ni para resaltar la fila bajo el cursor. Atada
+    // así, cada fotograma de la animación reevalúa el binding.
+    // La máscara de entrada es justo el cristal: todo lo que caiga fuera le llega
+    // al escritorio como si esta superficie no existiera.
+    //
+    // Va atada a la geometría propiedad por propiedad y NO con `item: glassEdge`,
+    // que sería más corto: con `item` la máscara se queda con el tamaño que
+    // tenía el cristal al crearse —el de la pastilla, 26 px de alto— y no vuelve
+    // a mirarlo, de modo que la isla se desplegaba bien pero el ratón no llegaba
+    // al panel. Atada así, cada fotograma de la animación reevalúa el binding.
+    // --- La máscara de entrada ---------------------------------------------
+    // La superficie ocupa la pantalla entera, así que sin máscara se comería
+    // todos los clics del escritorio. Pero la máscara no puede seguir a la
+    // geometría del cristal mientras se anima: se probaron las dos formas
+    // —`item: glassEdge` y atar x/y/width/height— y con la isla desplegada el
+    // ratón no llegaba al panel, ni para pulsar ni para resaltar la fila de
+    // debajo. La región se queda con el tamaño que tenía al crearse.
+    //
+    // Así que la máscara cambia por ESTADO y no por fotograma, que es una
+    // asignación normal de propiedad y no depende de que una región reaccione:
+    //
+    //   - Desplegada, la máscara es la ventana entera. Es exactamente la
+    //     configuración del lanzador (~/.config/quickshell/launcher/), que lleva
+    //     funcionando desde antes de todo esto: una superficie a pantalla
+    //     completa que recibe todo. Que los clics de fuera no lleguen al
+    //     escritorio es lo correcto además, porque ese clic es el que cierra.
+    //   - Plegada, un rectángulo fijo y generoso centrado sobre la franja de la
+    //     barra. Fijo a propósito: la pastilla cambia de ancho sola —"mié 17" y
+    //     "jueves 1" no miden lo mismo— y una máscara que tuviera que seguir eso
+    //     tendría el mismo problema. El sobrante cae dentro de los 29 px que la
+    //     barra ya reserva, donde no hay ventanas a las que robarles nada, y se
+    //     queda corto para no pisar los bloques laterales.
+    mask: island.open ? regionAbierta : regionPastilla
+
+    Region {
+        id: regionAbierta
+
+        x: 0
+        y: 0
+        width: island.width
+        height: island.height
+    }
+
+    Region {
+        id: regionPastilla
+
+        readonly property int ancho: 460
+
+        x: Math.round((island.width - regionPastilla.ancho) / 2)
+        y: 0
+        width: regionPastilla.ancho
+        height: island.marginTop + island.pillH + 2
     }
 
     // Clic en cualquier otro sitio: cierra. No hace falta un MouseArea a

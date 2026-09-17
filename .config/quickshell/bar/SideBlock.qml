@@ -90,8 +90,26 @@ PanelWindow {
 
     color: "transparent"
 
+    // La máscara de entrada, por el mismo motivo y con la misma forma que en la
+    // isla: una región no vuelve a mirar la geometría después de crearse, así
+    // que no puede seguir a la pastilla. Y aquí la pastilla cambia de ancho a
+    // menudo —cada vez que cambia el título de lo que suena, y al desplegarse la
+    // bandeja—.
+    //
+    // La solución es repartir la franja de la barra en tres zonas fijas: el
+    // tercio izquierdo para un bloque, el derecho para el otro, y los 460 px del
+    // centro para la isla. Ninguna se solapa y ninguna necesita medir nada.
+    //
+    // El sobrante —la parte de la franja donde no hay pastilla— se queda sin
+    // pasar clics al escritorio, pero da igual: son los 29 px que la barra ya
+    // reserva, donde no hay ventanas.
+    readonly property int anchoIsla: 460
+
     mask: Region {
-        item: canto
+        x: block.derecha ? Math.round((block.width + block.anchoIsla) / 2) : 0
+        y: 0
+        width: Math.round((block.width - block.anchoIsla) / 2)
+        height: block.marginTop + block.pillH + 2
     }
 
     // La capa exterior es sólo el canto, con el cuerpo de cristal encima dejando
