@@ -10,14 +10,13 @@
   "modules-left": [
     "hyprland/workspaces"
   ],
-  // El reloj, y pegados a él la campana de notificaciones y el botón de
-  // sesión. Estaban al final del bloque derecho, detrás de toda la telemetría;
-  // aquí son lo que se busca a propósito, no algo que se lee de pasada.
-  "modules-center": [
-    "clock",
-    "custom/notifications",
-    "custom/power"
-  ],
+  // El centro está vacío a propósito. El reloj, la campana de notificaciones y
+  // el botón de sesión se han ido a la isla de Quickshell
+  // (~/.config/quickshell/bar/), que es una capa de layer-shell aparte dibujada
+  // sobre este mismo sitio. Se fueron porque tenían que crecer y convertirse en
+  // el panel, y un módulo de waybar es un GtkLabel dentro de un GtkBox en una
+  // capa de 26 px de alto: no puede salirse de la barra.
+  "modules-center": [],
   // Telemetría y periféricos; la bandeja cierra pegada al borde derecho.
   "modules-right": [
     "custom/media",
@@ -51,33 +50,6 @@
       "1": [],
       "2": [],
       "3": []
-    }
-  },
-  // El día y la fecha van atenuados y la hora a plena opacidad, para que la
-  // hora se lea de un vistazo y el resto quede como contexto. Clic izquierdo
-  // cambia a la fecha larga con número de semana, clic derecho alterna la vista
-  // del calendario entre mes y año, y la rueda mueve el mes mostrado.
-  "clock": {
-    "format": "<span alpha='55%'>{0:L%a %d}</span>  {0:L%H:%M}",
-    "format-alt": "{0:L%d %B %Y}<span alpha='55%'>  ·  semana {0:L%V}</span>",
-    "tooltip": true,
-    "tooltip-format": "<tt>{calendar}</tt>",
-    "calendar": {
-      "mode": "month",
-      "mode-mon-col": 3,
-      "weeks-pos": "left",
-      "format": {
-        "months": "<span color='#ffffff'><b>{}</b></span>",
-        "days": "<span color='#d6d6d6'>{}</span>",
-        "weeks": "<span color='#6dc89e'><b>W{}</b></span>",
-        "weekdays": "<span color='#40e0d0'><b>{}</b></span>",
-        "today": "<span color='#e59625'><b><u>{}</u></b></span>"
-      }
-    },
-    "actions": {
-      "on-click-right": "mode",
-      "on-scroll-up": "shift_up",
-      "on-scroll-down": "shift_down"
     }
   },
   // Lo que está sonando en cualquier reproductor MPRIS. El script va en modo
@@ -181,40 +153,6 @@
     "interval": 60,
     "format": "󰍽  {}"
   },
-  // Campana: clic abre el centro de notificaciones con el historial, clic
-  // derecho pone y quita el silencio. Sin intervalo, como el botón de sesión:
-  // el estado sólo cambia cuando uno lo cambia, y quien lo cambia avisa por
-  // SIGRTMIN+10.
-  "custom/notifications": {
-    "exec": "$HOME/.config/waybar/scripts/notifications.sh",
-    "return-type": "json",
-    "signal": 10,
-    "format": "{}",
-    "tooltip": true,
-    "on-click": "$HOME/.config/hypr/scripts/notify-ctl.sh centro",
-    "on-click-right": "$HOME/.config/hypr/scripts/notify-ctl.sh silencio"
-  },
-
-  // Botón de sesión: abre un menú con bloquear, suspender, cerrar sesión,
-  // reiniciar y apagar. Va el último de la barra porque es la esquina donde se
-  // busca por costumbre, y el clic derecho bloquea directo, que es la única de
-  // las cinco que se usa a diario.
-  //
-  // El texto es fijo, pero el módulo va por script para poder llevar la clase
-  // "open" mientras el menú está desplegado y que el botón siga encendido
-  // aunque el ratón se haya ido a otra parte. Sin intervalo: se redibuja sólo
-  // cuando le llega la señal (SIGRTMIN+9), que mandan el interruptor y el
-  // propio menú al cerrarse.
-  "custom/power": {
-    "exec": "$HOME/.config/waybar/scripts/power-state.sh",
-    "return-type": "json",
-    "signal": 9,
-    "format": "{}",
-    "tooltip": true,
-    "on-click": "$HOME/.config/waybar/scripts/power-menu.sh",
-    "on-click-right": "hyprlock"
-  },
-
   "group/tray-expander": {
     "orientation": "inherit",
     "drawer": {

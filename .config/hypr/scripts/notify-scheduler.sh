@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # El sistema de notificaciones mira el reloj aquí, y avisa por notify-send, que
-# es quien habla con el daemon de ~/.config/quickshell/notifications/shell.qml.
+# es quien habla con el daemon, que vive dentro de ~/.config/quickshell/bar/.
 #
 # El latido es cada media hora, no cada minuto: despertar sesenta veces por hora
 # para comprobar si ya toca algo es mucho gasto para lo poco que cambia. La

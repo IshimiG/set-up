@@ -562,20 +562,6 @@ hl.layer_rule({
 	ignore_alpha = 0.5,
 })
 
--- El menú de sesión de la barra es otra superficie Quickshell a pantalla
--- completa (~/.config/quickshell/powermenu/shell.qml) que anima su propia
--- tarjeta, así que el compositor tampoco debe animar la superficie. El
--- ignore_alpha es el mismo del lanzador y por el mismo motivo: mantiene el
--- desenfoque bajo el cristal (alfa 0.74) y lo quita del resto de la superficie,
--- que es transparente y sólo está ahí para recoger los clics de fuera.
-hl.layer_rule({
-	name = "powermenu-anim",
-	match = { namespace = "^powermenu$" },
-	no_anim = true,
-	blur = true,
-	ignore_alpha = 0.5,
-})
-
 -- El aviso de paquetes pendientes es un disco centrado que anima su propia
 -- entrada, así que el compositor no debe animar la superficie. Mismo
 -- ignore_alpha que los otros dos, y por lo mismo: mantiene el desenfoque bajo
@@ -609,6 +595,26 @@ hl.layer_rule({
 	ignore_alpha = 0.5,
 })
 
+-- La isla: el bloque central de la barra, que crece hasta convertirse en el
+-- panel del calendario, del historial de notificaciones o de la sesión.
+--
+-- Es una superficie a pantalla completa que no cambia nunca de tamaño; lo que
+-- se anima es el Item de dentro, en QML. Por eso no_anim: si el compositor
+-- animara también la superficie, la animación de capa se sumaría a la del
+-- cristal y el despliegue saldría con dos tiempos.
+--
+-- El ignore_alpha es el de siempre, y aquí importa especialmente: mantiene el
+-- desenfoque bajo el cristal y lo quita de todo lo demás, que es transparente y
+-- ni siquiera recibe los clics —la máscara de entrada de la isla los deja pasar
+-- al escritorio—.
+hl.layer_rule({
+	name = "isla-anim",
+	match = { namespace = "^isla$" },
+	no_anim = true,
+	blur = true,
+	ignore_alpha = 0.5,
+})
+
 -- Hyprland-run windowrule
 hl.window_rule({
 	name = "move-hyprland-run",
@@ -629,10 +635,15 @@ hl.on("hyprland.start", function()
 	hl.exec_cmd("~/.local/bin/dotfiles-sync.sh")
 	hl.exec_cmd("pkill waybar; waybar")
 	hl.exec_cmd("pkill hyprpaper; hyprpaper")
-	-- El daemon de notificaciones. Va antes que nada de lo que pueda querer
-	-- notificar: es quien toma org.freedesktop.Notifications en el bus, y sin
-	-- él ninguna aplicación puede avisar de nada.
-	hl.exec_cmd("qs -c notifications -d")
+	-- La isla central de la barra, que lleva dentro el daemon de
+	-- notificaciones. Va antes que nada de lo que pueda querer notificar: es
+	-- quien toma org.freedesktop.Notifications en el bus, y sin él ninguna
+	-- aplicación puede avisar de nada.
+	--
+	-- Antes esto arrancaba "qs -c notifications". El daemon se mudó dentro de
+	-- la barra porque el historial tiene que salir del mismo Item que la
+	-- campana para poder crecer desde ella, y eso exige el mismo proceso.
+	hl.exec_cmd("qs -c bar -d")
 	-- Cuántos paquetes hay pendientes, en una tarjeta colgada del borde de
 	-- arriba. El script espera a que haya red antes de contar y no enseña nada
 	-- si no hay ninguno, así que puede lanzarse sin más.

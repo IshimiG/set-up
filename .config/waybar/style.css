@@ -24,8 +24,7 @@
 }
 
 .modules-left,
-.modules-right,
-.modules-center {
+.modules-right {
   background: rgba(0, 0, 0, 0.7);
   padding-left: 10px;
   padding-right: 10px;
@@ -55,13 +54,6 @@ tooltip {
 
 tooltip label {
   color: rgba(255, 255, 255, 0.85);
-}
-
-/* ---------------------------------------------------------------- reloj --- */
-
-#clock {
-  margin-left: 8.75px;
-  padding: 0 2px;
 }
 
 /* -------------------------------------------------------- bloque derecho --- */
@@ -152,44 +144,7 @@ tooltip label {
   opacity: 0.45;
 }
 
-/* Campana de notificaciones. En reposo va atenuada como el resto de botones
-   que casi nunca se pulsan; con el silencio puesto se enciende en el naranja de
-   los avisos, porque un silencio olvidado es justo lo que conviene ver. */
-#custom-notifications {
-  margin-left: 14px;
-  margin-right: 2px;
-  padding: 0 2px;
-  font-size: 13px;
-  opacity: 0.55;
-}
-
-#custom-notifications:hover {
-  opacity: 1;
-}
-
-#custom-notifications.silent {
-  color: #e59625;
-  opacity: 1;
-}
-
-/* Botón de sesión: cierra la barra pegado al borde derecho. En reposo va
-   atenuado como el expansor de la bandeja, porque es un botón que casi nunca
-   se pulsa y no debe competir con la telemetría; al pasar por encima se
-   enciende en el mismo rojo que los estados críticos, para que quede claro
-   que detrás hay algo que apaga el equipo. */
-#custom-power {
-  margin-left: 8px;
-  margin-right: 2px;
-  padding: 0 2px;
-  font-size: 13px;
-  opacity: 0.55;
-}
-
-/* Encendido mientras el menú está abierto, no sólo bajo el ratón: el menú
-   cuelga visualmente de este botón, así que el botón tiene que seguir siendo
-   su origen aunque el cursor se haya ido a elegir una opción. */
-#custom-power:hover,
-#custom-power.open {
-  color: #e90b25;
-  opacity: 1;
-}
+/* El bloque central ya no lo dibuja waybar. El reloj, la campana y el botón de
+   sesión viven en la isla de Quickshell (~/.config/quickshell/bar/), que se
+   pinta sobre este mismo hueco desde otra capa de layer-shell. Se fueron porque
+   tenían que poder crecer hasta ser el panel, y aquí no podían. */

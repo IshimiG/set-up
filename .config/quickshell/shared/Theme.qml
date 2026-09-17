@@ -6,15 +6,23 @@ import Quickshell
 // Paleta y medidas del escritorio. Única fuente de verdad.
 //
 // Antes esto estaba copiado a mano en seis sitios: el CSS de waybar y las
-// propiedades `cAlgo` de launcher, powermenu, updates, reminder y
-// notifications. Cambiar un color significaba acordarse de los seis, y ya
-// habían empezado a divergir —el lanzador tenía un `cAccent` que los demás no,
-// y updates se había quedado sin `cRule`—. Ahora todos importan esto.
+// propiedades `cAlgo` de cada configuración de Quickshell —el lanzador, el menú
+// de sesión, el aviso de actualizaciones, el recordatorio rápido y las
+// notificaciones—. Cambiar un color significaba acordarse de los seis, y ya
+// habían empezado a divergir: el lanzador tenía un `cAccent` que los demás no,
+// y el aviso de actualizaciones se había quedado sin `cRule`. Ahora todos
+// importan esto.
 //
 // Sólo queda un duplicado fuera de aquí: waybar/style.css, porque es GTK y no
 // puede leer QML. Ese se muere con waybar cuando la bandeja del sistema pase a
 // Quickshell; hasta entonces, lo que se cambie aquí hay que replicarlo allí, y
 // el CSS lleva un comentario que apunta a este fichero.
+//
+// El enlace es un symlink "shared" dentro de cada directorio de configuración,
+// y tiene que apuntar a ../shared y no al repo: si apunta fuera de la raíz de
+// configuración, el vigilante de ficheros de Quickshell no sigue el symlink,
+// avisa de "unresolvable import" y se pierde la recarga en caliente al tocar
+// este fichero.
 Singleton {
     // --- Cristal ---------------------------------------------------------
     // El cuerpo es negro translúcido con un degradado vertical: algo más denso
