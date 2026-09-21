@@ -76,13 +76,47 @@ Singleton {
     readonly property int dropTop: 38
     readonly property int dropSide: 14
 
-    // Cuánto se queda en pantalla una notificación que no dice cuánto durar.
+    // Aire que las superficies que animan se dejan alrededor de su contenido.
+    // Sin él la superficie mide justo lo que la tarjeta y la animación se
+    // recorta a cuchillo contra su propio borde, que es exactamente lo que no
+    // debe verse: lo que sale de la pantalla se va, lo que choca contra un
+    // borde invisible parece un fallo.
+    //
+    // Hace falta por los cuatro lados, no sólo por donde la tarjeta entra: el
+    // rebote de OutBack pasa de largo *más allá* del sitio donde va a pararse y
+    // vuelve, así que una tarjeta que entra desde la derecha se sale unos
+    // píxeles por la izquierda antes de asentarse, y el encogido de salida
+    // crece un pelín antes de irse.
+    readonly property int slideRoom: 44
+
+    // --- Tiempos ---------------------------------------------------------
+    // Cuánto se queda en pantalla una notificación antes de recogerse sola.
+    // Diez segundos es el suelo de la casa: da tiempo a leerla de reojo sin
+    // tener que ir a por ella, y es tiempo de sobra para decidir si merece un
+    // clic. Se aplica también cuando la aplicación pide menos, porque muchas
+    // piden dos o tres segundos pensando en un escritorio donde el aviso es lo
+    // único que se mueve; aquí sale por un lado de la pantalla y hay que verlo
+    // llegar. Lo que sí se respeta es pedir *más*, y pedir cero —que en el
+    // protocolo significa "no te vayas sola"—.
+    readonly property int minTimeout: 10000
+
     // Las críticas no se van solas: si algo es crítico, se cierra a mano.
     function timeoutFor(urgency) {
         if (urgency === 2)
             return 0;
-        if (urgency === 0)
-            return 4000;
-        return 7000;
+        return minTimeout;
     }
+
+    // --- Animación -------------------------------------------------------
+    // El vocabulario de movimiento del escritorio, el mismo que los
+    // `animation` de ~/.config/hypr/hyprland.lua: lo que aparece rebota al
+    // llegar (OutBack, que pasa de largo y vuelve en el primer balanceo) y lo
+    // que se va toma carrerilla hacia el otro lado antes de salir (InBack, el
+    // mismo gesto leído al revés). La duración es fija en vez de un muelle de
+    // verdad para que varias propiedades animadas a la vez —escala, opacidad,
+    // altura— lleguen juntas.
+    readonly property int animIn: 420
+    readonly property int animOut: 300
+    readonly property real overshootIn: 1.9
+    readonly property real overshootOut: 1.5
 }

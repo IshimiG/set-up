@@ -209,26 +209,44 @@ PanelWindow {
     // Así que la máscara cambia por ESTADO y no por fotograma, que es una
     // asignación normal de propiedad y no depende de que una región reaccione:
     //
-    //   - Desplegada, la máscara es la ventana entera. Es exactamente la
-    //     configuración del lanzador (~/.config/quickshell/launcher/), que lleva
-    //     funcionando desde antes de todo esto: una superficie a pantalla
-    //     completa que recibe todo. Que los clics de fuera no lleguen al
-    //     escritorio es lo correcto además, porque ese clic es el que cierra.
+    //   - Desplegada, un rectángulo del tamaño que el panel va a tener cuando
+    //     termine de abrirse, centrado como él. No sigue la animación: sale de
+    //     las medidas del contenido, que no cambian mientras el cristal crece,
+    //     así que no depende de que la región reaccione fotograma a fotograma.
+    //     Durante los 420 ms de apertura la zona es algo mayor que el cristal,
+    //     y eso no se nota.
     //   - Plegada, un rectángulo fijo y generoso centrado sobre la franja de la
     //     barra. Fijo a propósito: la pastilla cambia de ancho sola —"mié 17" y
     //     "jueves 1" no miden lo mismo— y una máscara que tuviera que seguir eso
     //     tendría el mismo problema. El sobrante cae dentro de los 29 px que la
     //     barra ya reserva, donde no hay ventanas a las que robarles nada, y se
     //     queda corto para no pisar los bloques laterales.
+    //
+    // Que desplegada NO sea la pantalla entera es lo que hace que cerrar
+    // pulsando fuera funcione de verdad. Antes lo era, copiando al lanzador, y
+    // el resultado es que la isla se quedaba con todos los clics del
+    // escritorio: el de fuera no llegaba a ninguna otra ventana, y como quien
+    // avisa de que hay que cerrar es el focus grab de Hyprland —que sólo se
+    // entera cuando el foco se va a otra superficie—, el panel se quedaba
+    // abierto. Sólo se cerraba pulsando en la franja de arriba, por donde el
+    // clic sí salía de la máscara. Recortada al panel, cualquier clic fuera va
+    // a donde tenga que ir y el grab cierra.
     mask: island.open ? regionAbierta : regionPastilla
 
     Region {
         id: regionAbierta
 
-        x: 0
+        // El ancho del cristal abierto, sin la curva de la animación de por
+        // medio: el mayor entre la pastilla y el panel que se esté mostrando.
+        readonly property int ancho: Math.max(pill.implicitWidth + island.pillPad * 2, island.panelW)
+
+        x: Math.round((island.width - regionAbierta.ancho) / 2)
         y: 0
-        width: island.width
-        height: island.height
+        width: regionAbierta.ancho
+        // Desde el borde de arriba —el margen de la barra entra dentro, para no
+        // dejar una rendija muerta entre la pastilla y el canto de la
+        // pantalla— hasta el bajo del panel, con un par de píxeles de propina.
+        height: island.marginTop + island.pillH + island.panelH + 2
     }
 
     Region {

@@ -9,6 +9,13 @@ import "shared"
 // parte de arriba de la pantalla con cuántas actualizaciones hay y un botón
 // para lanzarlas.
 //
+// Tiene tres salidas, y conviene no confundirlas: el botón lanza la
+// actualización, un clic en el cristal la descarta —se acabó hasta el próximo
+// arranque— y la flecha de arriba sólo la esconde, dejando una pestañita
+// colgando para volver a bajarla. Esconder existe porque la tarjeta cae encima
+// de lo que sea que esté arrancando, y querer apartarla un momento no es lo
+// mismo que querer olvidarse de las actualizaciones.
+//
 // Las cuentas no se hacen aquí. Las trae ya hechas
 // ~/.config/hypr/scripts/updates-notify.sh en dos variables de entorno, y ese
 // script sólo arranca esta configuración cuando hay algo que contar. Así la
@@ -36,6 +43,15 @@ PanelWindow {
     margins.top: 38
     implicitWidth: 420
     implicitHeight: 300
+
+    // De esos 420x300 sólo recibe clics lo que de verdad se está viendo: la
+    // tarjeta, o la pestaña cuando está escondida. Sin esta máscara la
+    // superficie entera se quedaría con los clics de su rectángulo, que
+    // escondida es justo lo contrario de lo que se ha pedido: apartarla de en
+    // medio y seguir usando el escritorio que hay debajo.
+    mask: Region {
+        item: root.collapsed ? tab : card
+    }
 
     screen: {
         const focused = Hyprland.focusedMonitor;
@@ -80,6 +96,18 @@ PanelWindow {
 
     property bool shown: false
 
+    // Escondida no es lo mismo que descartada. Descartar cierra el aviso y con
+    // él este proceso: se acabó hasta el próximo arranque. Esconder lo recoge
+    // hacia arriba y deja colgando una pestañita para volver a bajarlo cuando
+    // interese, que es lo que hace falta cuando la tarjeta cae encima de algo
+    // que se estaba mirando pero las actualizaciones siguen ahí.
+    property bool collapsed: false
+
+    // Lo que se ve: la tarjeta sólo cuando está desplegada, y nunca ninguna de
+    // las dos antes de la animación de entrada o después de la de salida.
+    readonly property bool cardVisible: root.shown && !root.collapsed
+    readonly property bool tabVisible: root.shown && root.collapsed
+
     function dismiss() {
         if (!root.shown)
             return;
@@ -96,15 +124,22 @@ PanelWindow {
 
     Timer {
         id: quitTimer
-        interval: 220
+        // Lo justo para que la tarjeta termine de recogerse antes de que el
+        // proceso se vaya: si se cerrara antes, la salida se vería como un
+        // corte.
+        interval: Theme.animOut + 40
         onTriggered: Qt.quit()
     }
 
     // Se va sola, pero no mientras el ratón esté encima: con un botón dentro,
     // desaparecer justo cuando vas a pulsarlo sería lo peor que podría hacer.
     // Al apartar el ratón vuelve a contar desde cero, que es tiempo de sobra.
+    //
+    // Escondida a mano tampoco cuenta atrás: esconder algo es decir "ahora no",
+    // no "olvídalo", así que la pestaña espera ahí arriba todo lo que haga
+    // falta.
     Timer {
-        running: !cardHover.hovered
+        running: !cardHover.hovered && !root.collapsed
         interval: 20000
         onTriggered: root.dismiss()
     }
@@ -137,22 +172,38 @@ PanelWindow {
 
         // Cae desde el borde de arriba: el origen de la escala es la parte
         // superior, así que la tarjeta se despliega hacia abajo en vez de
-        // crecer desde su centro.
+        // crecer desde su centro. Y se recoge por donde vino, encogiendo hacia
+        // ese mismo borde, tanto al esconderla como al descartarla.
         transformOrigin: Item.Top
-        scale: root.shown ? 1 : 0.86
-        opacity: root.shown ? 1 : 0
+        scale: root.cardVisible ? 1 : 0.78
+        opacity: root.cardVisible ? 1 : 0
+        visible: opacity > 0
+
+        // Un empujón corto hacia arriba encima del encogido, para que se lea
+        // como meterse detrás de la barra y no como apagarse en el sitio.
+        transform: Translate {
+            y: root.cardVisible ? 0 : -14
+
+            Behavior on y {
+                NumberAnimation {
+                    duration: root.cardVisible ? Theme.animIn : Theme.animOut
+                    easing.type: root.cardVisible ? Easing.OutBack : Easing.InBack
+                    easing.overshoot: root.cardVisible ? Theme.overshootIn : Theme.overshootOut
+                }
+            }
+        }
 
         Behavior on scale {
             NumberAnimation {
-                duration: root.shown ? 440 : 200
-                easing.type: root.shown ? Easing.OutBack : Easing.InCubic
-                easing.overshoot: 2.2
+                duration: root.cardVisible ? Theme.animIn : Theme.animOut
+                easing.type: root.cardVisible ? Easing.OutBack : Easing.InBack
+                easing.overshoot: root.cardVisible ? 2.2 : Theme.overshootOut
             }
         }
         Behavior on opacity {
             NumberAnimation {
-                duration: root.shown ? 160 : 200
-                easing.type: Easing.OutCubic
+                duration: root.cardVisible ? 160 : Theme.animOut - 60
+                easing.type: root.cardVisible ? Easing.OutCubic : Easing.InCubic
             }
         }
 
@@ -177,13 +228,50 @@ PanelWindow {
             id: cardHover
         }
 
-        // Un clic en la tarjeta la quita de en medio sin esperar al plazo. El
-        // botón está por delante y se queda con los suyos, así que pulsarlo no
-        // cuenta como descartar.
+        // Un clic en la tarjeta la quita de en medio sin esperar al plazo. Va
+        // con z negativo, por detrás de todo lo demás, para que el botón y la
+        // flecha de esconder —que están por delante— se queden con los suyos y
+        // pulsarlos no cuente como descartar.
         MouseArea {
             anchors.fill: parent
+            z: -1
             acceptedButtons: Qt.LeftButton | Qt.RightButton | Qt.MiddleButton
             onPressed: root.dismiss()
+        }
+
+        // La flecha de esconder, centrada en el aire que deja el relleno
+        // superior. En reposo es apenas una marca: está para encontrarla
+        // cuando se la busca, no para competir con la cifra que hay debajo.
+        Text {
+            id: collapseArrow
+
+            anchors.horizontalCenter: parent.horizontalCenter
+            anchors.top: parent.top
+            anchors.topMargin: 6
+
+            text: "󰅃"
+            color: collapseHover.hovered ? Theme.strong : Theme.faint
+            font.family: Theme.font
+            font.pixelSize: 16
+
+            Behavior on color {
+                ColorAnimation {
+                    duration: 120
+                }
+            }
+
+            // El glifo es estrecho y queda demasiado arriba para acertarle:
+            // esto le da un área de clic cómoda sin agrandar el dibujo.
+            HoverHandler {
+                id: collapseHover
+                margin: 10
+                cursorShape: Qt.PointingHandCursor
+            }
+
+            TapHandler {
+                margin: 10
+                onTapped: root.collapsed = true
+            }
         }
 
         ColumnLayout {
@@ -277,6 +365,98 @@ PanelWindow {
                     onTapped: root.runUpdate()
                 }
             }
+        }
+    }
+
+    // Lo que queda cuando la tarjeta se esconde: una lengüeta colgando del
+    // mismo borde, con la flecha al revés. Mide lo justo para verse y para
+    // acertarle, y es el único trozo de la superficie que recibe clics
+    // mientras está escondida.
+    //
+    // Se pinta con el mismo doble Rectangle que la tarjeta —el canto fuera, el
+    // cristal dentro dejando 1px— porque es la misma lámina, sólo que casi
+    // toda ella metida detrás de la barra.
+    Rectangle {
+        id: tab
+
+        anchors.horizontalCenter: parent.horizontalCenter
+        anchors.top: parent.top
+        anchors.topMargin: 10
+
+        width: 58
+        height: 22
+        radius: 11
+
+        gradient: Gradient {
+            GradientStop {
+                position: 0.0
+                color: Theme.edgeTop
+            }
+            GradientStop {
+                position: 1.0
+                color: Theme.edgeBottom
+            }
+        }
+
+        transformOrigin: Item.Top
+        scale: root.tabVisible ? 1 : 0.6
+        opacity: root.tabVisible ? 1 : 0
+        visible: opacity > 0
+
+        Behavior on scale {
+            NumberAnimation {
+                duration: root.tabVisible ? Theme.animIn : Theme.animOut
+                easing.type: root.tabVisible ? Easing.OutBack : Easing.InBack
+                easing.overshoot: root.tabVisible ? 2.2 : Theme.overshootOut
+            }
+        }
+        Behavior on opacity {
+            NumberAnimation {
+                duration: root.tabVisible ? 160 : Theme.animOut - 60
+                easing.type: root.tabVisible ? Easing.OutCubic : Easing.InCubic
+            }
+        }
+
+        Rectangle {
+            anchors.fill: parent
+            anchors.margins: 1
+            radius: Math.max(0, tab.radius - 1)
+
+            gradient: Gradient {
+                GradientStop {
+                    position: 0.0
+                    color: Theme.glassTop
+                }
+                GradientStop {
+                    position: 1.0
+                    color: Theme.glassBottom
+                }
+            }
+        }
+
+        Text {
+            anchors.centerIn: parent
+            text: "󰅀"
+            color: tabHover.hovered ? Theme.strong : Theme.muted
+            font.family: Theme.font
+            font.pixelSize: 15
+
+            Behavior on color {
+                ColorAnimation {
+                    duration: 120
+                }
+            }
+        }
+
+        HoverHandler {
+            id: tabHover
+            cursorShape: Qt.PointingHandCursor
+        }
+
+        // Volver a bajarla es sólo dejar de esconderla: la tarjeta sigue
+        // montada detrás, con sus cuentas intactas.
+        TapHandler {
+            onTapped: root.collapsed = false
         }
     }
 }

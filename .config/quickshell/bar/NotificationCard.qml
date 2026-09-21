@@ -22,14 +22,16 @@ Item {
     implicitWidth: Theme.cardWidth
     implicitHeight: body.implicitHeight
 
-    // Las críticas no se van solas; el resto respeta el plazo que pida la
-    // aplicación, y si no pide ninguno se le da el de su urgencia.
+    // Las críticas no se van solas; el resto se queda el plazo que pida la
+    // aplicación, pero nunca menos del suelo de Theme.minTimeout, y si no pide
+    // ninguno se le da el de su urgencia. Pedir cero sigue significando
+    // "no te vayas sola".
     readonly property int timeout: {
         if (card.history)
             return 0;
         const asked = card.notif.expireTimeout;
         if (asked > 0)
-            return asked;
+            return Math.max(asked, Theme.minTimeout);
         if (asked === 0)
             return 0;
         return Theme.timeoutFor(card.notif.urgency);

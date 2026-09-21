@@ -72,7 +72,8 @@ PanelWindow {
 
     Timer {
         id: quitTimer
-        interval: 180
+        // Lo justo para que termine de encogerse antes de que el proceso se vaya.
+        interval: 340
         onTriggered: Qt.quit()
     }
 
@@ -110,20 +111,24 @@ PanelWindow {
             }
         }
 
-        scale: root.shown ? 1 : 0.88
+        // Entra rebotando y se va encogiendo con el mismo gesto leído al revés,
+        // que es el vocabulario del resto del escritorio: lo que aparece se
+        // pasa de largo y vuelve, y lo que se va coge carrerilla antes de
+        // irse.
+        scale: root.shown ? 1 : 0.82
         opacity: root.shown ? 1 : 0
 
         Behavior on scale {
             NumberAnimation {
-                duration: root.shown ? 380 : 170
-                easing.type: root.shown ? Easing.OutBack : Easing.InCubic
-                easing.overshoot: 2.2
+                duration: root.shown ? 380 : Theme.animOut
+                easing.type: root.shown ? Easing.OutBack : Easing.InBack
+                easing.overshoot: root.shown ? 2.2 : Theme.overshootOut
             }
         }
         Behavior on opacity {
             NumberAnimation {
-                duration: root.shown ? 140 : 170
-                easing.type: Easing.OutCubic
+                duration: root.shown ? 140 : Theme.animOut - 60
+                easing.type: root.shown ? Easing.OutCubic : Easing.InCubic
             }
         }
 
