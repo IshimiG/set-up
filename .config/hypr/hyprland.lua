@@ -353,7 +353,15 @@ end
 
 -- Example special workspace (scratchpad)
 hl.bind(mainMod .. " + S", hl.dsp.workspace.toggle_special("magic"))
-hl.bind(mainMod .. " + SHIFT + S", hl.dsp.window.move({ workspace = "special:magic" }))
+-- SUPER+SHIFT+S is the screenshot shortcut (below), so sending a window to
+-- the scratchpad moved to SUPER+ALT+S.
+hl.bind(mainMod .. " + ALT + S", hl.dsp.window.move({ workspace = "special:magic" }))
+
+-- Screenshots, like Windows' snipping shortcut: drag a region, click a window
+-- or click the desktop for the whole monitor. Copied and saved to
+-- ~/Pictures/Screenshots; the notification offers editing it in satty.
+hl.bind(mainMod .. " + SHIFT + S", hl.dsp.exec_cmd("~/.config/hypr/scripts/captura.sh"))
+hl.bind("Print", hl.dsp.exec_cmd("~/.config/hypr/scripts/captura.sh"))
 
 -- Scroll through existing workspaces with mainMod + scroll
 hl.bind(mainMod .. " + mouse_down", hl.dsp.focus({ workspace = "e+1" }))
