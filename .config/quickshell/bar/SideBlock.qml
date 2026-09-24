@@ -30,6 +30,10 @@ PanelWindow {
     // por encima; vacío significa que no hay globo.
     property string pista: ""
 
+    // The module that owns the current tooltip, so the tooltip can hang
+    // centred under it instead of pinned to the pill's outer edge.
+    property Item pistaDe: null
+
     readonly property int pillH: 26
     readonly property int pillPad: 12
     readonly property int marginTop: 3
@@ -181,8 +185,32 @@ PanelWindow {
 
         anchors.top: canto.bottom
         anchors.topMargin: 8
-        anchors.left: block.derecha ? undefined : canto.left
-        anchors.right: block.derecha ? canto.right : undefined
+
+        // Centred under the module that asked for it, then clamped so it never
+        // runs off the screen edge. The pill's geometry is read explicitly so
+        // the binding re-runs when the pill grows or shrinks under it (a track
+        // title changing, the tray unfolding); mapToItem alone is not reactive.
+        x: {
+            const de = block.pistaDe;
+            const pillX = canto.x, pillW = canto.width;
+            if (!de)
+                return block.derecha ? pillX + pillW - globo.width : pillX;
+            const centro = de.mapToItem(globo.parent, de.width / 2, 0).x;
+            const minX = block.marginSide;
+            const maxX = block.width - block.marginSide - globo.width;
+            return Math.round(Math.max(minX, Math.min(maxX, centro - globo.width / 2)));
+        }
+
+        // Slides between neighbouring modules while it is showing; when it
+        // fades in from nothing it simply appears in place.
+        Behavior on x {
+            enabled: globo.opacity > 0.5
+            NumberAnimation {
+                duration: 260
+                easing.type: Easing.OutBack
+                easing.overshoot: 1.2
+            }
+        }
 
         width: textoPista.implicitWidth + 20
         height: textoPista.implicitHeight + 14

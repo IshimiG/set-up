@@ -130,10 +130,12 @@ SideBlock {
         Connections {
             target: encima
             function onHoveredChanged() {
-                if (encima.hovered)
+                if (encima.hovered) {
+                    root.pistaDe = mod;
                     root.pista = mod.pista;
-                else if (root.pista === mod.pista)
+                } else if (root.pista === mod.pista) {
                     root.pista = "";
+                }
             }
         }
 
@@ -428,10 +430,12 @@ SideBlock {
                             target: sobreIcono
                             function onHoveredChanged() {
                                 const p = icono.modelData.tooltipTitle || icono.modelData.title || icono.modelData.id;
-                                if (sobreIcono.hovered)
+                                if (sobreIcono.hovered) {
+                                    root.pistaDe = icono;
                                     root.pista = p;
-                                else if (root.pista === p)
+                                } else if (root.pista === p) {
                                     root.pista = "";
+                                }
                             }
                         }
 
