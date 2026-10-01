@@ -15,95 +15,74 @@ metadata:
 
 La raíz es `/home/ishimimain/Documents/notes/`. Toda nota nueva debe crearse dentro de esta jerarquía.
 
+Desde el 2026-10-01 el vault está organizado con carpetas numeradas (PARA:
+proyectos, áreas, recursos, archivo). La estructura, el porqué y las
+convenciones están en `99 Sistema/Organización del vault.md`.
+
 ### Árbol de directorios
 
 ```
 notes/
-├── Books/                           # Resúmenes y análisis de libros
-├── ContextIA/                       # Contexto para IA, configuraciones
-│   ├── learning/class/arch/         # Configuraciones de Arch/Omarchy
-├── Empresa/                         # Notas relacionadas con empresas
-├── Languages/Russian/               # Aprendizaje de ruso
-├── Learning/                        # Estudios y formación
-│   ├── CiberSeguridad/
-│   ├── Ciencias/
-│   │   ├── Fisica/
-│   │   └── Mathematics/            # Matemáticas (00 a 23)
-│   ├── Class/
-│   │   ├── Bachillerato/
-│   │   └── DAW/                    # Ciclo DAW
-│   │       ├── 1er/                # Primer año DAW
-│   │       │   ├── Data Base/
-│   │       │   ├── ED/             # Entornos de Desarrollo
-│   │       │   ├── English/
-│   │       │   ├── IPE/            # Formación y Orientación
-│   │       │   ├── Markup Language/ # HTML, CSS, JS, Angular
-│   │       │   ├── Programming/    # Java
-│   │       │   ├── Proyecto/       # Proyecto de curso
-│   │       │   └── Sistemas/       # Linux, Windows, Docker, Redes
-│   │       └── 2do/                # Segundo año DAW
-│   │           ├── Arch/
-│   │           ├── Desarrollo Web en entorno Servidor/
-│   │           ├── Despliegue de Aplicaciones Web/
-│   │           ├── IPE/
-│   │           └── Proyecto/
-│   ├── Piano/                      # Partituras y aprendizaje
-│   │   └── Scores/
-│   └── Programacion/               # Lenguajes varios
-│       ├── C++/
-│       ├── C Sharp/
-│       ├── Godot/
-│       └── Java/
-├── MentalHealth/                    # Notas personales de salud mental
-├── Projects/                        # Proyectos personales
-│   ├── JBH/                        # Suplementos y salud
-│   │   └── Suplementos-KB/
-│   ├── MACidification/
-├── Servidor/                        # Documentación del servidor homelab
-│   ├── nh/                         # Notas nuevas del servidor (AQUÍ)
-│   │   ├── index.md               # Índice general
-│   │   ├── 01-hardware.md         # Hardware Intel NUC
-│   │   ├── 02-sistema.md          # SO, kernel, particionado
-│   │   ├── 03-red.md              # Red local y VPN
-│   │   ├── 04-usuarios.md         # Usuarios y grupos
-│   │   ├── 05-ssh.md              # SSH hardening
-│   │   ├── 06-wireguard.md        # WireGuard (documentación detallada)
-│   │   ├── 07-firewall.md         # nftables
-│   │   ├── 08-fail2ban.md         # Fail2ban
-│   │   ├── 09-unattended-upgrades.md
-│   │   ├── 10-servicios.md        # Servicios activos
-│   │   ├── 11-acceso.md           # Guías de conexión
-│   │   ├── 12-comandos.md         # Comandos útiles
-│   │   └── 13-historial.md        # Historial de cambios
-│   └── viejo/                      # Notas antiguas del servidor
-├── That's me/                       # Diario personal, assessments, hábitos
-│   ├── Assessment/
-│   ├── hardware/
-│   ├── Illuminations/
-│   ├── Journal/
-│   │   ├── Habit/
-│   │   └── Reminder/
-│   └── notes/
-│       ├── Oldones/
-│       └── People/
-├── Work/                            # Trabajo
-│   ├── Exaequatio/
-│   ├── JJ/
-│   ├── Pizzeria Oceanografic/
-├── zHiden/                          # Notas ocultas/templates
-│   └── Templates/
+├── 00 Inicio.md                 # Página principal (se abre al arrancar; plugin Homepage)
+├── 01 Bandeja/                  # Lo que entra sin sitio; las notas nuevas se crean aquí por defecto
+├── 10 Proyectos/                # Cosas con final
+│   ├── 00 - Index.md
+│   ├── ListacAI/ · JBH/ (Supplementum, Suplementos-KB) · MACidification/
+│   └── Ideas/                   # Assatio, Exaequatio, IA Apuntes, Temperamentum, Godot…
+├── 20 Trabajo/                  # Registro de todo el trabajo hecho
+│   ├── 00 - Index.md
+│   ├── Empleos/                 # Adding Technology (actual), Pizzeria Oceanografic (anterior)
+│   ├── Clientes/                # Encargos: JJ (autorizaciones AAI, SGS), Alfredo
+│   ├── Shinobi Innovations/ · Exaequatio/
+│   ├── Empresa/                 # La empresa propia futura
+│   └── Yo/                      # Rutina, quién soy, From 0 to 1k
+├── 30 Áreas/                    # Lo que se mantiene, sin final
+│   ├── 00 - Index.md
+│   ├── Servidor/                # Documentación del homelab NUC (antes Servidor/nh)
+│   │   ├── index.md             # Índice: actualizarlo al añadir una nota
+│   │   ├── 01-hardware.md … 21-cloudflare-tunnel.md
+│   │   ├── 13-historial.md      # Registro de cambios del servidor
+│   │   ├── 19-panel-homelab.md  # Plan del panel de Docker
+│   │   └── 22-ecosistema.md     # Mapa del ecosistema personal (todos los bloques)
+│   ├── Escritorio/              # CachyOS + Hyprland: escritorio-torre, atajos-de-teclado, docker-en-cachyos, mirroring-movil
+│   └── IA/                      # Contexto para IA: me.md, skills-de-la-torre, documentacion
+├── 40 Aprendizaje/              # Todo lo estudiado
+│   ├── 00 - Index.md
+│   ├── Clase/                   # DAW (1er, 2do, con sus asignaturas) y Bachillerato: estructura del usuario, no reordenar
+│   ├── Ciencias/                # Fisica, Mathematics (00 a 23)
+│   ├── Programación/            # C++, C Sharp, Godot, Java, Python
+│   ├── Docker/ · Ciberseguridad/ · Piano/
+│   ├── Idiomas/                 # Russian
+│   └── Libros/                  # Resúmenes de libros, con 00 - Index
+├── 90 Archivo/                  # Notas de etapas anteriores, cada una con aviso de su época
+│   ├── 00 - Index.md
+│   ├── Homelab antiguo/         # Planes de mayo–julio 2026 (pfSense, AdGuard, RAG, n8n)
+│   ├── Escritorio Omarchy/
+│   └── Varios/
+├── 99 Sistema/
+│   ├── Organización del vault.md
+│   ├── Plantillas/              # Carpeta de plantillas de Obsidian
+│   └── Adjuntos/                # Imágenes y PDF; Obsidian guarda aquí lo pegado
+├── MentalHealth/                # PROHIBIDA (ver abajo)
+└── That's me/                   # PROHIBIDA (ver abajo); las notas diarias del usuario van a That's me/Journal
 ```
+
+Propiedades que usa la página de inicio (solo en las notas principales):
+`nombre`, `tipo` (proyecto | area | cliente | libro | guia | idea),
+`estado` (activo | pausado | idea | hecho | archivado) y `actualizado` (fecha).
 
 ## Reglas para crear notas
 
 1. **Todas las notas se crean dentro de `/home/ishimimain/Documents/notes/`**
 2. Usar formato Markdown con extensión `.md`
 3. Si el usuario no especifica la carpeta, preguntar o inferir por contexto
-4. Para el servidor homelab, usar `Servidor/nh/`. Actualizar `index.md` si se añade un archivo nuevo. WireGuard tiene documentación detallada en `06-wireguard.md`.
-5. Para proyectos personales, usar `Projects/<nombre-proyecto>/`
-6. Para estudio DAW, usar `Learning/Class/DAW/<curso>/<asignatura>/`
-7. Para notas personales, usar `That's me/`
-8. Preferir nombres de archivo descriptivos, en español o inglés según el contexto
+4. Para el servidor homelab, usar `30 Áreas/Servidor/`. Actualizar `index.md` si se añade un archivo nuevo y apuntar los cambios en `13-historial.md`.
+5. Para proyectos personales, usar `10 Proyectos/<nombre-proyecto>/`; una idea suelta, `10 Proyectos/Ideas/`. Si no está claro dónde va, `01 Bandeja/`
+6. Para trabajo (empleos, clientes, encargos), usar `20 Trabajo/`
+7. Para estudio DAW, usar `40 Aprendizaje/Clase/DAW/<curso>/<asignatura>/`; la estructura de DAW y Bachillerato por asignaturas es del usuario y no se reorganiza
+8. Lo que ya no está vigente no se borra: se mueve a `90 Archivo/` con un aviso arriba diciendo de qué época es y dónde está lo actual
+9. Al mover notas fuera de Obsidian (con `git mv`), reescribir los enlaces con ruta (`[[Carpeta/nota]]`) y comprobar que no queda ninguno roto; dentro de Obsidian se actualizan solos
+10. Preferir nombres de archivo descriptivos, en español o inglés según el contexto
 
 ## Carpetas prohibidas
 
