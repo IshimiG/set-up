@@ -134,6 +134,25 @@ GitHub. El orden importa y no es negociable:
 5. `git push` a `origin`, porque un cambio sin publicar es exactamente la
    pérdida contra la que esto protege.
 
+**Trabajos de varios pasos (desde el 2026-10-01): rama y PR, `main` limpio.**
+Cuando el trabajo en el vault tiene varios pasos (por ejemplo, una
+reorganización), no se llena `main` de commits. Se trabaja en una rama
+(`vault/<tema>`, creada desde `main` recién actualizado); **dentro de la rama se
+hacen todos los commits que haga falta** y se suben (`git push`) para no perder
+nada. Se abre una **pull request** contra `main` con `gh pr create` y, al
+terminar, el usuario la fusiona con *squash*, de modo que en `main` queda un
+solo commit. `main` no se toca hasta entonces. Fetch antes de empezar (y
+rebasar la rama sobre `origin/main` si avanzó) y comprobar que todo está bien
+siguen valiendo. Un cambio suelto y pequeño sigue el flujo de arriba.
+
+**La configuración de Obsidian (`.obsidian/`) está en git** (plugins, ajustes,
+temas), para que todos los dispositivos tengan lo mismo. Quedan fuera solo los
+ficheros de estado de cada dispositivo (`workspace.json`,
+`workspace-mobile.json`, `workspaces.json`, `cache`), que cambian en cada
+arranque y provocarían conflictos. Obsidian reescribe su configuración desde
+memoria: si se edita un fichero de `.obsidian/` con Obsidian abierto, el usuario
+tiene que recargar (`Ctrl+P` → «Reload app without saving») para que lo lea.
+
 Si el fetch saca a la luz un conflicto de verdad (no un avance rápido), **hay
 que parar y decirlo**, no resolverlo por cuenta propia: significa que las notas
 divergieron de una forma que necesita una decisión humana.
