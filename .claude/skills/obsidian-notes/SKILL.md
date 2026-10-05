@@ -80,6 +80,7 @@ Propiedades que usa la página de inicio (solo en las notas principales):
 5. Para proyectos personales, usar `10 Proyectos/<nombre-proyecto>/`; una idea suelta, `10 Proyectos/Ideas/`. Si no está claro dónde va, `01 Bandeja/`
 6. Para trabajo (empleos, clientes, encargos), usar `20 Trabajo/`
 7. Para estudio DAW, usar `40 Aprendizaje/Clase/DAW/<curso>/<asignatura>/`; la estructura de DAW y Bachillerato por asignaturas es del usuario y no se reorganiza
+   - Desde el 2026-10-05 el homelab es una extensión de las notas: lo nuevo de clase (Aules y los apuntes que pase el usuario) lo trae el bloque `personal/clase` del repo `~/Projects/homelab` y se **añade** a `Clase/`; las notas que ya existen ahí **no se tocan**. Detalle en `30 Áreas/Servidor/23-personal-clase.md`
 8. Lo que ya no está vigente no se borra: se mueve a `90 Archivo/` con un aviso arriba diciendo de qué época es y dónde está lo actual
 9. Al mover notas fuera de Obsidian (con `git mv`), reescribir los enlaces con ruta (`[[Carpeta/nota]]`) y comprobar que no queda ninguno roto; dentro de Obsidian se actualizan solos
 10. Preferir nombres de archivo descriptivos, en español o inglés según el contexto
