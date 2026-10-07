@@ -59,6 +59,10 @@ Scope {
 
     // --- GPU ---------------------------------------------------------------
     property bool gpuHay: false
+    // Si nvidia-smi ha contestado bien alguna vez. Mientras no lo haya hecho,
+    // el primer fallo basta para dejar de preguntar (ver el Process de abajo).
+    property bool gpuVista: false
+    property bool gpuDescartada: false
     property int gpuPct: 0
     property int gpuGrados: 0
     property int gpuVram: 0
@@ -198,7 +202,7 @@ Scope {
         triggeredOnStart: true
         onTriggered: {
             tel.muestrear();
-            if (!gpu.running)
+            if (!tel.gpuDescartada && !gpu.running)
                 gpu.running = true;
         }
     }
@@ -211,14 +215,27 @@ Scope {
         id: gpu
         command: ["nvidia-smi", "--query-gpu=utilization.gpu,temperature.gpu,memory.used,memory.total,power.draw,name", "--format=csv,noheader,nounits"]
 
+        // Sin GPU de NVIDIA no hay que enseñar nada, y hay dos formas de no
+        // tenerla: que nvidia-smi no exista (no arranca y no escribe nada) o que
+        // exista sin tarjeta, como en el portátil, donde nvidia-utils viene de
+        // arrastre. Entonces escribe "NVIDIA-SMI has failed…" por la salida
+        // normal, y leído como cifras daba un módulo de GPU a 0 % y 0°. Por eso
+        // se exige que el primer campo sea un número.
+        //
+        // Si nunca ha contestado bien, el primer fallo descarta la GPU y deja de
+        // lanzarse cada tres segundos. Si ya contestó alguna vez (la torre), un
+        // fallo suelto sólo esconde el módulo hasta la siguiente vuelta.
         stdout: StdioCollector {
             onStreamFinished: {
                 const linea = this.text.trim().split("\n")[0];
-                if (linea === "") {
+                const c = linea.split(",").map(s => s.trim());
+                if (linea === "" || isNaN(parseInt(c[0]))) {
                     tel.gpuHay = false;
+                    if (!tel.gpuVista)
+                        tel.gpuDescartada = true;
                     return;
                 }
-                const c = linea.split(",").map(s => s.trim());
+                tel.gpuVista = true;
                 tel.gpuPct = parseInt(c[0]) || 0;
                 tel.gpuGrados = parseInt(c[1]) || 0;
                 tel.gpuVram = parseInt(c[2]) || 0;
