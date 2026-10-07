@@ -605,6 +605,20 @@ hl.window_rule({
 	float = true,
 })
 
+-- El btop que abren los módulos de telemetría de la barra: una consulta
+-- rápida, no una ventana más del mosaico. Flota en el centro con el tamaño
+-- que pide Ghostty (las 80x24 celdas de btop, en TelemetryBlock.qml); por eso
+-- no hay size aquí, que va en píxeles y dependería de la letra y la escala.
+-- Fijado (pin), te sigue de escritorio en escritorio hasta que lo cierras.
+hl.window_rule({
+	name = "btop-flotante",
+	match = { class = "^ghostty\\.btop$" },
+
+	float = true,
+	center = true,
+	pin = true,
+})
+
 --------------------------------
 ---- ARRANQUE DEL ESCRITORIO ----
 --------------------------------
