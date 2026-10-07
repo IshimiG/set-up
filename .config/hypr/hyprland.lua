@@ -49,13 +49,12 @@ local terminal = "ghostty"
 -- --class. Los binds de abajo usan los equivalentes de Firefox.
 local browser = "zen-browser"
 local fileManager = "dolphin"
--- Toggle: pkill succeeds (and closes it) when it's open, otherwise it starts.
--- Toggle. Se consultan las instancias vivas en vez de fiarlo al código de
--- salida de "qs kill", que también falla cuando el registro arrastra instancias
--- muertas de sesiones anteriores. Y se selecciona por configuración, no con
--- "pkill -x qs", porque el menú de sesión de la barra es otra instancia de
--- Quickshell y un pkill por nombre se la llevaría por delante.
-local menu = "sh -c 'if qs list --all 2>/dev/null | grep -q /launcher/shell.qml; then qs kill -c launcher; else qs -c launcher; fi'"
+-- Toggle. El lanzador vive desde el inicio de sesión (ver hyprland.start más
+-- abajo) y se abre y se cierra por IPC, como la isla de la barra. Antes era un
+-- proceso nuevo en cada pulsación: tardaba ~0,8 s en aparecer y la animación
+-- llegaba a medias. Si el proceso no está vivo (se cayó, o se acaba de
+-- recargar la config), la llamada falla y se arranca ya abierto.
+local menu = "qs -c launcher ipc call launcher toggle >/dev/null 2>&1 || LAUNCHER_ABRIR=1 qs -c launcher -d --no-duplicate"
 
 -------------------
 ---- AUTOSTART ----
@@ -643,6 +642,8 @@ hl.on("hyprland.start", function()
 	-- la barra porque el historial tiene que salir del mismo Item que la
 	-- campana para poder crecer desde ella, y eso exige el mismo proceso.
 	hl.exec_cmd("qs -c bar -d")
+	-- El lanzador de SUPER+SPACE, cargado y escondido hasta que se pida.
+	hl.exec_cmd("qs -c launcher -d --no-duplicate")
 	-- Cuántos paquetes hay pendientes, en una tarjeta colgada del borde de
 	-- arriba. El script espera a que haya red antes de contar y no enseña nada
 	-- si no hay ninguno, así que puede lanzarse sin más.
