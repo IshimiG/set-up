@@ -97,6 +97,13 @@ is_active() {
 	[[ -n $(loopback_modules) ]]
 }
 
+# Si esta máquina tiene el esquema GSettings de la extensión (la torre sí; el
+# portátil, que nunca tuvo GNOME, no). Sin él no hay dispositivos guardados ni
+# nada que encender.
+configurado() {
+	gsettings --schemadir "$SCHEMA_DIR" list-keys "$SCHEMA" >/dev/null 2>&1
+}
+
 cmd_on() {
 	start && gset loopback-enabled true
 }
@@ -154,6 +161,12 @@ cmd_status() {
 # `pactl subscribe`, y de los suyos propios porque es quien los provoca.
 cmd_json() {
 	local state icon tooltip
+	# "none" esconde el módulo de la barra. Si hay un module-loopback cargado
+	# se enseña igualmente, aunque no lo haya puesto este script.
+	if ! configurado && ! is_active; then
+		jq -cn '{text: "", alt: "none", class: "none", tooltip: ""}'
+		return
+	fi
 	if is_active; then
 		state=on
 		icon="󰍬"

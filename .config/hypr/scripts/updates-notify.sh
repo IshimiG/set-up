@@ -37,7 +37,10 @@ repos=0
 
 # El AUR no es crítico: si paru falla, se avisa igualmente de lo que haya en
 # los repos en vez de perder el aviso entero.
-aur_list=$(paru -Qua 2>/dev/null)
+#
+# paru en la torre y yay en el portátil; los dos entienden -Qua igual.
+aur_helper=$(command -v paru || command -v yay)
+aur_list=$([[ -n $aur_helper ]] && "$aur_helper" -Qua 2>/dev/null)
 aur=0
 [[ -n $aur_list ]] && aur=$(printf '%s\n' "$aur_list" | wc -l)
 

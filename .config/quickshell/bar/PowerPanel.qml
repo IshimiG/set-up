@@ -44,7 +44,10 @@ Item {
         {
             icon: "󰗽",
             label: "Cerrar sesión",
-            cmd: "hyprctl dispatch exit",
+            // La misma orden que SUPER+M en hyprland.lua. Con la config en Lua,
+            // "hyprctl dispatch exit" ya no vale: hyprctl dispatch evalúa lo
+            // que recibe como Lua y "exit" a secas no es nada.
+            cmd: "command -v hyprshutdown >/dev/null 2>&1 && hyprshutdown || hyprctl dispatch 'hl.dsp.exit()'",
             confirm: "Cerrar sesión"
         },
         {

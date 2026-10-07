@@ -59,6 +59,10 @@ Scope {
 
     // --- GPU ---------------------------------------------------------------
     property bool gpuHay: false
+    // Si nvidia-smi ha contestado bien alguna vez. Mientras no lo haya hecho,
+    // el primer fallo basta para dejar de preguntar (ver el Process de abajo).
+    property bool gpuVista: false
+    property bool gpuDescartada: false
     property int gpuPct: 0
     property int gpuGrados: 0
     property int gpuVram: 0
@@ -77,6 +81,9 @@ Scope {
     // --- Loopback del micrófono --------------------------------------------
     property bool loopActivo: false
     property string loopAviso: ""
+    // Si el loopback está configurado en esta máquina (en el portátil no lo
+    // está: no tiene el esquema GSettings de la extensión de GNOME).
+    property bool loopHay: true
 
     // =======================================================================
     // Lectura de /proc y /sys
@@ -97,40 +104,37 @@ Scope {
     }
 
     // El número de hwmonN cambia entre arranques, así que la ruta no se puede
-    // escribir a mano. Se sondea al arrancar probando uno tras otro bajo el
-    // directorio del dispositivo PCI —que sí es estable— hasta que uno responde.
-    // Se usa la ruta del dispositivo y no /sys/class/hwmon justamente por lo
-    // mismo: allí la numeración también baila.
-    property int candidatoHwmon: 0
+    // escribir a mano. Se busca una vez al arrancar, por el nombre del sensor:
+    // k10temp (o zenpower) en AMD, que es la torre, y coretemp en Intel, que es
+    // el portátil. En los dos su temp1 es la del encapsulado entero: "Tctl" en
+    // AMD, "Package id 0" en Intel. Antes se sondeaba bajo el dispositivo PCI
+    // del k10temp, que sólo existe en la torre; buscar por nombre resuelve lo
+    // mismo —la numeración que baila— y vale para cualquier máquina, por un
+    // único fork al arrancar.
     property bool hwmonListo: false
+    property string sensor: ""
 
     FileView {
         id: fTemp
-        path: "/sys/devices/pci0000:00/0000:00:18.3/hwmon/hwmon" + tel.candidatoHwmon + "/temp1_input"
         blockLoading: true
         printErrors: false
     }
 
-    // El sondeo va por pasos desde un temporizador y no encadenado desde
-    // onLoadFailed: cambiar el "path" desde dentro del manejador de fallo no
-    // vuelve a intentarlo, comprobado.
-    Timer {
-        id: sondeo
-        interval: 30
-        repeat: true
+    Process {
         running: true
-        onTriggered: {
-            if (!isNaN(parseInt(fTemp.text()))) {
+        command: ["sh", "-c", "for h in /sys/class/hwmon/hwmon*; do case $(cat \"$h/name\" 2>/dev/null) in k10temp|zenpower|coretemp) echo \"$h/temp1_input\"; cat \"$h/temp1_label\" 2>/dev/null; exit;; esac; done"]
+
+        stdout: StdioCollector {
+            onStreamFinished: {
+                const lineas = this.text.split("\n");
+                if (lineas[0] === "") {
+                    console.warn("no hay sensor de CPU conocido (k10temp, zenpower, coretemp); la temperatura se queda en blanco");
+                    return;
+                }
+                fTemp.path = lineas[0];
+                tel.sensor = lineas[1] || "";
                 tel.hwmonListo = true;
-                sondeo.running = false;
-                return;
             }
-            if (tel.candidatoHwmon >= 8) {
-                sondeo.running = false;
-                console.warn("no se ha encontrado el hwmon del k10temp; la temperatura se queda en blanco");
-                return;
-            }
-            tel.candidatoHwmon++;
         }
     }
 
@@ -198,7 +202,7 @@ Scope {
         triggeredOnStart: true
         onTriggered: {
             tel.muestrear();
-            if (!gpu.running)
+            if (!tel.gpuDescartada && !gpu.running)
                 gpu.running = true;
         }
     }
@@ -211,14 +215,27 @@ Scope {
         id: gpu
         command: ["nvidia-smi", "--query-gpu=utilization.gpu,temperature.gpu,memory.used,memory.total,power.draw,name", "--format=csv,noheader,nounits"]
 
+        // Sin GPU de NVIDIA no hay que enseñar nada, y hay dos formas de no
+        // tenerla: que nvidia-smi no exista (no arranca y no escribe nada) o que
+        // exista sin tarjeta, como en el portátil, donde nvidia-utils viene de
+        // arrastre. Entonces escribe "NVIDIA-SMI has failed…" por la salida
+        // normal, y leído como cifras daba un módulo de GPU a 0 % y 0°. Por eso
+        // se exige que el primer campo sea un número.
+        //
+        // Si nunca ha contestado bien, el primer fallo descarta la GPU y deja de
+        // lanzarse cada tres segundos. Si ya contestó alguna vez (la torre), un
+        // fallo suelto sólo esconde el módulo hasta la siguiente vuelta.
         stdout: StdioCollector {
             onStreamFinished: {
                 const linea = this.text.trim().split("\n")[0];
-                if (linea === "") {
+                const c = linea.split(",").map(s => s.trim());
+                if (linea === "" || isNaN(parseInt(c[0]))) {
                     tel.gpuHay = false;
+                    if (!tel.gpuVista)
+                        tel.gpuDescartada = true;
                     return;
                 }
-                const c = linea.split(",").map(s => s.trim());
+                tel.gpuVista = true;
                 tel.gpuPct = parseInt(c[0]) || 0;
                 tel.gpuGrados = parseInt(c[1]) || 0;
                 tel.gpuVram = parseInt(c[2]) || 0;
@@ -268,6 +285,7 @@ Scope {
             onStreamFinished: {
                 try {
                     const j = JSON.parse(this.text);
+                    tel.loopHay = j.alt !== "none";
                     tel.loopActivo = j.alt === "on";
                     tel.loopAviso = j.tooltip || "";
                 } catch (e) {}
