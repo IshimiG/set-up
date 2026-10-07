@@ -20,24 +20,8 @@
 
 -- See https://wiki.hypr.land/Configuring/Basics/Monitors/
 
--- Monitor principal (WAM OZDSP27IPS, 27" 1440p). Su EDID anuncia 144 Hz a
--- resolución nativa, que es el máximo real del panel.
-hl.monitor({
-	output = "DP-1",
-	mode = "2560x1440@144",
-	position = "2560x0",
-	scale = 1,
-})
-
--- Panorámica (LG ULTRAWIDE, 2560x1080 por HDMI). El EDID solo ofrece 59.98 y
--- 74.99 Hz a resolución nativa, así que 75 Hz es el tope alcanzable aquí;
--- no existe un modo de 90 Hz. Si el panel admitiera más, sería por DisplayPort.
-hl.monitor({
-	output = "HDMI-A-1",
-	mode = "2560x1080@74.99",
-	position = "0x0",
-	scale = 1,
-})
+-- Los monitores son de cada máquina y van en equipo.lua, que se carga al final
+-- de este fichero (ver EQUIPO). Aquí no se declara ninguno.
 
 ---------------------
 ---- MY PROGRAMS ----
@@ -284,8 +268,12 @@ hl.config({
 
 		sensitivity = 0, -- -1.0 - 1.0, 0 means no modification.
 
+		-- Desplazamiento natural, clic derecho con dos dedos y el scroll algo
+		-- más lento. Sólo lo nota el portátil; en la torre no hay touchpad.
 		touchpad = {
-			natural_scroll = false,
+			natural_scroll = true,
+			clickfinger_behavior = true,
+			scroll_factor = 0.4,
 		},
 	},
 })
@@ -294,13 +282,6 @@ hl.gesture({
 	fingers = 3,
 	direction = "horizontal",
 	action = "workspace",
-})
-
--- Example per-device config
--- See https://wiki.hypr.land/Configuring/Advanced-and-Cool/Devices/ for more
-hl.device({
-	name = "epic-mouse-v1",
-	sensitivity = -0.5,
 })
 
 ---------------------
@@ -411,11 +392,11 @@ hl.bind("XF86AudioPrev", hl.dsp.exec_cmd("playerctl previous"), { locked = true 
 ---- PORTED FROM set-up/bindings.conf ----
 --------------------------------------------
 
--- Ported from https://github.com/IshimiG/set-up (.config/hypr/bindings.conf),
--- which targets Omarchy. omarchy-launch-* / omarchy-cmd-* helpers don't exist
+-- Ported from the Omarchy bindings.conf this repo started with (it is still
+-- in the first commit). omarchy-launch-* / omarchy-cmd-* helpers don't exist
 -- here, so they're replaced with the equivalent plain commands, and the
--- "launch or focus" ones use ~/.local/bin/launch-or-focus (matches an
--- existing window by class/title, or launches the app).
+-- "launch or focus" ones use ~/.local/bin/launch-or-focus (in this repo:
+-- matches an existing window by class/title, or launches the app).
 
 local focusOrLaunch = os.getenv("HOME") .. "/.local/bin/launch-or-focus"
 
@@ -624,14 +605,14 @@ hl.window_rule({
 	float = true,
 })
 
------------------------
----- DOTFILES SYNC ----
------------------------
+--------------------------------
+---- ARRANQUE DEL ESCRITORIO ----
+--------------------------------
 
--- Pulls github.com/IshimiG/set-up on every Hyprland start so the
--- symlinked configs in ~/.config stay in sync with the git repo.
+-- Lo que hace falta en cualquier máquina. Lo propio de cada una (en la torre,
+-- el dotfiles-sync.sh que trae el repo al iniciar; en el portátil, polkit e
+-- hypridle) arranca desde su equipo.lua.
 hl.on("hyprland.start", function()
-	hl.exec_cmd("~/.local/bin/dotfiles-sync.sh")
 	hl.exec_cmd("pkill hyprpaper; hyprpaper")
 	-- La isla central de la barra, que lleva dentro el daemon de
 	-- notificaciones. Va antes que nada de lo que pueda querer notificar: es
@@ -650,3 +631,26 @@ hl.on("hyprland.start", function()
 	hl.exec_cmd("~/.config/hypr/scripts/updates-notify.sh")
 end)
 
+
+----------------
+---- EQUIPO ----
+----------------
+
+-- Lo que cambia de una máquina a otra: monitores, dispositivos de entrada y
+-- lo que sólo tiene sentido arrancar en una de ellas. Vive en equipo.lua, al
+-- lado de este fichero, y sólo existe en la rama de cada máquina
+-- (setup/torre, setup/portatil). main, que es la parte común, no lo trae.
+--
+-- Va al final para que pueda sobrescribir cualquier cosa de lo anterior.
+--
+-- Se busca antes de cargarlo, en vez de envolver el require en un pcall: así
+-- un error dentro de equipo.lua sale en hyprctl configerrors en lugar de
+-- quedar tapado como si el fichero no existiera. require lo encuentra junto a
+-- este hyprland.lua aunque ~/.config/hypr/hyprland.lua sea un enlace, porque
+-- Hyprland arma el package.path desde la carpeta real del fichero, la del repo.
+if package.searchpath("equipo", package.path) then
+	require("equipo")
+else
+	-- Sin equipo.lua, cada pantalla arranca en su modo preferido.
+	hl.monitor({ output = "", mode = "preferred", position = "auto", scale = "auto" })
+end
