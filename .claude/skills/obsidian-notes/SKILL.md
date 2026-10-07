@@ -125,10 +125,16 @@ el porqué están en `30 Áreas/Servidor/31-plan-syncthing-y-copias.md`.
    documenta se corresponde con la realidad, que el enlace o la ruta existe,
    que lo que se ha construido funciona de verdad.
 4. **El commit lo hace el NUC.** `vault-snapshot` lo hace solo a las 03:00 y a las
-   15:00. Para un commit con mensaje propio, al terminar un trabajo:
-   `ssh lab@192.168.1.174 vault-commit "Servidor: …"`. Esto existe desde la fase 5
-   del plan 31; hasta entonces no hay git y los cambios esperan al primer commit
-   del NUC.
+   15:00. Al terminar un trabajo, se deja un commit con nombre. El mensaje (asunto,
+   cuerpo y los *trailers* de atribución, en inglés) se escribe en un fichero
+   temporal y se pasa por la entrada estándar, que es lo seguro por SSH:
+   ```sh
+   ssh lab@192.168.1.174 vault-commit - < /ruta/al/mensaje.txt
+   ```
+   Espera a que Syncthing esté en reposo, hace commit de **todo** lo pendiente en el
+   vault y lo sube a GitHub. Si el push falla, sale con código 3 y el commit se queda
+   para la siguiente pasada. Antes de hacer commit, comprueba que la torre está al
+   día (paso 1), para que tus cambios ya estén en el NUC.
 
 Nunca se crea un `.git` dentro de `~/Notes`: un repositorio que se sincroniza en
 vivo entre máquinas se corrompe.
