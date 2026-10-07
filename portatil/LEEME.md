@@ -16,6 +16,24 @@ Aplicado el 2026-10-07 sobre Omarchy 3.8.5. La copia para volver atrás está en
   (nwg-displays), el agente de polkit e hypridle.
 - `.config/hypr/hypridle.conf`: atenúa a 2,5 min, bloquea a 5 y apaga la
   pantalla a 5,5. No suspende solo: de eso se encarga cerrar la tapa.
+- La wifi en la barra, contra iwd (aquí no hay NetworkManager, así que
+  `Quickshell.Networking` no sirve):
+  - `.config/hypr/scripts/wifi.sh`: habla con iwd por D-Bus. Estado, escaneo,
+    conectar, olvidar y la radio.
+  - `.config/quickshell/bar/Wifi.qml`: el estado y las acciones, una vez para
+    todos los monitores.
+  - `.config/quickshell/bar/WifiPanel.qml`: el desplegable del bloque de la
+    derecha. La radio, la red actual y las demás; las guardadas se pueden
+    olvidar (con confirmación) y las de empresa editar. Si la red pide datos,
+    sale el formulario: contraseña en una WPA, usuario y contraseña en una
+    802.1X (WIFI_EDU, eduroam), que pide polkit porque se guarda en
+    `/var/lib/iwd`.
+  - Toca tres ficheros comunes: `TelemetryBlock.qml` (el módulo, antes del
+    volumen; clic despliega, clic derecho abre `impala`), `shell.qml`
+    (`Wifi { }` y la orden `toggleWifi`: `qs -c bar ipc call bar toggleWifi`) y
+    `qmldir`. Así se queda hasta que la barra tenga un punto de enganche por
+    equipo (issue #3).
+  - Paquetes: `iwd` e `impala`.
 - `portatil/`: lo que se usó para pasar de Omarchy a este setup.
   - `paquetes.sh` (sudo): quickshell, ghostty, hyprpaper, pavucontrol,
     hyprshutdown, dolphin.

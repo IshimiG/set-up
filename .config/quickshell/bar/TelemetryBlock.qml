@@ -21,8 +21,23 @@ SideBlock {
 
     // "shell" lo declara SideBlock; volver a declararlo aquí lo ensombrecería.
     required property var tel
+    required property var wifi
 
     derecha: true
+
+    // El desplegable de la wifi cuelga de este bloque. Comparte el modo de
+    // shell.qml con la isla, así que abrirlo cierra el calendario o lo que
+    // hubiera abierto allí.
+    readonly property string pantalla: root.screen ? root.screen.name : ""
+    abierto: root.shell.mode === "wifi" && root.shell.modeScreen === root.pantalla
+
+    desplegable: Component {
+        WifiPanel {
+            shell: root.shell
+            wifi: root.wifi
+            abierto: root.abierto
+        }
+    }
 
     // El sink por defecto hay que rastrearlo explícitamente o Pipewire no
     // mantiene al día su volumen ni su mute.
@@ -236,6 +251,34 @@ SideBlock {
         onPulsado: root.tel.alternarLoopback()
         onPulsadoDerecho: Quickshell.execDetached(["pavucontrol"])
         onRueda: delta => Quickshell.execDetached([Quickshell.env("HOME") + "/.config/hypr/scripts/loopback.sh", delta > 0 ? "up" : "down"])
+    }
+
+    // --- Wi-Fi ---------------------------------------------------------------
+    // Donde estaba en waybar con Omarchy: justo antes del volumen, con los
+    // mismos cinco escalones de señal. Antes el clic abría Impala; ahora
+    // despliega el panel, y Impala queda en el clic derecho.
+    Modulo {
+        glifo: root.wifi.glifo
+        // Sin conexión no es un fallo, pero tampoco el estado normal: se
+        // queda a la vista y apagado, como el volumen en silencio.
+        atenuado: root.wifi.conectada || root.abierto ? 1 : 0.45
+        pista: {
+            if (!root.wifi.hay)
+                return "";
+            if (!root.wifi.encendida)
+                return "Wi-Fi apagada";
+            if (!root.wifi.conectada)
+                return root.wifi.estado === "connecting" ? "Conectando…" : "Sin conexión";
+            let p = root.wifi.actual.nombre + "\n" + root.wifi.actual.senal + " %";
+            if (root.wifi.frecuencia > 0)
+                p += " · " + (root.wifi.frecuencia / 1000).toFixed(1).replace(".", ",") + " GHz";
+            if (root.wifi.ip !== "")
+                p += "\n" + root.wifi.ip;
+            return p;
+        }
+
+        onPulsado: root.shell.toggle(root.pantalla, "wifi")
+        onPulsadoDerecho: root.wifi.abrirImpala()
     }
 
     // --- Volumen -------------------------------------------------------------

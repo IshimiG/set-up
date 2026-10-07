@@ -295,6 +295,11 @@ ShellRoot {
             return root.mode === "power" ? "open" : "closed";
         }
 
+        function toggleWifi(): string {
+            root.toggleFocused("wifi");
+            return root.mode === "wifi" ? "open" : "closed";
+        }
+
         function dismissAll(): string {
             const live = server.trackedNotifications.values;
             for (let i = live.length - 1; i >= 0; i--)
@@ -316,6 +321,14 @@ ShellRoot {
         id: telemetria
 
         shell: root
+    }
+
+    // La wifi: el icono de la derecha y su desplegable. También una sola vez.
+    Wifi {
+        id: estadoWifi
+
+        shell: root
+        mirando: root.mode === "wifi"
     }
 
     // Las tres piezas de la barra, una terna por monitor y todas desde este
@@ -355,6 +368,7 @@ ShellRoot {
                 screen: modelData
                 shell: root
                 tel: telemetria
+                wifi: estadoWifi
             }
         }
     }

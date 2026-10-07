@@ -13,3 +13,5 @@ SideBlock 1.0 SideBlock.qml
 WorkspacesBlock 1.0 WorkspacesBlock.qml
 TelemetryBlock 1.0 TelemetryBlock.qml
 Strut 1.0 Strut.qml
+Wifi 1.0 Wifi.qml
+WifiPanel 1.0 WifiPanel.qml
