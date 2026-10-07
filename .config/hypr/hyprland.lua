@@ -596,6 +596,19 @@ hl.layer_rule({
 	ignore_alpha = 0.5,
 })
 
+-- Los bloques de los lados de la barra (escritorios a la izquierda, telemetría
+-- a la derecha). Mismo trato que la isla y por lo mismo: son superficies a
+-- pantalla completa que animan su cristal en QML, y pueden desplegar un panel
+-- (en el portátil, el de la wifi). Sin esta regla se quedaban sin
+-- desenfoque, en negro liso al lado de la isla esmerilada.
+hl.layer_rule({
+	name = "barra-anim",
+	match = { namespace = "^barra$" },
+	no_anim = true,
+	blur = true,
+	ignore_alpha = 0.5,
+})
+
 -- Hyprland-run windowrule
 hl.window_rule({
 	name = "move-hyprland-run",
