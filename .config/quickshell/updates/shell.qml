@@ -81,7 +81,10 @@ PanelWindow {
     // como root, porque compilar paquetes del AUR con privilegios es
     // justamente lo que no se debe hacer. La terminal se queda abierta al
     // terminar para poder leer lo que ha pasado.
-    readonly property string updateCmd: "paru -Syu; printf '\\n'; read -r -p 'Pulsa Enter para cerrar… '"
+    //
+    // paru en la torre (CachyOS) y yay en el portátil, que es el que trajo
+    // Omarchy. Los dos aceptan -Syu igual y piden sudo igual.
+    readonly property string updateCmd: "if command -v paru >/dev/null; then paru -Syu; else yay -Syu; fi; printf '\\n'; read -r -p 'Pulsa Enter para cerrar… '"
 
     // Las cuentas llegan por entorno. Un valor que no se pueda leer cuenta
     // como cero en vez de dejar un "NaN" en mitad de la tarjeta.
