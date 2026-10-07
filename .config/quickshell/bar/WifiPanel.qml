@@ -533,8 +533,19 @@ Item {
                     width: ListView.view.width
                     height: root.filaH
 
-                    readonly property bool encima: sobreFila.containsMouse
+                    // El hover es de la fila entera, no del MouseArea que la
+                    // cubre: «editar» y «olvidar» llevan su propio MouseArea
+                    // encima, que le quita el hover a su hermano. La fila
+                    // creía que el ratón se había ido, escondía las acciones,
+                    // lo recuperaba y las volvía a sacar, y así cada
+                    // fotograma. Un HoverHandler en la fila sigue viendo el
+                    // ratón aunque esté sobre una de sus hijas.
+                    readonly property bool encima: hoverFila.hovered
                     readonly property bool conectando: root.wifi.trabajando === fila.ruta
+
+                    HoverHandler {
+                        id: hoverFila
+                    }
 
                     onEncimaChanged: if (!fila.encima && root.olvidando === fila.ruta)
                         root.olvidando = ""
