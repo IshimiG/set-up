@@ -1,0 +1,15 @@
+Island 1.0 Island.qml
+Clock 1.0 Clock.qml
+Bell 1.0 Bell.qml
+PowerButton 1.0 PowerButton.qml
+CalendarPanel 1.0 CalendarPanel.qml
+NotificationsPanel 1.0 NotificationsPanel.qml
+HistoryItem 1.0 HistoryItem.qml
+PowerPanel 1.0 PowerPanel.qml
+NotificationCard 1.0 NotificationCard.qml
+NotificationPopups 1.0 NotificationPopups.qml
+Telemetry 1.0 Telemetry.qml
+SideBlock 1.0 SideBlock.qml
+WorkspacesBlock 1.0 WorkspacesBlock.qml
+TelemetryBlock 1.0 TelemetryBlock.qml
+Strut 1.0 Strut.qml

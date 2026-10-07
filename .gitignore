@@ -1,0 +1,3 @@
+# Bytecode que Python deja al importar los scripts de la barra.
+__pycache__/
+*.pyc
