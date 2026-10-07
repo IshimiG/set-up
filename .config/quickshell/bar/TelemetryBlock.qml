@@ -4,6 +4,7 @@ import Quickshell
 import Quickshell.Services.Mpris
 import Quickshell.Services.Pipewire
 import Quickshell.Services.SystemTray
+import Quickshell.Services.UPower
 import Quickshell.Widgets
 import "shared"
 
@@ -209,7 +210,9 @@ SideBlock {
 
     // --- Loopback del micrófono ---------------------------------------------
     Modulo {
-        glifo: root.tel.loopActivo ? "󰍬" : "󰍭"
+        // Sin glifo el módulo desaparece, que es lo que toca en una máquina
+        // donde el loopback nunca se ha configurado: no hay nada que encender.
+        glifo: !root.tel.loopHay ? "" : (root.tel.loopActivo ? "󰍬" : "󰍭")
         tinte: root.tel.loopActivo ? Theme.ok : Theme.strong
         // No se esconde cuando está apagado: sin glifo no habría dónde hacer
         // clic para encenderlo.
@@ -269,7 +272,7 @@ SideBlock {
         valor: root.tel.grados + "°"
         // El umbral de crítico es el mismo que tenía waybar: 85.
         tinte: root.tel.grados >= 85 ? Theme.danger : Theme.strong
-        pista: "CPU Tctl · " + root.tel.grados + "°C"
+        pista: "CPU " + root.tel.sensor + " · " + root.tel.grados + "°C"
 
         onPulsado: Quickshell.execDetached(["ghostty", "--title=btop", "-e", "btop"])
     }
@@ -321,6 +324,63 @@ SideBlock {
             return Theme.strong;
         }
         pista: root.tel.ratonTexto === "" ? "" : "Razer Viper V3 Pro SE · " + root.tel.ratonTexto
+    }
+
+    // --- Batería del portátil -------------------------------------------------
+    // Portátil: la torre no tiene batería. Sale de UPower y no de Telemetry.qml
+    // por lo mismo que el volumen: UPower avisa por su cuenta de cada cambio, así
+    // que no hay nada que muestrear. Sin batería (o mientras UPower no ha
+    // contestado) el texto queda vacío y el módulo se esconde solo.
+    Modulo {
+        id: bateria
+
+        readonly property var disp: UPower.displayDevice
+        readonly property bool hay: bateria.disp !== null && bateria.disp.ready && bateria.disp.isLaptopBattery
+        // percentage va de 0 a 1.
+        readonly property int pct: bateria.hay ? Math.round(bateria.disp.percentage * 100) : 0
+        readonly property bool enchufada: bateria.hay && bateria.disp.state !== UPowerDeviceState.Discharging && bateria.disp.state !== UPowerDeviceState.Empty
+
+        // Los mismos glifos y umbrales que tenía la batería en waybar.
+        readonly property var glifosDescarga: ["󰁺", "󰁻", "󰁼", "󰁽", "󰁾", "󰁿", "󰂀", "󰂁", "󰂂", "󰁹"]
+        readonly property var glifosCarga: ["󰢜", "󰂆", "󰂇", "󰂈", "󰢝", "󰂉", "󰢞", "󰂊", "󰂋", "󰂅"]
+
+        function duracion(segundos) {
+            const min = Math.round(segundos / 60);
+            if (min < 60)
+                return min + " min";
+            return Math.floor(min / 60) + " h " + (min % 60) + " min";
+        }
+
+        glifo: {
+            if (!bateria.hay)
+                return "";
+            const i = Math.max(0, Math.min(9, Math.floor(bateria.pct / 10)));
+            return bateria.enchufada ? bateria.glifosCarga[i] : bateria.glifosDescarga[i];
+        }
+        valor: bateria.hay ? bateria.pct + "%" : ""
+        tinte: {
+            if (bateria.enchufada)
+                return Theme.ok;
+            if (bateria.pct <= 10)
+                return Theme.danger;
+            if (bateria.pct <= 20)
+                return Theme.warn;
+            return Theme.strong;
+        }
+        pista: {
+            if (!bateria.hay)
+                return "";
+            let p = "Batería " + bateria.pct + "%";
+            if (bateria.disp.state === UPowerDeviceState.FullyCharged)
+                p += "\nCargada";
+            else if (bateria.enchufada)
+                p += bateria.disp.timeToFull > 0 ? "\nLlena en " + bateria.duracion(bateria.disp.timeToFull) : "\nCargando";
+            else if (bateria.disp.timeToEmpty > 0)
+                p += "\nQuedan " + bateria.duracion(bateria.disp.timeToEmpty);
+            if (Math.abs(bateria.disp.changeRate) > 0.5)
+                p += " · " + Math.abs(bateria.disp.changeRate).toFixed(0) + " W";
+            return p;
+        }
     }
 
     // --- La bandeja del sistema ---------------------------------------------
