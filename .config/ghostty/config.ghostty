@@ -1,0 +1,84 @@
+# Ghostty, a juego con el resto del escritorio: el mismo cristal negro que la
+# barra y la isla, el mismo blanco en los filos y la misma letra.
+#
+# El desenfoque no lo hace Ghostty (su background-blur sólo funciona en KDE y
+# macOS): lo pone Hyprland, que ya desenfoca todo lo que tenga alfa. Aquí basta
+# con dejar el fondo translúcido.
+
+# --- Letra -----------------------------------------------------------------
+# La misma de la barra (Theme.font). El tamaño va en puntos y la pantalla del
+# portátil está a escala 2, así que 11 se ve como un 11 de verdad.
+font-family = JetBrainsMono Nerd Font
+font-size = 11
+# Un pelín más de interlineado: con el fondo translúcido, las líneas pegadas
+# se leen peor que sobre negro opaco.
+adjust-cell-height = 8%
+
+# --- Ventana ---------------------------------------------------------------
+# Sin barra de título de GTK: en un mosaico no aporta nada y era lo que más
+# desentonaba. Las pestañas siguen saliendo si se abren varias.
+window-decoration = none
+window-theme = ghostty
+window-padding-x = 14
+window-padding-y = 12
+window-padding-balance = true
+# Que el relleno sea fondo y no una franja de otro color al redimensionar.
+window-padding-color = extend
+# El tamaño en celdas que pinta Ghostty al redimensionar sobra en un mosaico:
+# cada vez que se abre o se cierra una ventana, las demás cambian de tamaño.
+resize-overlay = never
+
+# --- Cristal ---------------------------------------------------------------
+# Negro con el alfa de la barra (Theme.glassTop es 0.76). No conviene bajar de
+# 0.5: es el umbral a partir del cual Hyprland deja de desenfocar.
+background = #000000
+background-opacity = 0.80
+foreground = #e4e4e4
+
+# Los paneles divididos que no tienen el foco se apagan un poco, en vez de
+# llevar un borde: el filo ya lo pone Hyprland en la ventana.
+unfocused-split-opacity = 0.80
+unfocused-split-fill = #000000
+split-divider-color = #2a2a2a
+
+cursor-color = #ffffff
+cursor-text = #000000
+cursor-style = bar
+cursor-style-blink = true
+# Sin esto, la integración con la shell cambia el cursor a su antojo.
+shell-integration-features = no-cursor
+
+# La selección es otra lámina de cristal, como la fila resaltada de los
+# paneles: gris sobre negro, sin invertir los colores.
+selection-background = #3a3a3a
+selection-foreground = #ffffff
+
+# --- Paleta ----------------------------------------------------------------
+# Neutra, con los acentos de la barra (Theme.ok, Theme.warn) y el resto en la
+# misma luminosidad para que ninguno grite. El rojo de la barra (#e90b25) se
+# suaviza: como texto, a pantalla completa, cansa.
+palette = 0=#1c1c1c
+palette = 1=#e5677a
+palette = 2=#6dc89e
+palette = 3=#e8b45a
+palette = 4=#7aa7e0
+palette = 5=#b896e0
+palette = 6=#6cc4cc
+palette = 7=#d4d4d4
+# El "negro brillante" es el gris de los comentarios y las sugerencias de la
+# shell: tiene que leerse sobre el cristal, así que va más claro de lo normal.
+palette = 8=#6e6e6e
+palette = 9=#f08394
+palette = 10=#8ed9b4
+palette = 11=#f0c97a
+palette = 12=#9cc0ec
+palette = 13=#ccb0ec
+palette = 14=#8dd6dc
+palette = 15=#ffffff
+
+# --- Comportamiento --------------------------------------------------------
+mouse-hide-while-typing = true
+copy-on-select = clipboard
+confirm-close-surface = false
+# Sin el aviso de "copiado al portapapeles" cada vez que se selecciona algo.
+app-notifications = no-clipboard-copy

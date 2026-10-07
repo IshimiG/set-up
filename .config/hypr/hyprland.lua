@@ -596,6 +596,19 @@ hl.layer_rule({
 	ignore_alpha = 0.5,
 })
 
+-- Los bloques de los lados de la barra (escritorios a la izquierda, telemetría
+-- a la derecha). Mismo trato que la isla y por lo mismo: son superficies a
+-- pantalla completa que animan su cristal en QML, y pueden desplegar un panel
+-- (en el portátil, el de la wifi). Sin esta regla se quedaban sin
+-- desenfoque, en negro liso al lado de la isla esmerilada.
+hl.layer_rule({
+	name = "barra-anim",
+	match = { namespace = "^barra$" },
+	no_anim = true,
+	blur = true,
+	ignore_alpha = 0.5,
+})
+
 -- Hyprland-run windowrule
 hl.window_rule({
 	name = "move-hyprland-run",
@@ -603,6 +616,20 @@ hl.window_rule({
 
 	move = "20 monitor_h-120",
 	float = true,
+})
+
+-- El btop que abren los módulos de telemetría de la barra: una consulta
+-- rápida, no una ventana más del mosaico. Flota en el centro con el tamaño
+-- que pide Ghostty (las 80x24 celdas de btop, en TelemetryBlock.qml); por eso
+-- no hay size aquí, que va en píxeles y dependería de la letra y la escala.
+-- Fijado (pin), te sigue de escritorio en escritorio hasta que lo cierras.
+hl.window_rule({
+	name = "btop-flotante",
+	match = { class = "^ghostty\\.btop$" },
+
+	float = true,
+	center = true,
+	pin = true,
 })
 
 --------------------------------
