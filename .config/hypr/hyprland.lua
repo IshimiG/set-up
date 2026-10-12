@@ -672,9 +672,11 @@ end)
 --
 -- Se busca antes de cargarlo, en vez de envolver el require en un pcall: así
 -- un error dentro de equipo.lua sale en hyprctl configerrors en lugar de
--- quedar tapado como si el fichero no existiera. require lo encuentra junto a
--- este hyprland.lua aunque ~/.config/hypr/hyprland.lua sea un enlace, porque
--- Hyprland arma el package.path desde la carpeta real del fichero, la del repo.
+-- quedar tapado como si el fichero no existiera. Hyprland arma el package.path
+-- desde ~/.config/hypr, no desde la carpeta real del enlace, así que equipo.lua
+-- tiene que estar enlazado ahí también (ver la instalación en el README). Sin
+-- ese enlace la máquina arranca con lo común y nada propio: en el portátil se
+-- quedaron sin hypridle ni polkit, y en la torre los monitores a 60 Hz.
 if package.searchpath("equipo", package.path) then
 	require("equipo")
 else
