@@ -33,3 +33,23 @@ hl.monitor({
 hl.on("hyprland.start", function()
 	hl.exec_cmd("~/.local/bin/dotfiles-sync.sh")
 end)
+
+-----------------------------------
+---- LOOPBACK DEL MICRÓFONO ----
+-----------------------------------
+
+-- Repone el loopback del micrófono si quedó encendido en la sesión anterior.
+-- Sustituye al autostart de GNOME (~/.config/autostart/loopback-restore.desktop),
+-- que Hyprland no lee. El comando `restore` descarga primero cualquier
+-- module-loopback huérfano: dos cargados a la vez suenan con eco metálico
+-- (comb filtering), que fue el fallo original de este montaje en GNOME.
+hl.on("hyprland.start", function()
+	hl.exec_cmd(os.getenv("HOME") .. "/.config/hypr/scripts/loopback.sh restore")
+end)
+
+-- Loopback del micrófono a los auriculares: escucharte a ti mismo en directo.
+-- Es el mismo toggle que el glifo del micro en la barra. L de loopback.
+hl.bind(
+	"SUPER + SHIFT + L",
+	hl.dsp.exec_cmd(os.getenv("HOME") .. "/.config/hypr/scripts/loopback.sh toggle")
+)
