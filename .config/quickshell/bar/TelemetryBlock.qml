@@ -42,7 +42,7 @@ SideBlock {
     // Modulo; cada uno toma el bloque de aquí (parent.bloque desde la fila).
     // Sin nada visible dentro no ocupa sitio, ni siquiera el espaciado.
     component Hueco: Loader {
-        readonly property Item bloque: root
+        readonly property var bloque: root
 
         visible: item !== null && item.implicitWidth > 0
         Layout.preferredHeight: 26
