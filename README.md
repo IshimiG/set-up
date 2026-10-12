@@ -34,6 +34,8 @@ choca.
 - `.config/hypr/scripts/`: barra, capturas, notificaciones, recordatorios,
   loopback, aviso de actualizaciones.
 - `.config/ghostty/config.ghostty`: la terminal, con el mismo cristal.
+- `.config/fish/`: fish, la shell de todas las máquinas: Starship, zoxide, eza,
+  las abreviaturas de git, el saludo y `ms` (SSH al homelab).
 - `.config/nvim/`: Neovim con LazyVim, el tema Horizon con el fondo transparente
   y los lenguajes que se usan (TypeScript, SQL, Docker, Java, Angular…).
 - `.config/quickshell/`: `bar` (barra, isla, notificaciones), `launcher`
@@ -54,6 +56,9 @@ ln -s ~/Projects/set-up/.config/hypr/scripts       ~/.config/hypr/
 ln -s ~/Projects/set-up/.config/quickshell         ~/.config/
 ln -s ~/Projects/set-up/.config/ghostty/config.ghostty ~/.config/ghostty/
 ln -s ~/Projects/set-up/.config/nvim              ~/.config/
+ln -s ~/Projects/set-up/.config/fish/config.fish ~/.config/fish/
+ln -s ~/Projects/set-up/.config/fish/functions/{fish_greeting,ms}.fish ~/.config/fish/functions/
+chsh -s /usr/bin/fish
 ln -s ~/Projects/set-up/.config/systemd/user/notificaciones.{service,timer} ~/.config/systemd/user/
 ln -s ~/Projects/set-up/.local/bin/launch-or-focus ~/.local/bin/
 systemctl --user enable --now notificaciones.timer
@@ -65,4 +70,5 @@ Paquetes: `hyprland` (0.56+), `quickshell`, `ghostty`, `hyprpaper`,
 `hyprlock`, `hyprpicker`, `hyprshutdown`, `grim`, `slurp`, `satty`,
 `wl-clipboard`, `jq`, `libnotify`, `pacman-contrib`, `pavucontrol`,
 `playerctl`, `brightnessctl`, `btop`, `ttf-jetbrains-mono-nerd`, `neovim`,
-`tree-sitter-cli`, `nodejs`, `npm` y `paru` o `yay`. Opcional: `gcalcli` (avisos de Google Calendar).
+`tree-sitter-cli`, `nodejs`, `npm`, `fish`, `starship`, `zoxide`, `eza`, `direnv`,
+`fastfetch` y `paru` o `yay`. Opcional: `gcalcli` (avisos de Google Calendar).
