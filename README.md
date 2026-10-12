@@ -51,6 +51,7 @@ momento:
 
 ```sh
 ln -s ~/Projects/set-up/.config/hypr/hyprland.lua  ~/.config/hypr/
+ln -s ~/Projects/set-up/.config/hypr/equipo.lua    ~/.config/hypr/   # sólo en las ramas de cada equipo
 ln -s ~/Projects/set-up/.config/hypr/hyprlock.conf ~/.config/hypr/
 ln -s ~/Projects/set-up/.config/hypr/scripts       ~/.config/hypr/
 ln -s ~/Projects/set-up/.config/quickshell         ~/.config/
