@@ -15,7 +15,7 @@ Item {
 
     // El SideBlock que lo contiene. Los módulos de un equipo lo reciben del
     // hueco en el que van (ver TelemetryBlock.qml).
-    required property Item bloque
+    required property var bloque
 
     property string glifo: ""
     property string valor: ""
