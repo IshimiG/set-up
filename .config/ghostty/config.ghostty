@@ -1,9 +1,39 @@
 # Ghostty: la estética que tenía la torre antes de unificar el set-up. El
 # 2026-10-12 se probó un cristal negro (#000000 al 80 % con el desenfoque de
-# Hyprland) y se volvió a ésta: el fondo oscuro de Horizon se lee mejor que la
-# niebla que dejaba el negro translúcido.
+# Hyprland) y se volvió a ésta.
 
 theme = Horizon
+
+# --- Colores ----------------------------------------------------------------
+# Lo que de verdad se veía en la torre no era Horizon a secas: su config.fish
+# hacía `cat ~/.local/state/caelestia/sequences.txt` al abrir la shell, y esas
+# secuencias (OSC 10, 11, 12, 17 y 4) cambiaban el fondo, el texto, el cursor,
+# la selección y la paleta por los de caelestia. Están aquí copiadas para que
+# no dependan de ese fichero, que el portátil no tiene. Sin ellas el fondo de
+# Horizon (#1c1e26) al 85 % se veía gris, como con niebla; éste es casi negro.
+foreground = #e5e1e7
+background = #131317
+cursor-color = #c6c4e0
+selection-background = #c6c4e0
+palette = 0=#353434
+palette = 1=#ac73ff
+palette = 2=#44def5
+palette = 3=#ffdcf2
+palette = 4=#99aad8
+palette = 5=#b49fea
+palette = 6=#9dceff
+palette = 7=#e8d3de
+palette = 8=#ac9fa9
+palette = 9=#c093ff
+palette = 10=#89ecff
+palette = 11=#fff0f6
+palette = 12=#b5c1dd
+palette = 13=#c9b5f4
+palette = 14=#bae0ff
+palette = 15=#ffffff
+palette = 16=#c2c1ff
+palette = 17=#c6c4e0
+palette = 18=#f5b2e0
 
 # En la torre era "Monospace", que fontconfig resolvía a Noto Sans Mono. Va con
 # nombre para que el portátil, donde "Monospace" es otra letra, se vea igual.
