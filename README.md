@@ -55,30 +55,24 @@ choca.
 
 ## Instalación
 
-`~/.config` apunta al repo con enlaces, así que un `git pull` se nota al
-momento:
+Con el repo clonado en `~/Projects/set-up` y en la rama de la máquina:
 
 ```sh
-ln -s ~/Projects/set-up/.config/hypr/hyprland.lua  ~/.config/hypr/
-ln -s ~/Projects/set-up/.config/hypr/equipo.lua    ~/.config/hypr/   # sólo en las ramas de cada equipo
-ln -s ~/Projects/set-up/.config/hypr/hyprlock.conf ~/.config/hypr/
-ln -s ~/Projects/set-up/.config/hypr/scripts       ~/.config/hypr/
-ln -s ~/Projects/set-up/.config/quickshell         ~/.config/
-ln -s ~/Projects/set-up/.config/ghostty/config.ghostty ~/.config/ghostty/
-ln -s ~/Projects/set-up/.config/nvim              ~/.config/
-ln -s ~/Projects/set-up/.config/fish/config.fish ~/.config/fish/
-ln -s ~/Projects/set-up/.config/fish/functions/{fish_greeting,ms}.fish ~/.config/fish/functions/
-chsh -s /usr/bin/fish
-ln -s ~/Projects/set-up/.config/systemd/user/notificaciones.{service,timer} ~/.config/systemd/user/
-ln -s ~/Projects/set-up/.local/bin/launch-or-focus ~/.local/bin/
-systemctl --user enable --now notificaciones.timer
+~/Projects/set-up/setup.sh --comprobar   # qué haría, sin tocar nada
+~/Projects/set-up/setup.sh               # lo hace (pide sudo para los paquetes)
 ```
 
-Fuera del repo, en cada máquina: `~/.config/hypr/hyprpaper.conf` (el fondo).
+`setup.sh` instala los paquetes que falten (la lista está en el propio script;
+los del AUR, con `yay` o `paru`), enlaza `~/.config` y `~/.local/bin` al repo
+(así un `git pull` se nota al momento), descarga el fondo si la máquina no
+tiene `~/.config/hypr/hyprpaper.conf`, activa los servicios de usuario y pone
+fish como shell. Lo que hubiera en el sitio de un enlace se aparta a
+`~/.local/share/set-up-apartado/<fecha>/`, no se borra. Se puede repetir
+cuando se quiera. Al final ejecuta `equipo.sh` si la rama lo trae: lo que sólo
+necesita esa máquina.
 
-Paquetes: `hyprland` (0.56+), `quickshell`, `ghostty`, `hyprpaper`,
-`hyprlock`, `hyprpicker`, `hyprshutdown`, `grim`, `slurp`, `satty`,
-`wl-clipboard`, `jq`, `libnotify`, `pacman-contrib`, `pavucontrol`,
-`playerctl`, `brightnessctl`, `btop`, `ttf-jetbrains-mono-nerd`, `neovim`,
-`tree-sitter-cli`, `nodejs`, `npm`, `fish`, `starship`, `zoxide`, `eza`, `direnv`,
-`fastfetch` y `paru` o `yay`. Opcional: `gcalcli` (avisos de Google Calendar).
+Fuera del repo, en cada máquina: `~/.config/hypr/hyprpaper.conf` (el fondo) y
+lo que escriben los programas junto a su configuración (`fish_variables`,
+`lazy-lock.json`). La pantalla de login va aparte: `sudo sddm/install.sh`.
+
+Opcional: `gcalcli` (avisos de Google Calendar), del AUR.
