@@ -55,12 +55,17 @@ choca.
 
 ## Instalación
 
-Con el repo clonado en `~/Projects/set-up` y en la rama de la máquina:
+Con el repo clonado en `~/Projects/set-up`:
 
 ```sh
 ~/Projects/set-up/setup.sh --comprobar   # qué haría, sin tocar nada
 ~/Projects/set-up/setup.sh               # lo hace (pide sudo para los paquetes)
 ```
+
+Lo primero que pregunta es si la máquina es una torre o un portátil (o
+`--torre`, `--portatil`). Si el repo no está en la rama de ese equipo, cambia a
+ella y vuelve a empezar desde allí, así que basta con clonar y ejecutarlo: monta
+lo común y lo del equipo juntos.
 
 `setup.sh` instala los paquetes que falten (la lista está en el propio script;
 los del AUR, con `yay` o `paru`), enlaza `~/.config` y `~/.local/bin` al repo

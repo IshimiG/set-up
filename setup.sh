@@ -1,12 +1,17 @@
 #!/usr/bin/env bash
 # Deja una máquina (Arch o CachyOS) con el escritorio de este repo.
 #
-#   ~/Projects/set-up/setup.sh              lo hace
-#   ~/Projects/set-up/setup.sh --comprobar  sólo dice qué haría, sin tocar nada
+#   ~/Projects/set-up/setup.sh                   pregunta: ¿torre o portátil?
+#   ~/Projects/set-up/setup.sh --torre           (o --portatil) sin preguntar
+#   ~/Projects/set-up/setup.sh --comprobar       sólo dice qué haría, sin tocar nada
 #
 # Sin sudo: lo pide él cuando instala paquetes. Se puede repetir las veces que
 # haga falta; lo que ya está bien lo deja como está. En orden:
 #
+#   0. Qué máquina es. Lo común vive en main y lo de cada equipo en su rama
+#      (setup/torre, setup/portatil), que es main más lo suyo. Si el repo no
+#      está en la rama del equipo elegido, se cambia a ella y el script vuelve
+#      a empezar desde allí: así se monta todo junto, lo común y lo del equipo.
 #   1. Paquetes: los que falten de la lista común, con pacman, y los del AUR
 #      con yay o paru.
 #   2. Enlaces: ~/.config y ~/.local/bin apuntan al repo, así que un git pull se
@@ -26,7 +31,18 @@ set -uo pipefail
 
 repo="$(cd "$(dirname "$0")" && pwd)"
 comprobar=false
-[[ ${1:-} == --comprobar ]] && comprobar=true
+perfil=""
+for a in "$@"; do
+	case $a in
+	--comprobar) comprobar=true ;;
+	--torre) perfil=torre ;;
+	--portatil | --portátil) perfil=portatil ;;
+	*)
+		echo "No conozco la opción $a (valen --torre, --portatil y --comprobar)" >&2
+		exit 1
+		;;
+	esac
+done
 apartado="$HOME/.local/share/set-up-apartado/$(date +%Y-%m-%d_%H%M%S)"
 
 aviso() { printf '\033[33m%s\033[0m\n' "$*"; }
@@ -80,6 +96,43 @@ CARPETAS=(
 # El fondo de las dos máquinas.
 FONDO_URL="https://w.wallhaven.cc/full/rd/wallhaven-rd3pjw.jpg"
 FONDO="$HOME/Pictures/wallpapers/wallhaven-rd3pjw.jpg"
+
+# ---------------------------------------------------------------------------
+paso "0. Qué máquina es"
+
+rama=$(git -C "$repo" branch --show-current)
+# La rama ya dice qué equipo es: setup/torre* o setup/portatil*.
+if [[ -z $perfil ]]; then
+	case $rama in
+	setup/torre*) perfil=torre ;;
+	setup/portatil*) perfil=portatil ;;
+	esac
+fi
+while [[ -z $perfil ]]; do
+	read -r -p "¿Es una torre o un portátil? [t/p] " r
+	case $r in
+	[tT]*) perfil=torre ;;
+	[pP]*) perfil=portatil ;;
+	esac
+done
+echo "  $perfil"
+
+objetivo=setup/$perfil
+if [[ $rama != "$objetivo"* ]]; then
+	if $comprobar; then
+		echo "  haría: git switch $objetivo y volvería a empezar desde esa rama"
+		echo "  (lo de abajo es lo de la rama actual, $rama)"
+	else
+		[[ -z $(git -C "$repo" status --porcelain) ]] ||
+			fallo "El repo tiene cambios sin commit; no cambio de rama. Guárdalos y repite."
+		git -C "$repo" fetch -q origin
+		git -C "$repo" switch -q "$objetivo" 2>/dev/null ||
+			git -C "$repo" switch -q -c "$objetivo" --track "origin/$objetivo" ||
+			fallo "No puedo cambiar a la rama $objetivo."
+		echo "  repo en $objetivo; vuelvo a empezar desde ella"
+		exec "$repo/setup.sh" "$@" "--$perfil"
+	fi
+fi
 
 # ---------------------------------------------------------------------------
 paso "1. Paquetes"
@@ -221,7 +274,7 @@ fi
 # ---------------------------------------------------------------------------
 if [[ -x $repo/equipo.sh ]]; then
 	paso "6. Lo de este equipo (equipo.sh)"
-	"$repo/equipo.sh" "$@"
+	"$repo/equipo.sh" $($comprobar && echo --comprobar)
 else
 	paso "6. Sin equipo.sh en esta rama: sólo lo común"
 fi
