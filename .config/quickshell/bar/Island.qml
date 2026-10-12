@@ -27,7 +27,11 @@ PanelWindow {
     required property var shell
 
     readonly property string screenName: island.screen ? island.screen.name : ""
-    readonly property bool open: island.shell.open && island.shell.modeScreen === island.screenName
+    // Los paneles que salen de la isla. El modo es global y también abre los
+    // desplegables de los bloques laterales (la wifi, en el portátil): con uno
+    // de ésos abierto, la isla se queda en pastilla.
+    readonly property var modos: ["calendar", "notifications", "power"]
+    readonly property bool open: island.modos.indexOf(island.shell.mode) >= 0 && island.shell.modeScreen === island.screenName
 
     // Qué contenido se pinta. Sigue al modo mientras está abierto, pero al
     // cerrar se conserva hasta que termina la animación: si se borrara al
@@ -263,10 +267,14 @@ PanelWindow {
     // Clic en cualquier otro sitio: cierra. No hace falta un MouseArea a
     // pantalla completa —que además haría inútil la máscara—: Hyprland avisa de
     // que el foco se ha ido a otra parte.
+    //
+    // Sólo si sigue abierta: si el grab se suelta porque se ha abierto el
+    // desplegable de un bloque lateral, cerrar aquí lo cerraría también.
     HyprlandFocusGrab {
         active: island.open
         windows: [island]
-        onCleared: island.shell.close()
+        onCleared: if (island.open)
+            island.shell.close()
     }
 
     // Teclado. Escape cierra siempre; el resto se lo ofrece al panel abierto,

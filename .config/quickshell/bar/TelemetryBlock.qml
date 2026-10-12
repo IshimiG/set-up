@@ -55,6 +55,20 @@ SideBlock {
         return Theme.strong;
     }
 
+    // btop, desde cualquiera de los módulos de telemetría. Va en su propia
+    // clase para que hyprland.lua lo saque del mosaico (flotante, centrado y
+    // en todos los escritorios), y por launch-or-focus para que un segundo
+    // clic enfoque el que ya hay en vez de apilar otro encima.
+    //
+    // Lo que se busca son 80x24 celdas dentro, el mínimo con el que btop se
+    // pinta entero; con menos sólo enseña "Terminal size too small". Pero
+    // Ghostty calcula la ventana sin contar el relleno de config.ghostty, así
+    // que pedirle 80x24 deja 75x22. Con 85x26 sobra para el relleno y quedan
+    // las 80x24 justas.
+    function abrirBtop() {
+        Quickshell.execDetached([Quickshell.env("HOME") + "/.local/bin/launch-or-focus", "^ghostty\\.btop$", "ghostty", "--class=ghostty.btop", "--title=btop", "--window-width=85", "--window-height=26", "-e", "btop"]);
+    }
+
     // Un módulo de la barra: un glifo, opcionalmente una cifra al lado, y un
     // globo al pasar por encima. Va como componente en línea porque sólo se usa
     // aquí y sacarlo a un fichero propio obligaría a leer dos para entender uno.
@@ -263,7 +277,7 @@ SideBlock {
         tinte: root.tintePorUso(root.tel.cpu)
         pista: "CPU " + root.tel.cpu + "%"
 
-        onPulsado: Quickshell.execDetached(["ghostty", "--title=btop", "-e", "btop"])
+        onPulsado: root.abrirBtop()
     }
 
     Modulo {
@@ -274,7 +288,7 @@ SideBlock {
         tinte: root.tel.grados >= 85 ? Theme.danger : Theme.strong
         pista: "CPU " + root.tel.sensor + " · " + root.tel.grados + "°C"
 
-        onPulsado: Quickshell.execDetached(["ghostty", "--title=btop", "-e", "btop"])
+        onPulsado: root.abrirBtop()
     }
 
     // --- Memoria -------------------------------------------------------------
@@ -285,7 +299,7 @@ SideBlock {
         tinte: root.tel.memPct >= 92 ? Theme.danger : (root.tel.memPct >= 80 ? Theme.warn : Theme.strong)
         pista: "RAM " + root.tel.memUsada.toFixed(1) + " / " + root.tel.memTotal.toFixed(1) + " GiB" + "\nSwap " + root.tel.swapUsada.toFixed(1) + " GiB"
 
-        onPulsado: Quickshell.execDetached(["ghostty", "--title=btop", "-e", "btop"])
+        onPulsado: root.abrirBtop()
     }
 
     // --- GPU -----------------------------------------------------------------
@@ -304,7 +318,7 @@ SideBlock {
             return p;
         }
 
-        onPulsado: Quickshell.execDetached(["ghostty", "--title=btop", "-e", "btop"])
+        onPulsado: root.abrirBtop()
     }
 
     // --- Batería del ratón ---------------------------------------------------

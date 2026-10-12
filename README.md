@@ -33,6 +33,9 @@ choca.
 - `.config/hypr/hyprlock.conf`: la pantalla de bloqueo.
 - `.config/hypr/scripts/`: barra, capturas, notificaciones, recordatorios,
   loopback, aviso de actualizaciones.
+- `.config/ghostty/config.ghostty`: la terminal, con el mismo cristal.
+- `.config/nvim/`: Neovim con LazyVim, el tema Horizon con el fondo transparente
+  y los lenguajes que se usan (TypeScript, SQL, Docker, Java, Angular…).
 - `.config/quickshell/`: `bar` (barra, isla, notificaciones), `launcher`
   (SUPER+SPACE), `reminder` (SUPER+R), `updates` y `shared` (la paleta).
 - `.config/systemd/user/notificaciones.*`: el latido de los recordatorios.
@@ -49,6 +52,8 @@ ln -s ~/Projects/set-up/.config/hypr/hyprland.lua  ~/.config/hypr/
 ln -s ~/Projects/set-up/.config/hypr/hyprlock.conf ~/.config/hypr/
 ln -s ~/Projects/set-up/.config/hypr/scripts       ~/.config/hypr/
 ln -s ~/Projects/set-up/.config/quickshell         ~/.config/
+ln -s ~/Projects/set-up/.config/ghostty/config.ghostty ~/.config/ghostty/
+ln -s ~/Projects/set-up/.config/nvim              ~/.config/
 ln -s ~/Projects/set-up/.config/systemd/user/notificaciones.{service,timer} ~/.config/systemd/user/
 ln -s ~/Projects/set-up/.local/bin/launch-or-focus ~/.local/bin/
 systemctl --user enable --now notificaciones.timer
@@ -59,5 +64,5 @@ Fuera del repo, en cada máquina: `~/.config/hypr/hyprpaper.conf` (el fondo).
 Paquetes: `hyprland` (0.56+), `quickshell`, `ghostty`, `hyprpaper`,
 `hyprlock`, `hyprpicker`, `hyprshutdown`, `grim`, `slurp`, `satty`,
 `wl-clipboard`, `jq`, `libnotify`, `pacman-contrib`, `pavucontrol`,
-`playerctl`, `brightnessctl`, `btop`, `ttf-jetbrains-mono-nerd` y `paru` o
-`yay`. Opcional: `gcalcli` (avisos de Google Calendar).
+`playerctl`, `brightnessctl`, `btop`, `ttf-jetbrains-mono-nerd`, `neovim`,
+`tree-sitter-cli`, `nodejs`, `npm` y `paru` o `yay`. Opcional: `gcalcli` (avisos de Google Calendar).
