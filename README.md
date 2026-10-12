@@ -12,11 +12,20 @@ login a juego.
 | `setup/torre` | `main` + lo de la torre (CachyOS, AMD + NVIDIA, dos monitores). |
 | `setup/portatil` | `main` + lo del portátil (Arch, Intel, batería, pantalla HiDPI). |
 
-Lo que cambia de una máquina a otra vive en `.config/hypr/equipo.lua`, que sólo
-existe en las ramas de cada máquina. `hyprland.lua` lo carga al final, así que
-puede sobrescribir lo común. Lo demás se adapta solo: la barra busca el
-sensor de temperatura por nombre y sólo enseña la GPU de NVIDIA, la batería,
-el ratón Razer o el loopback del micrófono si la máquina los tiene.
+Lo que cambia de una máquina a otra vive en ficheros que sólo existen en las
+ramas de cada máquina, así que `main` nunca los toca:
+
+- `.config/hypr/equipo.lua`: monitores y lo que sólo arranca en una máquina.
+  `hyprland.lua` lo carga al final, así que puede sobrescribir lo común.
+- `.config/quickshell/bar/equipo/`: los módulos de la barra que sólo tiene una
+  máquina (la wifi y la batería en el portátil; la GPU, el ratón Razer y el
+  loopback del micrófono en la torre). `shell.qml` carga `equipo/Equipo.qml` si
+  existe, y la barra le deja dos huecos (antes del volumen y detrás de la
+  memoria) y el desplegable del bloque de la derecha. Cada módulo es un
+  `Modulo` (`bar/Modulo.qml`).
+
+El sensor de temperatura se busca por nombre, así que vale para cualquier
+máquina.
 
 Un cambio común va por PR a `main`, y cada máquina lo recoge con:
 
@@ -32,7 +41,7 @@ choca.
 - `.config/hypr/hyprland.lua`: Hyprland, en Lua (0.56+).
 - `.config/hypr/hyprlock.conf`: la pantalla de bloqueo.
 - `.config/hypr/scripts/`: barra, capturas, notificaciones, recordatorios,
-  loopback, aviso de actualizaciones.
+  aviso de actualizaciones.
 - `.config/ghostty/config.ghostty`: la terminal, con el mismo cristal.
 - `.config/fish/`: fish, la shell de todas las máquinas: Starship, zoxide, eza,
   las abreviaturas de git, el saludo y `ms` (SSH al homelab).

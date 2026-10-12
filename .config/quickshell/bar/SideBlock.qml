@@ -360,6 +360,11 @@ PanelWindow {
                 Loader {
                     id: cargador
 
+                    // Para que el panel sepa si está abierto sin conocer el
+                    // bloque: lo da quien no lo ve (equipo/Equipo.qml), y lo lee
+                    // como parent.abierto.
+                    readonly property bool abierto: block.abierto
+
                     // El ancho es el de destino, no el del cristal mientras
                     // anima: si siguiera al cristal, el contenido se
                     // recolocaría en cada fotograma del rebote.
