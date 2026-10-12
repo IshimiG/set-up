@@ -1,0 +1,10 @@
+[Unit]
+Description=Revisa recordatorios y calendario, y avisa si toca
+Documentation=file://%h/.config/hypr/scripts/notify-scheduler.sh
+
+[Service]
+Type=oneshot
+ExecStart=%h/.config/hypr/scripts/notify-scheduler.sh
+# gcalcli puede quedarse esperando a Google si la red va mal; antes que
+# acumular latidos colgados, se corta y ya saltará el siguiente minuto.
+TimeoutStartSec=45

@@ -1,0 +1,33 @@
+#!/usr/bin/env bash
+# Enfoca una ventana abierta o, si no la hay, lanza la aplicación.
+#
+#   launch-or-focus <patrón> <orden> [argumentos…]
+#
+# <patrón> es una expresión regular que se compara, sin distinguir mayúsculas,
+# con la clase y con el título de cada ventana. Hace falta mirar el título
+# porque Zen (Firefox) bajo Wayland no deja cambiar la clase: todas sus
+# ventanas son "zen", y WhatsApp o Google Messages sólo se distinguen por el
+# título.
+#
+# Lo usan los atajos de ~/.config/hypr/hyprland.lua (focusOrLaunch). Sustituye
+# a omarchy-launch-or-focus.
+
+set -uo pipefail
+
+if (($# < 2)); then
+	printf 'uso: %s <patrón> <orden> [argumentos…]\n' "${0##*/}" >&2
+	exit 1
+fi
+
+patron=$1
+shift
+
+direccion=$(hyprctl clients -j | jq -r --arg p "$patron" '
+	first(.[] | select(.mapped and ((.class | test($p; "i")) or (.title | test($p; "i")))) | .address) // empty')
+
+if [[ -n $direccion ]]; then
+	# Con la config en Lua, hyprctl dispatch evalúa un dispatcher de hl.dsp.
+	hyprctl dispatch "hl.dsp.focus({ window = \"address:$direccion\" })" >/dev/null
+else
+	exec "$@"
+fi

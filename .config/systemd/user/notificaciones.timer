@@ -1,0 +1,18 @@
+[Unit]
+Description=Latido del sistema de notificaciones
+
+[Timer]
+# Media hora. La precisión no sale de la frecuencia de este latido: cada vez
+# que corre, el script mira lo que toca dentro de la próxima media hora y arma
+# un temporizador de un solo disparo para la hora exacta de cada cosa. Así un
+# recordatorio para dentro de siete minutos sale a los siete minutos sin que
+# haga falta despertar sesenta veces por hora.
+OnStartupSec=2min
+OnUnitActiveSec=30min
+AccuracySec=1min
+# Si el equipo estaba suspendido a la hora de un recordatorio, salta al
+# despertar en vez de perderse.
+Persistent=true
+
+[Install]
+WantedBy=timers.target
