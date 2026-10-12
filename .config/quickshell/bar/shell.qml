@@ -310,12 +310,33 @@ ShellRoot {
 
     // --- Las superficies ---------------------------------------------------
 
-    // Las lecturas de la barra: cpu, memoria, temperatura, gpu, ratón y el
-    // loopback del micrófono. Una sola vez para los dos monitores.
+    // Las lecturas comunes de la barra: cpu, memoria y temperatura. Una sola
+    // vez para los dos monitores.
     Telemetry {
         id: telemetria
 
         shell: root
+    }
+
+    // --- Lo de cada equipo -------------------------------------------------
+    // Lo que sólo tiene una máquina (la wifi y la batería del portátil; la GPU,
+    // el ratón y el loopback de la torre) vive en equipo/Equipo.qml, que sólo
+    // existe en la rama de cada equipo, igual que equipo.lua en Hyprland. Se
+    // carga una vez, como Telemetry, y TelemetryBlock.qml coloca lo que da:
+    //
+    //   antesDelVolumen, trasLaMemoria   Component con una fila de Modulo
+    //   desplegable                      Component del panel del bloque derecho
+    //   modoDesplegable                  el modo de este fichero que lo abre
+    //
+    // Sin Equipo.qml (la rama común) la barra se queda con lo común.
+    readonly property var equipo: cargaEquipo.item
+
+    Loader {
+        id: cargaEquipo
+
+        Component.onCompleted: setSource(Qt.resolvedUrl("equipo/Equipo.qml"), {
+            shell: root
+        })
     }
 
     // Las tres piezas de la barra, una terna por monitor y todas desde este

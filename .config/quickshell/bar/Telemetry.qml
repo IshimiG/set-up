@@ -2,27 +2,15 @@ import QtQuick
 import Quickshell
 import Quickshell.Io
 
-// Todas las lecturas de la barra, en un solo sitio y desde un solo proceso.
+// Las lecturas comunes de la barra, en un solo sitio y desde un solo proceso.
 //
 // Esto es lo que waybar no podía hacer. Allí cada monitor dibujaba su propia
-// barra, y cada barra ejecutaba su propia copia de cada módulo: gpu.sh cada 3 s
-// y loopback.sh cada 5 s, por dos, más las dos copias de mouse-battery.py
-// peleándose por el mismo nodo /dev/hidraw. Aquí se lee una vez y lo pintan los
-// dos.
+// barra, y cada barra ejecutaba su propia copia de cada módulo. Aquí se lee una
+// vez y lo pintan los dos.
 //
-// Y casi nada de esto lanza ya un proceso:
-//
-//   - cpu, memoria y temperatura salen de /proc y /sys leídos con FileView.
-//     Cero forks.
-//   - la gpu es la única que sigue necesitando un proceso, porque no hay forma
-//     de sacar la telemetría de NVIDIA de /sys. Pero se llama a nvidia-smi
-//     directamente en vez de a gpu.sh, que era bash + nvidia-smi + jq + seis
-//     sed: de nueve forks por vuelta a uno.
-//   - la batería del ratón sigue siendo mouse-battery.py porque UPower no ve el
-//     Razer (comprobado: `upower -e` sólo devuelve DisplayDevice). Pero se
-//     ejecuta una vez en lugar de dos.
-//   - el loopback deja de tener intervalo: se pregunta al hacer clic, y para los
-//     cambios que vengan de fuera hay una única suscripción a `pactl subscribe`.
+// cpu, memoria y temperatura salen de /proc y /sys leídos con FileView: cero
+// forks. Lo que sólo tiene una máquina (la GPU de NVIDIA, la batería del ratón
+// Razer y el loopback del micrófono de la torre) lo lee su equipo/Equipo.qml.
 Scope {
     id: tel
 
@@ -57,27 +45,6 @@ Scope {
     // --- Temperatura -------------------------------------------------------
     property int grados: 0
 
-    // --- GPU ---------------------------------------------------------------
-    property bool gpuHay: false
-    property int gpuPct: 0
-    property int gpuGrados: 0
-    property int gpuVram: 0
-    property int gpuVramTotal: 0
-    property real gpuVatios: 0
-    property string gpuNombre: ""
-
-    // --- Ratón -------------------------------------------------------------
-    // Texto vacío significa "no contesta", que para este ratón quiere decir
-    // apagado: un Razer dormido no responde a la petición HID. El módulo se
-    // esconde en lugar de enseñar un cero, que es lo que hacía creer que la
-    // batería estaba agotada.
-    property string ratonTexto: ""
-    property string ratonClase: ""
-
-    // --- Loopback del micrófono --------------------------------------------
-    property bool loopActivo: false
-    property string loopAviso: ""
-
     // =======================================================================
     // Lectura de /proc y /sys
     // =======================================================================
@@ -97,40 +64,37 @@ Scope {
     }
 
     // El número de hwmonN cambia entre arranques, así que la ruta no se puede
-    // escribir a mano. Se sondea al arrancar probando uno tras otro bajo el
-    // directorio del dispositivo PCI —que sí es estable— hasta que uno responde.
-    // Se usa la ruta del dispositivo y no /sys/class/hwmon justamente por lo
-    // mismo: allí la numeración también baila.
-    property int candidatoHwmon: 0
+    // escribir a mano. Se busca una vez al arrancar, por el nombre del sensor:
+    // k10temp (o zenpower) en AMD, que es la torre, y coretemp en Intel, que es
+    // el portátil. En los dos su temp1 es la del encapsulado entero: "Tctl" en
+    // AMD, "Package id 0" en Intel. Antes se sondeaba bajo el dispositivo PCI
+    // del k10temp, que sólo existe en la torre; buscar por nombre resuelve lo
+    // mismo —la numeración que baila— y vale para cualquier máquina, por un
+    // único fork al arrancar.
     property bool hwmonListo: false
+    property string sensor: ""
 
     FileView {
         id: fTemp
-        path: "/sys/devices/pci0000:00/0000:00:18.3/hwmon/hwmon" + tel.candidatoHwmon + "/temp1_input"
         blockLoading: true
         printErrors: false
     }
 
-    // El sondeo va por pasos desde un temporizador y no encadenado desde
-    // onLoadFailed: cambiar el "path" desde dentro del manejador de fallo no
-    // vuelve a intentarlo, comprobado.
-    Timer {
-        id: sondeo
-        interval: 30
-        repeat: true
+    Process {
         running: true
-        onTriggered: {
-            if (!isNaN(parseInt(fTemp.text()))) {
+        command: ["sh", "-c", "for h in /sys/class/hwmon/hwmon*; do case $(cat \"$h/name\" 2>/dev/null) in k10temp|zenpower|coretemp) echo \"$h/temp1_input\"; cat \"$h/temp1_label\" 2>/dev/null; exit;; esac; done"]
+
+        stdout: StdioCollector {
+            onStreamFinished: {
+                const lineas = this.text.split("\n");
+                if (lineas[0] === "") {
+                    console.warn("no hay sensor de CPU conocido (k10temp, zenpower, coretemp); la temperatura se queda en blanco");
+                    return;
+                }
+                fTemp.path = lineas[0];
+                tel.sensor = lineas[1] || "";
                 tel.hwmonListo = true;
-                sondeo.running = false;
-                return;
             }
-            if (tel.candidatoHwmon >= 8) {
-                sondeo.running = false;
-                console.warn("no se ha encontrado el hwmon del k10temp; la temperatura se queda en blanco");
-                return;
-            }
-            tel.candidatoHwmon++;
         }
     }
 
@@ -196,110 +160,6 @@ Scope {
         running: tel.activo
         repeat: true
         triggeredOnStart: true
-        onTriggered: {
-            tel.muestrear();
-            if (!gpu.running)
-                gpu.running = true;
-        }
+        onTriggered: tel.muestrear()
     }
-
-    // =======================================================================
-    // Lo que sí necesita procesos
-    // =======================================================================
-
-    Process {
-        id: gpu
-        command: ["nvidia-smi", "--query-gpu=utilization.gpu,temperature.gpu,memory.used,memory.total,power.draw,name", "--format=csv,noheader,nounits"]
-
-        stdout: StdioCollector {
-            onStreamFinished: {
-                const linea = this.text.trim().split("\n")[0];
-                if (linea === "") {
-                    tel.gpuHay = false;
-                    return;
-                }
-                const c = linea.split(",").map(s => s.trim());
-                tel.gpuPct = parseInt(c[0]) || 0;
-                tel.gpuGrados = parseInt(c[1]) || 0;
-                tel.gpuVram = parseInt(c[2]) || 0;
-                tel.gpuVramTotal = parseInt(c[3]) || 0;
-                tel.gpuVatios = parseFloat(c[4]) || 0;
-                tel.gpuNombre = c[5] || "";
-                tel.gpuHay = true;
-            }
-        }
-    }
-
-    // Un minuto sobra: la carga de un ratón no se mueve más rápido.
-    Process {
-        id: raton
-        command: [Quickshell.env("HOME") + "/.config/hypr/scripts/mouse-battery.py"]
-
-        stdout: StdioCollector {
-            onStreamFinished: {
-                try {
-                    const j = JSON.parse(this.text);
-                    tel.ratonTexto = j.text || "";
-                    tel.ratonClase = j.class || "";
-                } catch (e) {
-                    tel.ratonTexto = "";
-                }
-            }
-        }
-    }
-
-    Timer {
-        interval: 60000
-        running: tel.activo
-        repeat: true
-        triggeredOnStart: true
-        onTriggered: if (!raton.running)
-            raton.running = true
-    }
-
-    // El loopback del micrófono sobrevive como script porque comparte estado con
-    // la app GTK3 por GSettings y carga un module-loopback de PulseAudio, que el
-    // servicio Pipewire de Quickshell no toca.
-    Process {
-        id: loopback
-        command: [Quickshell.env("HOME") + "/.config/hypr/scripts/loopback.sh", "json"]
-
-        stdout: StdioCollector {
-            onStreamFinished: {
-                try {
-                    const j = JSON.parse(this.text);
-                    tel.loopActivo = j.alt === "on";
-                    tel.loopAviso = j.tooltip || "";
-                } catch (e) {}
-            }
-        }
-    }
-
-    function preguntarLoopback() {
-        if (!loopback.running)
-            loopback.running = true;
-    }
-
-    function alternarLoopback() {
-        Quickshell.execDetached([Quickshell.env("HOME") + "/.config/hypr/scripts/loopback.sh", "toggle"]);
-    }
-
-    // En vez del intervalo de 5 segundos que tenía waybar: una única suscripción
-    // a los eventos de PulseAudio, y se vuelve a preguntar sólo cuando algo se
-    // mueve de verdad. Los eventos de "client" van y vienen constantemente —cada
-    // pactl que se ejecuta es uno—, así que sólo interesan los de módulo, que es
-    // lo que carga y descarga el loopback.
-    Process {
-        running: true
-        command: ["pactl", "subscribe"]
-
-        stdout: SplitParser {
-            onRead: linea => {
-                if (linea.indexOf("module") >= 0)
-                    tel.preguntarLoopback();
-            }
-        }
-    }
-
-    Component.onCompleted: tel.preguntarLoopback()
 }

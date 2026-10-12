@@ -2,6 +2,7 @@ import QtQuick
 import QtQuick.Controls
 import QtQuick.Layouts
 import Quickshell
+import Quickshell.Io
 import Quickshell.Wayland
 import Quickshell.Widgets
 import "shared"
@@ -33,11 +34,56 @@ PanelWindow {
     // seguir desenfocando.
 
     property string query: ""
+
+    // --- Residente --------------------------------------------------------
+    // El lanzador ya no es un proceso por cada SUPER+SPACE. Arranca una vez con
+    // la sesión (hyprland.lua) y se abre y se cierra por IPC, igual que la isla
+    // de la barra. Cuando era un proceso nuevo, Quickshell tardaba ~0,4 s en
+    // arrancar y otros 0,3-0,5 s en pintar el primer fotograma —leer los
+    // .desktop, crear las filas, cargar los iconos—, y la animación, que
+    // arrancaba al crearse y no al verse, se consumía en esa espera: el primer
+    // fotograma salía con la tarjeta casi entera y el resto a trompicones
+    // (medido: huecos de 90-160 ms entre fotogramas durante el despliegue).
+    //
+    // "mapped" es que la superficie exista; "shown", que la tarjeta esté
+    // desplegada. Van separadas por lo mismo que en la isla: poner visible a
+    // false destruye la superficie al instante, así que al cerrar se recoge
+    // primero la tarjeta y sólo después se quita la superficie.
+    property bool mapped: false
     property bool shown: false
+    // Entre que la superficie se crea y la animación puede arrancar.
+    property bool esperandoFotograma: false
+    property int fotogramas: 0
+
+    visible: root.mapped
+
+    function openLauncher() {
+        if (root.shown || root.esperandoFotograma)
+            return;
+        cierre.stop();
+        input.text = "";
+        list.currentIndex = filtered.values.length > 0 ? 0 : -1;
+        list.positionViewAtBeginning();
+        content.opacity = 0;
+        root.fotogramas = 0;
+        root.esperandoFotograma = true;
+        root.mapped = true;
+        porSiAcaso.restart();
+    }
 
     function closeLauncher() {
+        if (!root.mapped)
+            return;
+        root.esperandoFotograma = false;
         root.shown = false;
-        quitTimer.start();
+        cierre.restart();
+    }
+
+    function toggleLauncher() {
+        if (root.shown || root.esperandoFotograma)
+            root.closeLauncher();
+        else
+            root.openLauncher();
     }
 
     function launchSelected() {
@@ -48,13 +94,71 @@ PanelWindow {
         }
     }
 
-    Component.onCompleted: root.shown = true
+    // La animación arranca con la superficie ya en pantalla, no antes: así se
+    // ve entera, desde el punto, en vez de empezar a medias.
+    //
+    // Se espera al segundo fotograma y no al primero. Entre los dos pasan
+    // 60-90 ms (medido en el portátil, con la capa recién creada) y, arrancando
+    // en el primero, ese hueco caía dentro de la animación: se perdía el 15 %
+    // inicial, que con el rebote es casi la mitad del recorrido. La tarjeta
+    // todavía es invisible en ese rato, así que esperar no se nota.
+    function desplegar() {
+        if (!root.esperandoFotograma)
+            return;
+        root.esperandoFotograma = false;
+        root.shown = true;
+        input.forceActiveFocus();
+    }
+
+    Connections {
+        target: card.Window.window
+        enabled: root.esperandoFotograma
+        function onFrameSwapped() {
+            root.fotogramas++;
+            if (root.fotogramas >= 2)
+                root.desplegar();
+        }
+    }
+
+    // Si por lo que sea el aviso del fotograma no llega, la tarjeta se
+    // despliega igual al rato en vez de quedarse sin aparecer.
+    // Tiene que quedar por encima de lo que tarda el segundo fotograma (unos
+    // 150 ms), o se adelantaría a él.
+    Timer {
+        id: porSiAcaso
+        interval: 300
+        onTriggered: root.desplegar()
+    }
+
+    onShownChanged: if (root.shown)
+        aparecerContenido.restart()
 
     Timer {
-        id: quitTimer
+        id: cierre
         interval: 180
-        onTriggered: Qt.quit()
+        onTriggered: root.mapped = false
     }
+
+    // SUPER+SPACE llama a toggle. Si el proceso no estaba vivo, hyprland.lua lo
+    // arranca con LAUNCHER_ABRIR=1 para que esa misma pulsación ya lo abra.
+    IpcHandler {
+        target: "launcher"
+
+        function toggle(): void {
+            root.toggleLauncher();
+        }
+
+        function open(): void {
+            root.openLauncher();
+        }
+
+        function close(): void {
+            root.closeLauncher();
+        }
+    }
+
+    Component.onCompleted: if (Quickshell.env("LAUNCHER_ABRIR") === "1")
+        root.openLauncher()
 
     // Circular reveal: the card starts as a small circle (seed x seed, radius
     // half of that) and grows into the full rounded rectangle, so the shape
@@ -166,19 +270,26 @@ PanelWindow {
 
         ColumnLayout {
             id: content
-            // Anchored top/left/right only: its height comes from its children,
+            // Anchored to the top only: its height comes from its children,
             // which is what the card's height is derived from.
-            anchors.left: parent.left
-            anchors.right: parent.right
+            //
+            // El ancho es fijo, el de la tarjeta ya desplegada, y no va atado a
+            // los lados de la tarjeta. Atado a ellos, cada fotograma del
+            // despliegue cambiaba el ancho y obligaba a recolocar el campo de
+            // búsqueda, la lista y cada fila (con su texto recortado) aunque
+            // todavía fueran invisibles. Así sólo se desplaza, y lo que sobra
+            // mientras la tarjeta es pequeña lo recorta el clip.
+            anchors.horizontalCenter: parent.horizontalCenter
             anchors.top: parent.top
-            anchors.margins: root.pad
+            anchors.topMargin: root.pad
+            width: root.cardW - root.pad * 2
             spacing: 12
 
             // Held back until the box has most of its size, otherwise the text
-            // is visibly squashed while the circle is still expanding.
+            // is visibly cut by the circle while it is still expanding.
             opacity: 0
             SequentialAnimation {
-                running: true
+                id: aparecerContenido
                 PauseAnimation {
                     duration: 190
                 }
@@ -294,7 +405,27 @@ PanelWindow {
                         x: 14
                     }
 
+                    // Con el lanzador residente las filas sobreviven de una
+                    // apertura a otra, así que la entrada se repite al
+                    // desplegar. Se devuelven antes a su punto de partida: si
+                    // no, durante la pausa del escalonado se verían quietas y
+                    // de golpe se apagarían para volver a entrar.
+                    function entrar() {
+                        row.opacity = 0;
+                        rowShift.x = 14;
+                        entrada.restart();
+                    }
+
+                    Connections {
+                        target: root
+                        function onShownChanged() {
+                            if (root.shown)
+                                row.entrar();
+                        }
+                    }
+
                     SequentialAnimation {
+                        id: entrada
                         running: true
                         PauseAnimation {
                             duration: Math.min(row.index, 9) * 26
@@ -329,6 +460,11 @@ PanelWindow {
                         IconImage {
                             Layout.preferredWidth: 24
                             Layout.preferredHeight: 24
+                            // Fuera del hilo de la interfaz: al filtrar entran
+                            // filas nuevas, y cargar sus iconos de golpe
+                            // (muchos son SVG que hay que rasterizar) congelaba
+                            // la lista mientras se escribía.
+                            asynchronous: true
                             source: Quickshell.iconPath(row.modelData.icon, true)
                         }
 

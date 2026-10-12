@@ -23,6 +23,31 @@ SideBlock {
 
     derecha: true
 
+    // --- Lo de cada equipo ---------------------------------------------------
+    // Lo que sólo tiene una máquina (la wifi y la batería del portátil; la GPU,
+    // el ratón y el loopback de la torre) no está aquí: lo da equipo/Equipo.qml,
+    // que sólo existe en la rama de cada equipo y que carga shell.qml. Este
+    // bloque le deja dos huecos, antes del volumen y detrás de la memoria, y el
+    // desplegable. Sin Equipo.qml, los huecos no ocupan sitio y no hay
+    // desplegable.
+    readonly property var equipo: root.shell.equipo
+    readonly property string pantalla: root.screen ? root.screen.name : ""
+
+    // El desplegable comparte el modo de shell.qml con la isla, así que abrirlo
+    // cierra el calendario o lo que hubiera abierto allí.
+    desplegable: root.equipo ? root.equipo.desplegable : null
+    abierto: root.equipo !== null && root.equipo.modoDesplegable !== "" && root.shell.mode === root.equipo.modoDesplegable && root.shell.modeScreen === root.pantalla
+
+    // Un hueco para los módulos de un equipo. Lo que carga es una fila de
+    // Modulo; cada uno toma el bloque de aquí (parent.bloque desde la fila).
+    // Sin nada visible dentro no ocupa sitio, ni siquiera el espaciado.
+    component Hueco: Loader {
+        readonly property var bloque: root
+
+        visible: item !== null && item.implicitWidth > 0
+        Layout.preferredHeight: 26
+    }
+
     // El sink por defecto hay que rastrearlo explícitamente o Pipewire no
     // mantiene al día su volumen ni su mute.
     PwObjectTracker {
@@ -54,119 +79,23 @@ SideBlock {
         return Theme.strong;
     }
 
-    // Un módulo de la barra: un glifo, opcionalmente una cifra al lado, y un
-    // globo al pasar por encima. Va como componente en línea porque sólo se usa
-    // aquí y sacarlo a un fichero propio obligaría a leer dos para entender uno.
-    component Modulo: Item {
-        id: mod
-
-        property string glifo: ""
-        property string valor: ""
-        property string pista: ""
-        property color tinte: Theme.strong
-        // Para lo que está apagado o silenciado: sigue ahí y sigue siendo
-        // clicable, pero deja de pesar.
-        property real atenuado: 1
-
-        signal pulsado
-        signal pulsadoDerecho
-        signal pulsadoMedio
-        signal rueda(int delta)
-
-        visible: mod.glifo !== "" || mod.valor !== ""
-        implicitWidth: visible ? linea.implicitWidth : 0
-        implicitHeight: parent ? parent.height : 26
-        opacity: mod.atenuado
-
-        Behavior on opacity {
-            NumberAnimation {
-                duration: 160
-            }
-        }
-
-        RowLayout {
-            id: linea
-
-            anchors.centerIn: parent
-            spacing: 6
-
-            Text {
-                visible: mod.glifo !== ""
-                text: mod.glifo
-                color: mod.tinte
-                font.family: Theme.font
-                font.pixelSize: 12
-
-                Behavior on color {
-                    ColorAnimation {
-                        duration: 180
-                    }
-                }
-            }
-
-            Text {
-                visible: mod.valor !== ""
-                text: mod.valor
-                color: mod.tinte
-                font.family: Theme.font
-                font.pixelSize: 12
-
-                Behavior on color {
-                    ColorAnimation {
-                        duration: 180
-                    }
-                }
-            }
-        }
-
-        HoverHandler {
-            id: encima
-            cursorShape: Qt.PointingHandCursor
-        }
-
-        // El globo lo dibuja el bloque, no el módulo: así sólo hay uno y se
-        // coloca respecto a la pastilla entera en vez de pelearse por el sitio
-        // con los vecinos.
-        Connections {
-            target: encima
-            function onHoveredChanged() {
-                if (encima.hovered) {
-                    root.pistaDe = mod;
-                    root.pista = mod.pista;
-                } else if (root.pista === mod.pista) {
-                    root.pista = "";
-                }
-            }
-        }
-
-        // Y si el dato cambia mientras el ratón sigue encima, el globo se
-        // actualiza en vez de quedarse con la cifra de hace tres segundos.
-        onPistaChanged: if (encima.hovered)
-            root.pista = mod.pista
-
-        TapHandler {
-            acceptedButtons: Qt.LeftButton
-            onTapped: mod.pulsado()
-        }
-
-        TapHandler {
-            acceptedButtons: Qt.RightButton
-            onTapped: mod.pulsadoDerecho()
-        }
-
-        TapHandler {
-            acceptedButtons: Qt.MiddleButton
-            onTapped: mod.pulsadoMedio()
-        }
-
-        WheelHandler {
-            acceptedDevices: PointerDevice.Mouse | PointerDevice.TouchPad
-            onWheel: event => mod.rueda(event.angleDelta.y)
-        }
+    // btop, desde cualquiera de los módulos de telemetría. Va en su propia
+    // clase para que hyprland.lua lo saque del mosaico (flotante, centrado y
+    // en todos los escritorios), y por launch-or-focus para que un segundo
+    // clic enfoque el que ya hay en vez de apilar otro encima.
+    //
+    // Lo que se busca son 80x24 celdas dentro, el mínimo con el que btop se
+    // pinta entero; con menos sólo enseña "Terminal size too small". Pero
+    // Ghostty calcula la ventana sin contar el relleno de config.ghostty, así
+    // que pedirle 80x24 deja 75x22. Con 85x26 sobra para el relleno y quedan
+    // las 80x24 justas.
+    function abrirBtop() {
+        Quickshell.execDetached([Quickshell.env("HOME") + "/.local/bin/launch-or-focus", "^ghostty\\.btop$", "ghostty", "--class=ghostty.btop", "--title=btop", "--window-width=85", "--window-height=26", "-e", "btop"]);
     }
 
     // --- Lo que está sonando ------------------------------------------------
     Modulo {
+        bloque: root
         readonly property string titulo: root.reproductor ? (root.reproductor.trackTitle || "") : ""
         readonly property string artista: root.reproductor ? (root.reproductor.trackArtist || "") : ""
 
@@ -207,22 +136,14 @@ SideBlock {
         }
     }
 
-    // --- Loopback del micrófono ---------------------------------------------
-    Modulo {
-        glifo: root.tel.loopActivo ? "󰍬" : "󰍭"
-        tinte: root.tel.loopActivo ? Theme.ok : Theme.strong
-        // No se esconde cuando está apagado: sin glifo no habría dónde hacer
-        // clic para encenderlo.
-        atenuado: root.tel.loopActivo ? 1 : 0.45
-        pista: root.tel.loopAviso
-
-        onPulsado: root.tel.alternarLoopback()
-        onPulsadoDerecho: Quickshell.execDetached(["pavucontrol"])
-        onRueda: delta => Quickshell.execDetached([Quickshell.env("HOME") + "/.config/hypr/scripts/loopback.sh", delta > 0 ? "up" : "down"])
+    // --- Lo del equipo, antes del volumen -----------------------------------
+    Hueco {
+        sourceComponent: root.equipo ? root.equipo.antesDelVolumen : null
     }
 
     // --- Volumen -------------------------------------------------------------
     Modulo {
+        bloque: root
         readonly property int pct: root.audio ? Math.round(root.audio.volume * 100) : 0
         readonly property bool mudo: root.audio ? root.audio.muted : false
 
@@ -255,72 +176,42 @@ SideBlock {
     // --- CPU y su temperatura ------------------------------------------------
     // Van pegadas porque se leen como un solo dato.
     Modulo {
+        bloque: root
         glifo: "󰍛"
         valor: root.tel.cpu + "%"
         tinte: root.tintePorUso(root.tel.cpu)
         pista: "CPU " + root.tel.cpu + "%"
 
-        onPulsado: Quickshell.execDetached(["ghostty", "--title=btop", "-e", "btop"])
+        onPulsado: root.abrirBtop()
     }
 
     Modulo {
+        bloque: root
         visible: root.tel.hwmonListo
         glifo: ""
         valor: root.tel.grados + "°"
         // El umbral de crítico es el mismo que tenía waybar: 85.
         tinte: root.tel.grados >= 85 ? Theme.danger : Theme.strong
-        pista: "CPU Tctl · " + root.tel.grados + "°C"
+        pista: "CPU " + root.tel.sensor + " · " + root.tel.grados + "°C"
 
-        onPulsado: Quickshell.execDetached(["ghostty", "--title=btop", "-e", "btop"])
+        onPulsado: root.abrirBtop()
     }
 
     // --- Memoria -------------------------------------------------------------
     Modulo {
+        bloque: root
         glifo: "󰘚"
         valor: root.tel.memPct + "%"
         // Los umbrales de la memoria eran algo más altos que los del resto.
         tinte: root.tel.memPct >= 92 ? Theme.danger : (root.tel.memPct >= 80 ? Theme.warn : Theme.strong)
         pista: "RAM " + root.tel.memUsada.toFixed(1) + " / " + root.tel.memTotal.toFixed(1) + " GiB" + "\nSwap " + root.tel.swapUsada.toFixed(1) + " GiB"
 
-        onPulsado: Quickshell.execDetached(["ghostty", "--title=btop", "-e", "btop"])
+        onPulsado: root.abrirBtop()
     }
 
-    // --- GPU -----------------------------------------------------------------
-    Modulo {
-        glifo: root.tel.gpuHay ? "󰢮" : ""
-        valor: root.tel.gpuHay ? root.tel.gpuPct + "% " + root.tel.gpuGrados + "°" : ""
-        tinte: root.tintePorUso(root.tel.gpuPct)
-        pista: {
-            if (!root.tel.gpuHay)
-                return "";
-            let p = root.tel.gpuNombre;
-            p += "\nUso " + root.tel.gpuPct + "% · " + root.tel.gpuGrados + "°C";
-            p += "\nVRAM " + root.tel.gpuVram + " / " + root.tel.gpuVramTotal + " MiB";
-            if (root.tel.gpuVatios > 0)
-                p += "\nConsumo " + root.tel.gpuVatios.toFixed(0) + " W";
-            return p;
-        }
-
-        onPulsado: Quickshell.execDetached(["ghostty", "--title=btop", "-e", "btop"])
-    }
-
-    // --- Batería del ratón ---------------------------------------------------
-    // Sigue saliendo de mouse-battery.py porque UPower no ve el Razer. El texto
-    // vacío esconde el módulo, que es lo que pasa con el ratón apagado: dormido
-    // no contesta a la petición HID.
-    Modulo {
-        glifo: root.tel.ratonTexto === "" ? "" : "󰍽"
-        valor: root.tel.ratonTexto
-        tinte: {
-            if (root.tel.ratonClase === "critical")
-                return Theme.danger;
-            if (root.tel.ratonClase === "warning")
-                return Theme.warn;
-            if (root.tel.ratonClase === "charging")
-                return Theme.ok;
-            return Theme.strong;
-        }
-        pista: root.tel.ratonTexto === "" ? "" : "Razer Viper V3 Pro SE · " + root.tel.ratonTexto
+    // --- Lo del equipo, detrás de la memoria ---------------------------------
+    Hueco {
+        sourceComponent: root.equipo ? root.equipo.trasLaMemoria : null
     }
 
     // --- La bandeja del sistema ---------------------------------------------
