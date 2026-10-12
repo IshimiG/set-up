@@ -2,27 +2,15 @@ import QtQuick
 import Quickshell
 import Quickshell.Io
 
-// Todas las lecturas de la barra, en un solo sitio y desde un solo proceso.
+// Las lecturas comunes de la barra, en un solo sitio y desde un solo proceso.
 //
 // Esto es lo que waybar no podía hacer. Allí cada monitor dibujaba su propia
-// barra, y cada barra ejecutaba su propia copia de cada módulo: gpu.sh cada 3 s
-// y loopback.sh cada 5 s, por dos, más las dos copias de mouse-battery.py
-// peleándose por el mismo nodo /dev/hidraw. Aquí se lee una vez y lo pintan los
-// dos.
+// barra, y cada barra ejecutaba su propia copia de cada módulo. Aquí se lee una
+// vez y lo pintan los dos.
 //
-// Y casi nada de esto lanza ya un proceso:
-//
-//   - cpu, memoria y temperatura salen de /proc y /sys leídos con FileView.
-//     Cero forks.
-//   - la gpu es la única que sigue necesitando un proceso, porque no hay forma
-//     de sacar la telemetría de NVIDIA de /sys. Pero se llama a nvidia-smi
-//     directamente en vez de a gpu.sh, que era bash + nvidia-smi + jq + seis
-//     sed: de nueve forks por vuelta a uno.
-//   - la batería del ratón sigue siendo mouse-battery.py porque UPower no ve el
-//     Razer (comprobado: `upower -e` sólo devuelve DisplayDevice). Pero se
-//     ejecuta una vez en lugar de dos.
-//   - el loopback deja de tener intervalo: se pregunta al hacer clic, y para los
-//     cambios que vengan de fuera hay una única suscripción a `pactl subscribe`.
+// cpu, memoria y temperatura salen de /proc y /sys leídos con FileView: cero
+// forks. Lo que sólo tiene una máquina (la GPU de NVIDIA, la batería del ratón
+// Razer y el loopback del micrófono de la torre) lo lee su equipo/Equipo.qml.
 Scope {
     id: tel
 
@@ -56,34 +44,6 @@ Scope {
 
     // --- Temperatura -------------------------------------------------------
     property int grados: 0
-
-    // --- GPU ---------------------------------------------------------------
-    property bool gpuHay: false
-    // Si nvidia-smi ha contestado bien alguna vez. Mientras no lo haya hecho,
-    // el primer fallo basta para dejar de preguntar (ver el Process de abajo).
-    property bool gpuVista: false
-    property bool gpuDescartada: false
-    property int gpuPct: 0
-    property int gpuGrados: 0
-    property int gpuVram: 0
-    property int gpuVramTotal: 0
-    property real gpuVatios: 0
-    property string gpuNombre: ""
-
-    // --- Ratón -------------------------------------------------------------
-    // Texto vacío significa "no contesta", que para este ratón quiere decir
-    // apagado: un Razer dormido no responde a la petición HID. El módulo se
-    // esconde en lugar de enseñar un cero, que es lo que hacía creer que la
-    // batería estaba agotada.
-    property string ratonTexto: ""
-    property string ratonClase: ""
-
-    // --- Loopback del micrófono --------------------------------------------
-    property bool loopActivo: false
-    property string loopAviso: ""
-    // Si el loopback está configurado en esta máquina (en el portátil no lo
-    // está: no tiene el esquema GSettings de la extensión de GNOME).
-    property bool loopHay: true
 
     // =======================================================================
     // Lectura de /proc y /sys
@@ -200,124 +160,6 @@ Scope {
         running: tel.activo
         repeat: true
         triggeredOnStart: true
-        onTriggered: {
-            tel.muestrear();
-            if (!tel.gpuDescartada && !gpu.running)
-                gpu.running = true;
-        }
+        onTriggered: tel.muestrear()
     }
-
-    // =======================================================================
-    // Lo que sí necesita procesos
-    // =======================================================================
-
-    Process {
-        id: gpu
-        command: ["nvidia-smi", "--query-gpu=utilization.gpu,temperature.gpu,memory.used,memory.total,power.draw,name", "--format=csv,noheader,nounits"]
-
-        // Sin GPU de NVIDIA no hay que enseñar nada, y hay dos formas de no
-        // tenerla: que nvidia-smi no exista (no arranca y no escribe nada) o que
-        // exista sin tarjeta, como en el portátil, donde nvidia-utils viene de
-        // arrastre. Entonces escribe "NVIDIA-SMI has failed…" por la salida
-        // normal, y leído como cifras daba un módulo de GPU a 0 % y 0°. Por eso
-        // se exige que el primer campo sea un número.
-        //
-        // Si nunca ha contestado bien, el primer fallo descarta la GPU y deja de
-        // lanzarse cada tres segundos. Si ya contestó alguna vez (la torre), un
-        // fallo suelto sólo esconde el módulo hasta la siguiente vuelta.
-        stdout: StdioCollector {
-            onStreamFinished: {
-                const linea = this.text.trim().split("\n")[0];
-                const c = linea.split(",").map(s => s.trim());
-                if (linea === "" || isNaN(parseInt(c[0]))) {
-                    tel.gpuHay = false;
-                    if (!tel.gpuVista)
-                        tel.gpuDescartada = true;
-                    return;
-                }
-                tel.gpuVista = true;
-                tel.gpuPct = parseInt(c[0]) || 0;
-                tel.gpuGrados = parseInt(c[1]) || 0;
-                tel.gpuVram = parseInt(c[2]) || 0;
-                tel.gpuVramTotal = parseInt(c[3]) || 0;
-                tel.gpuVatios = parseFloat(c[4]) || 0;
-                tel.gpuNombre = c[5] || "";
-                tel.gpuHay = true;
-            }
-        }
-    }
-
-    // Un minuto sobra: la carga de un ratón no se mueve más rápido.
-    Process {
-        id: raton
-        command: [Quickshell.env("HOME") + "/.config/hypr/scripts/mouse-battery.py"]
-
-        stdout: StdioCollector {
-            onStreamFinished: {
-                try {
-                    const j = JSON.parse(this.text);
-                    tel.ratonTexto = j.text || "";
-                    tel.ratonClase = j.class || "";
-                } catch (e) {
-                    tel.ratonTexto = "";
-                }
-            }
-        }
-    }
-
-    Timer {
-        interval: 60000
-        running: tel.activo
-        repeat: true
-        triggeredOnStart: true
-        onTriggered: if (!raton.running)
-            raton.running = true
-    }
-
-    // El loopback del micrófono sobrevive como script porque comparte estado con
-    // la app GTK3 por GSettings y carga un module-loopback de PulseAudio, que el
-    // servicio Pipewire de Quickshell no toca.
-    Process {
-        id: loopback
-        command: [Quickshell.env("HOME") + "/.config/hypr/scripts/loopback.sh", "json"]
-
-        stdout: StdioCollector {
-            onStreamFinished: {
-                try {
-                    const j = JSON.parse(this.text);
-                    tel.loopHay = j.alt !== "none";
-                    tel.loopActivo = j.alt === "on";
-                    tel.loopAviso = j.tooltip || "";
-                } catch (e) {}
-            }
-        }
-    }
-
-    function preguntarLoopback() {
-        if (!loopback.running)
-            loopback.running = true;
-    }
-
-    function alternarLoopback() {
-        Quickshell.execDetached([Quickshell.env("HOME") + "/.config/hypr/scripts/loopback.sh", "toggle"]);
-    }
-
-    // En vez del intervalo de 5 segundos que tenía waybar: una única suscripción
-    // a los eventos de PulseAudio, y se vuelve a preguntar sólo cuando algo se
-    // mueve de verdad. Los eventos de "client" van y vienen constantemente —cada
-    // pactl que se ejecuta es uno—, así que sólo interesan los de módulo, que es
-    // lo que carga y descarga el loopback.
-    Process {
-        running: true
-        command: ["pactl", "subscribe"]
-
-        stdout: SplitParser {
-            onRead: linea => {
-                if (linea.indexOf("module") >= 0)
-                    tel.preguntarLoopback();
-            }
-        }
-    }
-
-    Component.onCompleted: tel.preguntarLoopback()
 }
