@@ -30,8 +30,14 @@ Item {
     signal pulsadoMedio
     signal rueda(int delta)
 
-    visible: mod.glifo !== "" || mod.valor !== ""
-    implicitWidth: visible ? linea.implicitWidth : 0
+    // Si tiene algo que enseñar. Se mira aquí y no en visible, que en Qt
+    // también es falso cuando el padre está escondido: un hueco de equipo se
+    // esconde mientras sus módulos midan 0, y si midieran por visible no
+    // saldrían nunca.
+    readonly property bool conContenido: mod.glifo !== "" || mod.valor !== ""
+
+    visible: mod.conContenido
+    implicitWidth: mod.conContenido ? linea.implicitWidth : 0
     // La altura de la pastilla. Fija y no la del padre: un módulo de un equipo
     // va dentro de una fila anidada, y atarlo a su altura sería un bucle.
     implicitHeight: 26
