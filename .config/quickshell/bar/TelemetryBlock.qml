@@ -4,7 +4,6 @@ import Quickshell
 import Quickshell.Services.Mpris
 import Quickshell.Services.Pipewire
 import Quickshell.Services.SystemTray
-import Quickshell.Services.UPower
 import Quickshell.Widgets
 import "shared"
 
@@ -21,22 +20,32 @@ SideBlock {
 
     // "shell" lo declara SideBlock; volver a declararlo aquí lo ensombrecería.
     required property var tel
-    required property var wifi
 
     derecha: true
 
-    // El desplegable de la wifi cuelga de este bloque. Comparte el modo de
-    // shell.qml con la isla, así que abrirlo cierra el calendario o lo que
-    // hubiera abierto allí.
+    // --- Lo de cada equipo ---------------------------------------------------
+    // Lo que sólo tiene una máquina (la wifi y la batería del portátil; la GPU,
+    // el ratón y el loopback de la torre) no está aquí: lo da equipo/Equipo.qml,
+    // que sólo existe en la rama de cada equipo y que carga shell.qml. Este
+    // bloque le deja dos huecos, antes del volumen y detrás de la memoria, y el
+    // desplegable. Sin Equipo.qml, los huecos no ocupan sitio y no hay
+    // desplegable.
+    readonly property var equipo: root.shell.equipo
     readonly property string pantalla: root.screen ? root.screen.name : ""
-    abierto: root.shell.mode === "wifi" && root.shell.modeScreen === root.pantalla
 
-    desplegable: Component {
-        WifiPanel {
-            shell: root.shell
-            wifi: root.wifi
-            abierto: root.abierto
-        }
+    // El desplegable comparte el modo de shell.qml con la isla, así que abrirlo
+    // cierra el calendario o lo que hubiera abierto allí.
+    desplegable: root.equipo ? root.equipo.desplegable : null
+    abierto: root.equipo !== null && root.equipo.modoDesplegable !== "" && root.shell.mode === root.equipo.modoDesplegable && root.shell.modeScreen === root.pantalla
+
+    // Un hueco para los módulos de un equipo. Lo que carga es una fila de
+    // Modulo; cada uno toma el bloque de aquí (parent.bloque desde la fila).
+    // Sin nada visible dentro no ocupa sitio, ni siquiera el espaciado.
+    component Hueco: Loader {
+        readonly property var bloque: root
+
+        visible: item !== null && item.implicitWidth > 0
+        Layout.preferredHeight: 26
     }
 
     // El sink por defecto hay que rastrearlo explícitamente o Pipewire no
@@ -84,119 +93,9 @@ SideBlock {
         Quickshell.execDetached([Quickshell.env("HOME") + "/.local/bin/launch-or-focus", "^ghostty\\.btop$", "ghostty", "--class=ghostty.btop", "--title=btop", "--window-width=85", "--window-height=26", "-e", "btop"]);
     }
 
-    // Un módulo de la barra: un glifo, opcionalmente una cifra al lado, y un
-    // globo al pasar por encima. Va como componente en línea porque sólo se usa
-    // aquí y sacarlo a un fichero propio obligaría a leer dos para entender uno.
-    component Modulo: Item {
-        id: mod
-
-        property string glifo: ""
-        property string valor: ""
-        property string pista: ""
-        property color tinte: Theme.strong
-        // Para lo que está apagado o silenciado: sigue ahí y sigue siendo
-        // clicable, pero deja de pesar.
-        property real atenuado: 1
-
-        signal pulsado
-        signal pulsadoDerecho
-        signal pulsadoMedio
-        signal rueda(int delta)
-
-        visible: mod.glifo !== "" || mod.valor !== ""
-        implicitWidth: visible ? linea.implicitWidth : 0
-        implicitHeight: parent ? parent.height : 26
-        opacity: mod.atenuado
-
-        Behavior on opacity {
-            NumberAnimation {
-                duration: 160
-            }
-        }
-
-        RowLayout {
-            id: linea
-
-            anchors.centerIn: parent
-            spacing: 6
-
-            Text {
-                visible: mod.glifo !== ""
-                text: mod.glifo
-                color: mod.tinte
-                font.family: Theme.font
-                font.pixelSize: 12
-
-                Behavior on color {
-                    ColorAnimation {
-                        duration: 180
-                    }
-                }
-            }
-
-            Text {
-                visible: mod.valor !== ""
-                text: mod.valor
-                color: mod.tinte
-                font.family: Theme.font
-                font.pixelSize: 12
-
-                Behavior on color {
-                    ColorAnimation {
-                        duration: 180
-                    }
-                }
-            }
-        }
-
-        HoverHandler {
-            id: encima
-            cursorShape: Qt.PointingHandCursor
-        }
-
-        // El globo lo dibuja el bloque, no el módulo: así sólo hay uno y se
-        // coloca respecto a la pastilla entera en vez de pelearse por el sitio
-        // con los vecinos.
-        Connections {
-            target: encima
-            function onHoveredChanged() {
-                if (encima.hovered) {
-                    root.pistaDe = mod;
-                    root.pista = mod.pista;
-                } else if (root.pista === mod.pista) {
-                    root.pista = "";
-                }
-            }
-        }
-
-        // Y si el dato cambia mientras el ratón sigue encima, el globo se
-        // actualiza en vez de quedarse con la cifra de hace tres segundos.
-        onPistaChanged: if (encima.hovered)
-            root.pista = mod.pista
-
-        TapHandler {
-            acceptedButtons: Qt.LeftButton
-            onTapped: mod.pulsado()
-        }
-
-        TapHandler {
-            acceptedButtons: Qt.RightButton
-            onTapped: mod.pulsadoDerecho()
-        }
-
-        TapHandler {
-            acceptedButtons: Qt.MiddleButton
-            onTapped: mod.pulsadoMedio()
-        }
-
-        WheelHandler {
-            acceptedDevices: PointerDevice.Mouse | PointerDevice.TouchPad
-            onWheel: event => mod.rueda(event.angleDelta.y)
-        }
-    }
-
     // --- Lo que está sonando ------------------------------------------------
     Modulo {
+        bloque: root
         readonly property string titulo: root.reproductor ? (root.reproductor.trackTitle || "") : ""
         readonly property string artista: root.reproductor ? (root.reproductor.trackArtist || "") : ""
 
@@ -237,52 +136,14 @@ SideBlock {
         }
     }
 
-    // --- Loopback del micrófono ---------------------------------------------
-    Modulo {
-        // Sin glifo el módulo desaparece, que es lo que toca en una máquina
-        // donde el loopback nunca se ha configurado: no hay nada que encender.
-        glifo: !root.tel.loopHay ? "" : (root.tel.loopActivo ? "󰍬" : "󰍭")
-        tinte: root.tel.loopActivo ? Theme.ok : Theme.strong
-        // No se esconde cuando está apagado: sin glifo no habría dónde hacer
-        // clic para encenderlo.
-        atenuado: root.tel.loopActivo ? 1 : 0.45
-        pista: root.tel.loopAviso
-
-        onPulsado: root.tel.alternarLoopback()
-        onPulsadoDerecho: Quickshell.execDetached(["pavucontrol"])
-        onRueda: delta => Quickshell.execDetached([Quickshell.env("HOME") + "/.config/hypr/scripts/loopback.sh", delta > 0 ? "up" : "down"])
-    }
-
-    // --- Wi-Fi ---------------------------------------------------------------
-    // Donde estaba en waybar con Omarchy: justo antes del volumen, con los
-    // mismos cinco escalones de señal. Antes el clic abría Impala; ahora
-    // despliega el panel, y Impala queda en el clic derecho.
-    Modulo {
-        glifo: root.wifi.glifo
-        // Sin conexión no es un fallo, pero tampoco el estado normal: se
-        // queda a la vista y apagado, como el volumen en silencio.
-        atenuado: root.wifi.conectada || root.abierto ? 1 : 0.45
-        pista: {
-            if (!root.wifi.hay)
-                return "";
-            if (!root.wifi.encendida)
-                return "Wi-Fi apagada";
-            if (!root.wifi.conectada)
-                return root.wifi.estado === "connecting" ? "Conectando…" : "Sin conexión";
-            let p = root.wifi.actual.nombre + "\n" + root.wifi.actual.senal + " %";
-            if (root.wifi.frecuencia > 0)
-                p += " · " + (root.wifi.frecuencia / 1000).toFixed(1).replace(".", ",") + " GHz";
-            if (root.wifi.ip !== "")
-                p += "\n" + root.wifi.ip;
-            return p;
-        }
-
-        onPulsado: root.shell.toggle(root.pantalla, "wifi")
-        onPulsadoDerecho: root.wifi.abrirImpala()
+    // --- Lo del equipo, antes del volumen -----------------------------------
+    Hueco {
+        sourceComponent: root.equipo ? root.equipo.antesDelVolumen : null
     }
 
     // --- Volumen -------------------------------------------------------------
     Modulo {
+        bloque: root
         readonly property int pct: root.audio ? Math.round(root.audio.volume * 100) : 0
         readonly property bool mudo: root.audio ? root.audio.muted : false
 
@@ -315,6 +176,7 @@ SideBlock {
     // --- CPU y su temperatura ------------------------------------------------
     // Van pegadas porque se leen como un solo dato.
     Modulo {
+        bloque: root
         glifo: "󰍛"
         valor: root.tel.cpu + "%"
         tinte: root.tintePorUso(root.tel.cpu)
@@ -324,6 +186,7 @@ SideBlock {
     }
 
     Modulo {
+        bloque: root
         visible: root.tel.hwmonListo
         glifo: ""
         valor: root.tel.grados + "°"
@@ -336,6 +199,7 @@ SideBlock {
 
     // --- Memoria -------------------------------------------------------------
     Modulo {
+        bloque: root
         glifo: "󰘚"
         valor: root.tel.memPct + "%"
         // Los umbrales de la memoria eran algo más altos que los del resto.
@@ -345,99 +209,9 @@ SideBlock {
         onPulsado: root.abrirBtop()
     }
 
-    // --- GPU -----------------------------------------------------------------
-    Modulo {
-        glifo: root.tel.gpuHay ? "󰢮" : ""
-        valor: root.tel.gpuHay ? root.tel.gpuPct + "% " + root.tel.gpuGrados + "°" : ""
-        tinte: root.tintePorUso(root.tel.gpuPct)
-        pista: {
-            if (!root.tel.gpuHay)
-                return "";
-            let p = root.tel.gpuNombre;
-            p += "\nUso " + root.tel.gpuPct + "% · " + root.tel.gpuGrados + "°C";
-            p += "\nVRAM " + root.tel.gpuVram + " / " + root.tel.gpuVramTotal + " MiB";
-            if (root.tel.gpuVatios > 0)
-                p += "\nConsumo " + root.tel.gpuVatios.toFixed(0) + " W";
-            return p;
-        }
-
-        onPulsado: root.abrirBtop()
-    }
-
-    // --- Batería del ratón ---------------------------------------------------
-    // Sigue saliendo de mouse-battery.py porque UPower no ve el Razer. El texto
-    // vacío esconde el módulo, que es lo que pasa con el ratón apagado: dormido
-    // no contesta a la petición HID.
-    Modulo {
-        glifo: root.tel.ratonTexto === "" ? "" : "󰍽"
-        valor: root.tel.ratonTexto
-        tinte: {
-            if (root.tel.ratonClase === "critical")
-                return Theme.danger;
-            if (root.tel.ratonClase === "warning")
-                return Theme.warn;
-            if (root.tel.ratonClase === "charging")
-                return Theme.ok;
-            return Theme.strong;
-        }
-        pista: root.tel.ratonTexto === "" ? "" : "Razer Viper V3 Pro SE · " + root.tel.ratonTexto
-    }
-
-    // --- Batería del portátil -------------------------------------------------
-    // Portátil: la torre no tiene batería. Sale de UPower y no de Telemetry.qml
-    // por lo mismo que el volumen: UPower avisa por su cuenta de cada cambio, así
-    // que no hay nada que muestrear. Sin batería (o mientras UPower no ha
-    // contestado) el texto queda vacío y el módulo se esconde solo.
-    Modulo {
-        id: bateria
-
-        readonly property var disp: UPower.displayDevice
-        readonly property bool hay: bateria.disp !== null && bateria.disp.ready && bateria.disp.isLaptopBattery
-        // percentage va de 0 a 1.
-        readonly property int pct: bateria.hay ? Math.round(bateria.disp.percentage * 100) : 0
-        readonly property bool enchufada: bateria.hay && bateria.disp.state !== UPowerDeviceState.Discharging && bateria.disp.state !== UPowerDeviceState.Empty
-
-        // Los mismos glifos y umbrales que tenía la batería en waybar.
-        readonly property var glifosDescarga: ["󰁺", "󰁻", "󰁼", "󰁽", "󰁾", "󰁿", "󰂀", "󰂁", "󰂂", "󰁹"]
-        readonly property var glifosCarga: ["󰢜", "󰂆", "󰂇", "󰂈", "󰢝", "󰂉", "󰢞", "󰂊", "󰂋", "󰂅"]
-
-        function duracion(segundos) {
-            const min = Math.round(segundos / 60);
-            if (min < 60)
-                return min + " min";
-            return Math.floor(min / 60) + " h " + (min % 60) + " min";
-        }
-
-        glifo: {
-            if (!bateria.hay)
-                return "";
-            const i = Math.max(0, Math.min(9, Math.floor(bateria.pct / 10)));
-            return bateria.enchufada ? bateria.glifosCarga[i] : bateria.glifosDescarga[i];
-        }
-        valor: bateria.hay ? bateria.pct + "%" : ""
-        tinte: {
-            if (bateria.enchufada)
-                return Theme.ok;
-            if (bateria.pct <= 10)
-                return Theme.danger;
-            if (bateria.pct <= 20)
-                return Theme.warn;
-            return Theme.strong;
-        }
-        pista: {
-            if (!bateria.hay)
-                return "";
-            let p = "Batería " + bateria.pct + "%";
-            if (bateria.disp.state === UPowerDeviceState.FullyCharged)
-                p += "\nCargada";
-            else if (bateria.enchufada)
-                p += bateria.disp.timeToFull > 0 ? "\nLlena en " + bateria.duracion(bateria.disp.timeToFull) : "\nCargando";
-            else if (bateria.disp.timeToEmpty > 0)
-                p += "\nQuedan " + bateria.duracion(bateria.disp.timeToEmpty);
-            if (Math.abs(bateria.disp.changeRate) > 0.5)
-                p += " · " + Math.abs(bateria.disp.changeRate).toFixed(0) + " W";
-            return p;
-        }
+    // --- Lo del equipo, detrás de la memoria ---------------------------------
+    Hueco {
+        sourceComponent: root.equipo ? root.equipo.trasLaMemoria : null
     }
 
     // --- La bandeja del sistema ---------------------------------------------

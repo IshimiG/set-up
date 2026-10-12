@@ -1,7 +1,7 @@
 import QtQuick
 import QtQuick.Layouts
 import Quickshell
-import "shared"
+import "../shared"
 
 // El desplegable de la wifi, que sale del bloque de la derecha igual que el
 // calendario o las notificaciones salen de la isla.
