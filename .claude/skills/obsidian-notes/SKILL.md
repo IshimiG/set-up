@@ -84,6 +84,7 @@ Propiedades que usa la página de inicio (solo en las notas principales):
 8. Lo que ya no está vigente no se borra: se mueve a `90 Archivo/` con un aviso arriba diciendo de qué época es y dónde está lo actual
 9. Al mover notas fuera de Obsidian (con `mv`), reescribir los enlaces con ruta (`[[Carpeta/nota]]`) y comprobar que no queda ninguno roto; dentro de Obsidian se actualizan solos
 10. Preferir nombres de archivo descriptivos, en español o inglés según el contexto
+11. Las revisiones de `30 Áreas/Revisiones/` (reminders, Weekly Retrospective, Weekly Planning, objetivos) las **piensa y las escribe el usuario**. Claude prepara la estructura: crea la nota desde su plantilla, pone la fecha y la semana, y enlaza. Pero no la rellena: ni datos «de los registros», ni borradores, ni preguntas para hacerla con él. Solo aporta contenido si el usuario lo pide expresamente
 
 ## Carpetas prohibidas
 
