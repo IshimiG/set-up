@@ -24,6 +24,10 @@
 #   panel-local.sh seguir-panel  vuelve a arrancar el panel parado
 #   panel-local.sh alerta        una alerta nueva (una actualización de paquetes
 #                                que falla); el panel la ve en unos 3 s
+#   panel-local.sh congelar      congela el panel (docker pause): las conexiones
+#                                siguen abiertas pero callan, como tras una
+#                                suspensión o un cambio de red
+#   panel-local.sh descongelar   lo deja seguir
 #   panel-local.sh estado        cómo están los contenedores
 #
 # Direcciones: http://127.0.0.1:8791 (el Caddy falso, con contraseña) y
@@ -184,6 +188,7 @@ arrancar() {
 }
 
 parar() {
+	docker unpause "$panel" >/dev/null 2>&1 || true
 	docker rm -f "$panel" "$caddy" >/dev/null 2>&1 || true
 	rm -rf "$dir"
 }
@@ -217,6 +222,8 @@ parar) parar ;;
 parar-panel) parar_panel ;;
 seguir-panel) seguir_panel ;;
 alerta) alerta ;;
+congelar) docker pause "$panel" >/dev/null ;;
+descongelar) docker unpause "$panel" >/dev/null ;;
 estado) docker ps -a --filter name=prueba-fase2- --format '{{.Names}}\t{{.Status}}' ;;
 *)
 	sed -n '2,/^set -eu/p' "$0" | sed '$d' | sed 's/^# \{0,1\}//'

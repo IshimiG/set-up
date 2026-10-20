@@ -97,12 +97,19 @@ Scope {
     // Al abrir el cajón: si los eventos están cortados, vuelve a conectar ya,
     // sin esperar al siguiente intento; si no hay credenciales o no valían,
     // vuelve a mirar el llavero; y si Inicio tiene más de 60 s, lo lee otra
-    // vez.
+    // vez. Una conexión que lleva más de medio vigía callada (al volver de una
+    // suspensión) también se da por cortada.
     function refrescar() {
         if (p.leyendo)
             return;
         if (p.conexion === "sin-credenciales" || p.conexion === "no-autorizado") {
             api.leerCredenciales();
+            return;
+        }
+        if (p.vivo && p.enVivo && Date.now() - p.ultimoBloque > api.silencioMax / 2) {
+            p.silencio = true;
+            p.otraVezYa = true;
+            eventos.running = false;
             return;
         }
         if (!p.vivo && p.clave !== "") {
@@ -152,12 +159,13 @@ Scope {
 
     readonly property int esperaMin: 2000
     readonly property int esperaMax: 300000
+    readonly property int esperaPeticion: 15000
     // Sin un solo bloque en este tiempo, la conexión se da por muerta (el panel
     // manda un «: ping» cada 25 s). Pasa al volver de una suspensión o al
-    // cambiar de red, cuando curl se queda esperando para siempre.
-    readonly property int silencioMax: 70000
-    readonly property int esperaPeticion: 15000
-    readonly property int inicioVale: 60000
+    // cambiar de red, cuando curl se queda esperando para siempre. Las pruebas
+    // lo bajan, y también inicioVale (lo que dura Inicio sin volver a leerse).
+    property int silencioMax: 70000
+    property int inicioVale: 60000
 
     QtObject {
         id: p
@@ -189,6 +197,11 @@ Scope {
         property bool parado: false
         property bool silencio: false
         property string http: ""
+        // Cuándo llegó el último bloque (con la hora de pared, que sigue
+        // contando durante una suspensión).
+        property double ultimoBloque: 0
+        // Al acabar este curl, otro al momento, sin esperar (refrescar()).
+        property bool otraVezYa: false
 
         // La espera del intento pendiente y la del siguiente.
         property int espera: 0
@@ -261,12 +274,20 @@ Scope {
     // --- Los eventos ------------------------------------------------------------
 
     function conectar() {
-        if (p.vivo || p.clave === "")
+        if (p.clave === "")
             return;
+        if (p.vivo) {
+            // El curl de antes, parado a posta, aún no ha acabado: en cuanto
+            // acabe.
+            if (p.parado)
+                p.otraVezYa = true;
+            return;
+        }
         reintento.stop();
         p.parado = false;
         p.enVivo = false;
         p.silencio = false;
+        p.otraVezYa = false;
         p.http = "";
         p.vivo = true;
         p.intentos++;
@@ -278,6 +299,7 @@ Scope {
     // Corta curl a posta, sin reintento.
     function parar() {
         p.parado = true;
+        p.otraVezYa = false;
         reintento.stop();
         vigia.stop();
         if (eventos.running)
@@ -331,6 +353,7 @@ Scope {
         if (p.parado)
             return;
         vigia.restart();
+        p.ultimoBloque = Date.now();
         let evento = "message";
         const datos = [];
         for (const cruda of texto.split("\n")) {
@@ -361,8 +384,15 @@ Scope {
         } catch (e) {
             return;
         }
+        if (evento === "state") {
+            p.servidor = api.servidorDe(d);
+            return;
+        }
+        // Al conectar, el panel manda el estado y enseguida las alertas: con
+        // las alertas ya puestas se pasa a "conectado", para que el asa no
+        // pase un instante por "ok" antes de saberlas.
+        const nuevas = api.alertasDe(d);
         if (!p.enVivo) {
-            // El primer evento de esta conexión: ya se habla con el NUC.
             p.enVivo = true;
             p.conexion = "conectado";
             p.siguiente = api.esperaMin;
@@ -371,10 +401,8 @@ Scope {
             if (api.inicioViejo())
                 api.cargarInicio();
         }
-        if (evento === "state")
-            p.servidor = api.servidorDe(d);
-        else
-            api.alertasDe(d);
+        for (const a of nuevas)
+            api.alertaNueva(a);
     }
 
     function eventosAcabados(codigo) {
@@ -382,15 +410,23 @@ Scope {
             return;
         p.vivo = false;
         vigia.stop();
-        if (p.parado)
+        if (p.parado) {
+            if (p.otraVezYa)
+                api.conectar();
             return;
+        }
         if (p.http === "401") {
             api.noAutorizado();
             return;
         }
         p.error = api.motivoCorte(codigo, p.http);
-        p.conexion = "sin-conexion";
         api.olvidarVivo();
+        if (p.otraVezYa) {
+            p.conexion = "conectando";
+            api.conectar();
+            return;
+        }
+        p.conexion = "sin-conexion";
         p.espera = p.siguiente;
         p.siguiente = Math.min(p.siguiente * 2, api.esperaMax);
         reintento.interval = p.espera;
@@ -482,6 +518,7 @@ Scope {
         return isNaN(d.getTime()) ? null : d;
     }
 
+    // Pone las alertas y devuelve las que hay que anunciar con alertaNueva.
     function alertasDe(lista) {
         const nuevas = (Array.isArray(lista) ? lista : []).map(a => ({
                     id: String(a.id),
@@ -500,11 +537,9 @@ Scope {
         p.alertas = nuevas;
         if (p.primeraLista) {
             p.primeraLista = false;
-            return;
+            return [];
         }
-        for (const a of nuevas)
-            if (!antes[a.id] && !a.vista)
-                api.alertaNueva(a);
+        return nuevas.filter(a => !antes[a.id] && !a.vista);
     }
 
     // --- Las peticiones ----------------------------------------------------------
@@ -651,17 +686,20 @@ Scope {
         const gen = p.generacion;
         const r = {};
         let faltan = 3;
-        const una = clave => (estado, texto) => {
-            r[clave] = {
-                estado: estado,
-                texto: texto
+        // La respuesta de cada una; con las tres, se junta.
+        function una(clave) {
+            return (estado, texto) => {
+                r[clave] = {
+                    estado: estado,
+                    texto: texto
+                };
+                if (--faltan > 0)
+                    return;
+                p.cargandoInicio = false;
+                if (gen === p.generacion)
+                    api.juntarInicio(r);
             };
-            if (--faltan > 0)
-                return;
-            p.cargandoInicio = false;
-            if (gen === p.generacion)
-                api.juntarInicio(r);
-        };
+        }
         api.pedir("GET", "/api/personal", undefined, una("personal"));
         api.pedir("GET", "/api/tareas", undefined, una("tareas"));
         api.pedir("GET", "/api/finanzas/resumen", undefined, una("finanzas"));

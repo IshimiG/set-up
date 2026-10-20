@@ -90,6 +90,8 @@ ShellRoot {
     property var tiempos: []
     // Cuándo pasó «a» a "sin-conexion" por última vez.
     property double tCorte: 0
+    // Los valores de nivelAlertas de «a», en orden.
+    property var niveles: []
 
     Connections {
         target: a
@@ -98,6 +100,9 @@ ShellRoot {
         }
         function onIntentosChanged() {
             prueba.tiempos.push(Date.now());
+        }
+        function onNivelAlertasChanged() {
+            prueba.niveles.push(a.nivelAlertas);
         }
         function onConexionChanged() {
             if (a.conexion === "sin-conexion" && prueba.tCorte === 0)
@@ -111,6 +116,8 @@ ShellRoot {
         Api {}
     }
     property var b: null
+    // «c», con el vigía a 6 s en vez de 70.
+    property var c: null
 
     // --- Lo que se espera del panel local ------------------------------------
 
@@ -172,7 +179,10 @@ ShellRoot {
 
     // --- La prueba, paso a paso ---------------------------------------------
 
-    Component.onCompleted: prueba.sinCredenciales()
+    Component.onCompleted: {
+        prueba.niveles = [a.nivelAlertas];
+        prueba.sinCredenciales();
+    }
 
     function sinCredenciales() {
         prueba.esperar(10000, () => a.conexion === "sin-credenciales", ok => {
@@ -213,6 +223,7 @@ ShellRoot {
         const al = a.alertas[0];
         prueba.comprobar(al && al.nivel === "error" && al.titulo.indexOf("immich_server") >= 0 && al.desde instanceof Date && !isNaN(al.desde) && al.vista === false && typeof al.detalle === "string", "  normalizadas: nivel, titulo, detalle, desde (Date), vista", al ? JSON.stringify(al) : "");
         prueba.comprobar(a.nivelAlertas === "error", "nivelAlertas \"error\"", a.nivelAlertas);
+        prueba.comprobar(prueba.igual(prueba.niveles, ["desconocido", "error"]), "  sin pasar por \"ok\" al conectar", prueba.niveles.join(" → "));
         prueba.comprobar(prueba.nuevas.length === 0, "La primera lista no emite alertaNueva", prueba.nuevas.length);
         const i = a.inicio || {};
         prueba.comprobar(i.hoy === prueba.hoyEsperado(), "inicio.hoy", i.hoy);
@@ -334,7 +345,64 @@ ShellRoot {
                     prueba.dormir(4000, () => {
                         prueba.comprobar(prueba.b.conexion === "no-autorizado" && prueba.b.intentos === intentos && prueba.b.esperaMs === 0, "  y no reintenta solo", "intentos " + prueba.b.intentos);
                         prueba.comprobar(a.conexion === "conectado", "El cajón que ya estaba sigue conectado con la contraseña que leyó", a.conexion);
-                        prueba.fin();
+                        prueba.inicioViejo();
+                    });
+                });
+            });
+        });
+    }
+
+    // Inicio se vuelve a leer al abrir el cajón solo si tiene más de
+    // inicioVale (60 s; aquí se baja a medio segundo).
+    function inicioViejo() {
+        const antes = a.inicioCargado;
+        a.refrescar();
+        prueba.dormir(1500, () => {
+            prueba.comprobar(a.inicioCargado === antes, "refrescar() con Inicio de menos de 60 s no lo vuelve a leer", String(a.inicioCargado));
+            // Una tarea nueva en el vault, en la última sección (En pausa).
+            prueba.sh("printf '%s\\n' \"- [ ] Pausada nueva 📅 $(date -d '-20 days' +%F)\" >> \"$PANEL_LOCAL_DIR/vault/00 Inicio.md\"", () => {
+                a.inicioVale = 500;
+                prueba.dormir(700, () => {
+                    a.refrescar();
+                    prueba.esperar(5000, () => a.inicioCargado !== antes, ok => {
+                        const t = a.inicio ? a.inicio.tareas : [];
+                        prueba.comprobar(ok && t.length === 5 && t[4].texto === "Pausada nueva" && t[4].cuando === "vencida hace 20 días", "refrescar() con Inicio viejo lo vuelve a leer (y trae la tarea nueva)", t.length ? t[4].texto + ", " + t[4].cuando : "");
+                        a.inicioVale = 60000;
+                        prueba.vigia();
+                    });
+                });
+            });
+        });
+    }
+
+    // Una conexión que calla: el panel congelado (docker pause) no manda ni
+    // los «: ping». refrescar() la da por cortada pasado medio vigía, y el
+    // vigía la corta a los silencioMax.
+    function vigia() {
+        prueba.guardarClave(prueba.dir + "/clave", () => {
+            prueba.c = otroApi.createObject(prueba, {
+                silencioMax: 6000
+            });
+            prueba.esperar(10000, () => prueba.c.conexion === "conectado", ok => {
+                prueba.comprobar(ok, "Otro cajón, con el vigía a 6 s, conecta", prueba.c.conexion);
+                prueba.sh("'" + prueba.panelLocal + "' congelar", () => {
+                    prueba.dormir(3500, () => {
+                        const antes = prueba.c.intentos;
+                        prueba.c.refrescar();
+                        prueba.esperar(2000, () => prueba.c.intentos === antes + 1, ok2 => {
+                            prueba.comprobar(ok2 && prueba.c.conexion === "conectando", "refrescar() con la conexión callada más de medio vigía vuelve a conectar ya", prueba.c.conexion + ", intentos " + prueba.c.intentos);
+                            const t0 = Date.now();
+                            prueba.esperar(9000, () => prueba.c.conexion === "sin-conexion", ok3 => {
+                                prueba.comprobar(ok3 && prueba.c.error.indexOf("Sin noticias") === 0, "Con el panel congelado, el vigía corta la conexión callada: \"sin-conexion\"", "en " + (Date.now() - t0) + " ms; error «" + prueba.c.error + "»");
+                                prueba.sh("'" + prueba.panelLocal + "' descongelar", () => {
+                                    prueba.esperar(prueba.c.esperaMs + 6000, () => prueba.c.conexion === "conectado", ok4 => {
+                                        prueba.comprobar(ok4, "Descongelado, reconecta solo", prueba.c.conexion);
+                                        prueba.comprobar(a.conexion === "conectado", "  y el primer cajón (vigía de 70 s) ni se ha enterado", a.conexion);
+                                        prueba.fin();
+                                    });
+                                });
+                            });
+                        });
                     });
                 });
             });
