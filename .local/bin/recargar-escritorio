@@ -1,0 +1,37 @@
+#!/usr/bin/env bash
+# Pone el escritorio al día después de que un pull cambie el repo set-up. Lo
+# llaman dotfiles-sync.sh (al iniciar sesión) y actualizar-equipo (el botón
+# «Actualizar ahora») cuando el pull ha traído algo. También vale a mano.
+#
+#   1. hyprctl reload. Al reescribir hyprland.lua, git lo quita y lo vuelve a
+#      crear; si Hyprland lo relee justo entre medias se queda con «cannot
+#      open …/hyprland.lua» fijo hasta la próxima recarga.
+#   2. Arranca los paneles que van en su propio proceso y no estén ya. El pull
+#      del inicio de sesión corre a la vez que hyprland.start, así que un panel
+#      nuevo que llegue con él no lo arrancó nadie. --no-duplicate hace que los
+#      que ya están se queden como están.
+#
+# La barra no está en la lista: se recarga sola en caliente, y "qs -c bar" no
+# lleva --no-duplicate en hyprland.lua, así que lanzarla otra vez la duplicaría.
+
+set -uo pipefail
+
+# Los de hyprland.start en hyprland.lua que llevan --no-duplicate.
+PANELES=(launcher homelab)
+
+aviso() { printf '\033[33m%s\033[0m\n' "$*"; }
+
+hyprctl reload >/dev/null
+errores=$(hyprctl configerrors)
+if [[ -n ${errores//[[:space:]]/} ]]; then
+	aviso "  Hyprland sigue con errores en la configuración:"
+	printf '%s\n' "$errores" | sed '/^\s*$/d; s/^/    /'
+else
+	echo "  Hyprland recargado, sin errores"
+fi
+
+for p in "${PANELES[@]}"; do
+	[[ -f $HOME/.config/quickshell/$p/shell.qml ]] || continue
+	setsid qs -c "$p" -d --no-duplicate >/dev/null 2>&1 </dev/null
+done
+echo "  paneles en marcha: ${PANELES[*]}"

@@ -9,11 +9,14 @@
 #   2. Vuelve a pasar setup.sh --torre con lo que haya traído el pull del repo
 #      set-up: paquetes que falten (pide sudo aquí mismo), enlaces, servicios
 #      y equipo.sh.
+#   3. Si el pull cambió el repo set-up, recargar-escritorio: recarga Hyprland
+#      y arranca los paneles nuevos.
 
 set -uo pipefail
 shopt -s nullglob
 
 proyectos="$HOME/Projects"
+setup_antes=$(git -C "$proyectos/set-up" rev-parse HEAD)
 
 aviso() { printf '\033[33m%s\033[0m\n' "$*"; }
 paso() { printf '\n\033[1m== %s\033[0m\n' "$*"; }
@@ -42,3 +45,8 @@ done
 
 paso "Escritorio: setup.sh --torre"
 "$proyectos/set-up/setup.sh" --torre
+
+if [[ $(git -C "$proyectos/set-up" rev-parse HEAD) != "$setup_antes" ]]; then
+	paso "Escritorio: recargar"
+	"$proyectos/set-up/.local/bin/recargar-escritorio"
+fi
