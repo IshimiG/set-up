@@ -1,0 +1,44 @@
+#!/usr/bin/env bash
+# Lo que hace en la torre el botón «Actualizar ahora» del aviso de
+# actualizaciones, después de paru -Syu y en la misma terminal (lo lanza
+# updates/shell.qml si este fichero existe). También vale a mano.
+#
+#   1. Pone al día los repos de ~/Projects que siguen una rama remota, sólo
+#      avanzando (--ff-only). Uno con cambios locales que chocarían, con la
+#      rama divergida o sin rama remota se queda como está, y se dice.
+#   2. Vuelve a pasar setup.sh --torre con lo que haya traído el pull del repo
+#      set-up: paquetes que falten (pide sudo aquí mismo), enlaces, servicios
+#      y equipo.sh.
+
+set -uo pipefail
+shopt -s nullglob
+
+proyectos="$HOME/Projects"
+
+aviso() { printf '\033[33m%s\033[0m\n' "$*"; }
+paso() { printf '\n\033[1m== %s\033[0m\n' "$*"; }
+
+paso "Repositorios de ~/Projects"
+for g in "$proyectos"/*/.git; do
+	r=${g%/.git}
+	n=${r##*/}
+	if ! git -C "$r" rev-parse -q --verify '@{upstream}' >/dev/null 2>&1; then
+		echo "  $n: sin rama remota; no se toca"
+		continue
+	fi
+	antes=$(git -C "$r" rev-parse HEAD)
+	if ! salida=$(git -C "$r" pull -q --ff-only 2>&1); then
+		aviso "  $n: no avanza solo; se queda como está"
+		printf '%s\n' "$salida" | sed 's/^/      /'
+		continue
+	fi
+	despues=$(git -C "$r" rev-parse HEAD)
+	if [[ $antes == "$despues" ]]; then
+		echo "  $n: al día"
+	else
+		echo "  $n: $(git -C "$r" rev-list --count "$antes..$despues") commits nuevos"
+	fi
+done
+
+paso "Escritorio: setup.sh --torre"
+"$proyectos/set-up/setup.sh" --torre
