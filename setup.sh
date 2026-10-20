@@ -68,6 +68,9 @@ PACMAN=(
 	# Lo que usan la barra y los scripts
 	grim slurp satty wl-clipboard jq libnotify pacman-contrib pavucontrol
 	playerctl btop
+	# El panel del homelab (quickshell/homelab): la contraseña de cada equipo
+	# va en el llavero y se lee con secret-tool
+	gnome-keyring libsecret
 	# Terminal, shell y editor
 	ghostty fish starship zoxide eza direnv fastfetch neovim tree-sitter-cli
 	nodejs npm ripgrep fd lazygit git curl
