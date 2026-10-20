@@ -38,11 +38,6 @@ ShellRoot {
         id: apiNuc
     }
 
-    // Al abrir el cajón se ponen al día los datos (y se reconecta ya, si estaban
-    // cortados), no antes: sin sondeos.
-    onAbiertoChanged: if (root.abierto)
-        root.api.refrescar()
-
     // Una alerta nueva sale como notificación; el cajón no se abre por ella.
     Avisos {
         api: root.api

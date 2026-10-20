@@ -159,7 +159,7 @@ Item {
         const sv = contenido.api ? contenido.api.servidor : null;
         if (!sv)
             return "Servidor sin datos";
-        let t = sv.problemas > 0 ? sv.enMarcha + " de " + sv.total + " en marcha · " + sv.problemas + : sv.enMarcha + " de " + sv.total + " contenedores en marcha";
+        let t = sv.problemas > 0 ? sv.enMarcha + " de " + sv.total + " en marcha · " + sv.problemas + " con problemas" : sv.enMarcha + " de " + sv.total + " contenedores en marcha";
         const n = contenido.sinVer();
         return t + " · " + (n === 0 ? "sin alertas" : (n === 1 ? "1 alerta sin ver" : n + " alertas sin ver"));
     }

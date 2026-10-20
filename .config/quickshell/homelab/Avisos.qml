@@ -23,7 +23,7 @@ QtObject {
     function argumentos(alerta) {
         let detalle = String(alerta.detalle || "").replace(/\s+/g, " ").trim();
         if (detalle.length > avisos.maxDetalle)
-            detalle = detalle.substring(0, avisos.maxDetalle - 1).trimEnd() + "…";
+            detalle = detalle.substring(0, avisos.maxDetalle - 1).replace(/\s+$/, "") + "…";
         const orden = ["notify-send", "-a", "Homelab", "-u", alerta.nivel === "error" ? "critical" : "normal", String(alerta.titulo)];
         if (detalle !== "")
             orden.push(detalle);
