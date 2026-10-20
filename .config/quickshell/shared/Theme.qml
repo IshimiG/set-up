@@ -62,6 +62,18 @@ Singleton {
     readonly property color warn: "#e59625"
     readonly property color danger: "#e90b25"
 
+    // --- Prioridades -----------------------------------------------------
+    // Las de las tareas del panel del homelab, copiadas de su web (las --p-*
+    // de panel/internal/panel/web/style.css, repo homelab) para que una tarea
+    // se vea del mismo color en la web y en el escritorio. Las usa el cajón
+    // del panel (quickshell/homelab). En pausa es siempre azul.
+    readonly property color prioMaxima: "#ff6b7c"
+    readonly property color prioAlta: "#ff9a4d"
+    readonly property color prioMedia: "#f2d14b"
+    readonly property color prioBaja: "#6dc89e"
+    readonly property color prioMinima: "#7c7b8a"
+    readonly property color prioPausa: "#6aa8ff"
+
     readonly property string font: "JetBrainsMono Nerd Font"
 
     // --- Medidas ---------------------------------------------------------

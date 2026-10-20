@@ -48,7 +48,9 @@ choca.
 - `.config/nvim/`: Neovim con LazyVim, el tema Horizon con el fondo transparente
   y los lenguajes que se usan (TypeScript, SQL, Docker, Java, Angular…).
 - `.config/quickshell/`: `bar` (barra, isla, notificaciones), `launcher`
-  (SUPER+SPACE), `reminder` (SUPER+R), `updates` y `shared` (la paleta).
+  (SUPER+SPACE), `reminder` (SUPER+R), `updates`, `homelab` (el panel del
+  homelab: el cajón que sale del centro del borde derecho, o con SUPER+H) y
+  `shared` (la paleta).
 - `.config/systemd/user/notificaciones.*`: el latido de los recordatorios.
 - `.local/bin/launch-or-focus`: enfoca una ventana o lanza la app.
 - `sddm/`: el tema "cristal" de la pantalla de login (`sudo sddm/install.sh`).
