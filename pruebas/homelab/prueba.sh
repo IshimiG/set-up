@@ -3,7 +3,8 @@
 #
 # Carga el Cajon.qml del repo dentro de una ventana sin compositor, con un shell
 # falso, y mueve el ratón con TestEvent: asomar, arrastrar, soltar, tirones, la
-# goma, el clic y la rueda. Imprime OK o FALLO por cada comprobación y deja
+# goma, el clic y la rueda; y, con una API falsa (ApiFalsa.qml), el Inicio, los
+# estados de conexión, «Vista», el punto del asa y los avisos. Imprime OK o FALLO por cada comprobación y deja
 # capturas en <carpeta temporal>/capturas.
 #
 # Quickshell no importa nada de fuera de la carpeta de la configuración, así que
@@ -20,7 +21,7 @@ qs_dir=$repo/.config/quickshell
 tmp=$(mktemp -d "${TMPDIR:-/tmp}/prueba-cajon.XXXXXX")
 
 mkdir -p "$tmp/homelab" "$tmp/capturas"
-cp "$aqui/shell.qml" "$tmp/"
+cp "$aqui/shell.qml" "$aqui/ApiFalsa.qml" "$tmp/"
 cp -r "$qs_dir/shared" "$tmp/shared"
 cp "$qs_dir/homelab/"*.qml "$tmp/homelab/"
 ln -s ../shared "$tmp/homelab/shared"

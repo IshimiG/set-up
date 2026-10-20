@@ -280,11 +280,23 @@ Item {
 
         function onAbiertoChanged() {
             cajon.asentar();
+            cajon.alAbrir();
         }
     }
 
-    Component.onCompleted: if (cajon.shell.abierto)
-        cajon.asentar()
+    // Al abrir se ponen al día los datos (y se reconecta ya, si estaban
+    // cortados), no antes: sin sondeos. Va aquí y no en shell.qml para que la
+    // prueba, que carga este fichero con un shell falso, lo ejercite.
+    function alAbrir() {
+        if (cajon.shell.abierto && cajon.shell.api)
+            cajon.shell.api.refrescar();
+    }
+
+    Component.onCompleted: {
+        if (cajon.shell.abierto)
+            cajon.asentar();
+        cajon.alAbrir();
+    }
 
     // --- El cajón -----------------------------------------------------------
     // La capa exterior es sólo el canto, con el cuerpo de cristal encima dejando
@@ -403,6 +415,7 @@ Item {
             width: 4
             height: 4
             radius: 2
+            objectName: "puntoAsa"
             color: contenido.colorEstado
         }
     }
