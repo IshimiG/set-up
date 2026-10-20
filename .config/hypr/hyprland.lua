@@ -299,6 +299,17 @@ hl.bind(mainMod .. " + J", hl.dsp.layout("togglesplit")) -- dwindle only
 hl.bind(mainMod .. " + N", hl.dsp.exec_cmd("~/.config/hypr/scripts/notify-ctl.sh centro"))
 hl.bind(mainMod .. " + ALT + N", hl.dsp.exec_cmd("~/.config/hypr/scripts/notify-ctl.sh silencio"))
 
+-- El panel del homelab: el cajón que también sale arrastrando el asa del centro
+-- del borde derecho (quickshell/homelab). Mismo interruptor que el lanzador:
+-- vive desde el inicio de sesión y se abre y se cierra por IPC; si el proceso no
+-- está, se arranca ya abierto.
+hl.bind(
+	mainMod .. " + H",
+	hl.dsp.exec_cmd(
+		"qs -c homelab ipc call homelab toggle >/dev/null 2>&1 || HOMELAB_ABRIR=1 qs -c homelab -d --no-duplicate"
+	)
+)
+
 -- Recordatorio rápido. Mismo interruptor que los demás: si ya está abierta, se
 -- cierra, en vez de apilar otra encima.
 hl.bind(
@@ -594,6 +605,19 @@ hl.layer_rule({
 	ignore_alpha = 0.5,
 })
 
+-- El panel del homelab (quickshell/homelab): una columna pegada al borde
+-- derecho, alta como la pantalla, con el cajón y su asa dentro. Mismo trato que
+-- la isla: la superficie no cambia de tamaño y el cajón se anima en QML, así que
+-- el compositor no debe animarla; y el ignore_alpha deja el desenfoque bajo el
+-- cristal del cajón y del asa, y fuera de lo transparente.
+hl.layer_rule({
+	name = "homelab-anim",
+	match = { namespace = "^homelab$" },
+	no_anim = true,
+	blur = true,
+	ignore_alpha = 0.5,
+})
+
 -- Hyprland-run windowrule
 hl.window_rule({
 	name = "move-hyprland-run",
@@ -637,6 +661,9 @@ hl.on("hyprland.start", function()
 	hl.exec_cmd("qs -c bar -d")
 	-- El lanzador de SUPER+SPACE, cargado y escondido hasta que se pida.
 	hl.exec_cmd("qs -c launcher -d --no-duplicate")
+	-- El panel del homelab, escondido en el borde derecho hasta que se saque
+	-- (SUPER+H o el asa).
+	hl.exec_cmd("qs -c homelab -d --no-duplicate")
 	-- Cuántos paquetes hay pendientes, en una tarjeta colgada del borde de
 	-- arriba. El script espera a que haya red antes de contar y no enseña nada
 	-- si no hay ninguno, así que puede lanzarse sin más.
