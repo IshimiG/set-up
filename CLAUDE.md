@@ -13,7 +13,8 @@ de una máquina.
   su PR). Lo de un solo equipo va en su rama (`setup/torre`, `setup/portatil`),
   en los ficheros que sólo existen allí: `.config/hypr/equipo.lua`,
   `.config/quickshell/bar/equipo/`, `.config/ghostty/equipo.ghostty`,
-  `equipo.sh`. Lo común nunca nombra nada de un equipo.
+  `.local/bin/actualizar-equipo`, `equipo.sh`. Lo común nunca nombra nada de un
+  equipo.
 - Si el cambio necesita un paquete, un enlace o un servicio, también va en
   `setup.sh` (lo común) o en el `equipo.sh` de la rama, para que `setup.sh` deje
   cualquier máquina igual. `setup.sh --comprobar` en las dos máquinas tiene que

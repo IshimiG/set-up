@@ -55,6 +55,8 @@ choca.
   homelab-panel usuario <equipo>`) y `shared` (la paleta).
 - `.config/systemd/user/notificaciones.*`: el latido de los recordatorios.
 - `.local/bin/launch-or-focus`: enfoca una ventana o lanza la app.
+- `.local/bin/actualizar-equipo` (sólo en la rama de un equipo, si lo quiere):
+  lo que el botón «Actualizar ahora» del aviso hace después de `paru -Syu`.
 - `sddm/`: el tema "cristal" de la pantalla de login (`sudo sddm/install.sh`).
 - `pruebas/homelab/`: pruebas sin pantalla del cajón del homelab. `prueba.sh`
   prueba la interfaz con una API falsa, y `api/prueba-api.sh`, la conexión
