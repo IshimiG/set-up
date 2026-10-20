@@ -53,6 +53,8 @@ choca.
   `shared` (la paleta).
 - `.config/systemd/user/notificaciones.*`: el latido de los recordatorios.
 - `.local/bin/launch-or-focus`: enfoca una ventana o lanza la app.
+- `.local/bin/actualizar-equipo` (sólo en la rama de un equipo, si lo quiere):
+  lo que el botón «Actualizar ahora» del aviso hace después de `paru -Syu`.
 - `sddm/`: el tema "cristal" de la pantalla de login (`sudo sddm/install.sh`).
 
 ## Instalación

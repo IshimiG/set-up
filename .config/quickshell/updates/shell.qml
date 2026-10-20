@@ -84,7 +84,12 @@ PanelWindow {
     //
     // paru en la torre (CachyOS) y yay en el portátil, que es el que trajo
     // Omarchy. Los dos aceptan -Syu igual y piden sudo igual.
-    readonly property string updateCmd: "if command -v paru >/dev/null; then paru -Syu; else yay -Syu; fi; printf '\\n'; read -r -p 'Pulsa Enter para cerrar… '"
+    //
+    // Después, si la rama del equipo trae ~/.local/bin/actualizar-equipo, lo
+    // que ese equipo quiera hacer al actualizar (en la torre: los repos de
+    // ~/Projects y setup.sh). Corre aunque paru falle o se cancele, porque no
+    // depende de los paquetes del sistema; lo común no sabe qué hace.
+    readonly property string updateCmd: "if command -v paru >/dev/null; then paru -Syu; else yay -Syu; fi; if [ -x \"$HOME/.local/bin/actualizar-equipo\" ]; then \"$HOME/.local/bin/actualizar-equipo\"; fi; printf '\\n'; read -r -p 'Pulsa Enter para cerrar… '"
 
     // Las cuentas llegan por entorno. Un valor que no se pueda leer cuenta
     // como cero en vez de dejar un "NaN" en mitad de la tarjeta.
