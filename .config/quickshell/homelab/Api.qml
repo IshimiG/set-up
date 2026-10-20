@@ -442,30 +442,17 @@ Scope {
             return "El panel del NUC no responde (HTTP " + h + ")";
         if (h >= 400)
             return "El panel ha respondido HTTP " + h;
-        switch (codigo) {
-        case -1:
-        case 127:
+        if (codigo === -1 || codigo === 127)
             return "No encuentro curl";
-        case 6:
+        if (codigo === 6)
             return "No encuentro " + host + " (DNS)";
-        case 7:
+        if (codigo === 7)
             return "No se puede conectar con " + host;
-        case 28:
+        if (codigo === 28)
             return host + " no contesta";
-        case 35:
-        case 51:
-        case 53:
-        case 54:
-        case 58:
-        case 59:
-        case 60:
-        case 77:
-        case 80:
-        case 83:
-        case 90:
-        case 91:
+        // Los de TLS y certificados.
+        if ([35, 51, 53, 54, 58, 59, 60, 77, 80, 83, 90, 91].indexOf(codigo) >= 0)
             return "Error de TLS con " + host + " (curl " + codigo + ")";
-        }
         return h === 200 ? "Se ha cortado la conexión con el NUC" : "Se ha cortado la conexión con el NUC (curl " + codigo + ")";
     }
 
