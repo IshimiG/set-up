@@ -17,8 +17,8 @@ import "shared"
 // Va en su propio proceso y no dentro de la barra: la barra lleva el demonio de
 // notificaciones, y un fallo o una recarga de esto no debe llevárselo con él.
 //
-// Fase 1: todavía sin conexión con el NUC. Lo que se ve dentro son datos de
-// prueba (Contenido.qml).
+// Fase 2: los datos salen del NUC a través de Api.qml (un solo objeto, creado
+// aquí y leído como shell.api). Las alertas nuevas salen como notificación.
 ShellRoot {
     id: root
 
@@ -29,6 +29,24 @@ ShellRoot {
     // Fijado, el cajón no se cierra al hacer clic en otra ventana: se queda
     // delante mientras se trabaja detrás.
     property bool fijado: false
+
+    // La conexión con el panel del NUC. Una sola; Borde, Cajon y Contenido la
+    // leen como shell.api. (Api.qml es de la otra mitad de la fase 2.)
+    property var api: apiNuc
+
+    Api {
+        id: apiNuc
+    }
+
+    // Al abrir el cajón se ponen al día los datos (y se reconecta ya, si estaban
+    // cortados), no antes: sin sondeos.
+    onAbiertoChanged: if (root.abierto)
+        root.api.refrescar()
+
+    // Una alerta nueva sale como notificación; el cajón no se abre por ella.
+    Avisos {
+        api: root.api
+    }
 
     function estado(): string {
         if (!root.abierto)

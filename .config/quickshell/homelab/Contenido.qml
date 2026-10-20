@@ -5,10 +5,10 @@ import "shared"
 
 // Lo de dentro del cajón.
 //
-// Fase 1: la forma, con datos de prueba inventados. La tira de secciones de la
-// izquierda es la de la web (su menú plegado), y cada sección dice en qué fase
-// del plan llega. Desde la fase 2 los datos salen de la API del panel y esto
-// sólo los pinta: las reglas (la prioridad que sube con la fecha, qué se puede
+// La tira de secciones de la izquierda es la de la web (su menú plegado), y cada
+// sección sin datos todavía dice en qué fase del plan llega. Los datos salen de
+// Api.qml (shell.api), ya normalizados: aquí no se conoce el JSON de la API, sólo
+// se pinta. Las reglas (la prioridad que sube con la fecha, qué se puede
 // escribir) siguen en el NUC.
 Item {
     id: contenido
@@ -20,9 +20,25 @@ Item {
 
     property string seccion: "inicio"
 
-    // El color del punto del asa: el estado del NUC. En la fase 2 lo ponen las
-    // alertas de /api/events; de momento, el verde de «todo bien».
-    readonly property color colorEstado: Theme.ok
+    // La API del panel (Api.qml, creada en shell.qml).
+    readonly property var api: contenido.shell.api
+
+    readonly property bool conectado: contenido.api ? contenido.api.conexion === "conectado" : false
+
+    // El color del punto del asa: el nivel de las alertas sin ver. Sin conexión
+    // no se sabe nada, y se apaga (el gris tenue de siempre, Theme.faint).
+    readonly property color colorEstado: {
+        switch (contenido.api ? contenido.api.nivelAlertas : "desconocido") {
+        case "ok":
+            return Theme.ok;
+        case "warn":
+            return Theme.warn;
+        case "error":
+            return Theme.danger;
+        default:
+            return Theme.faint;
+        }
+    }
 
     // «web» es la ruta de la misma sección en la web del panel.
     readonly property var secciones: [
@@ -79,35 +95,6 @@ Item {
 
     readonly property var actual: contenido.secciones.find(s => s.id === contenido.seccion) || contenido.secciones[0]
 
-    // Datos de prueba: nada de esto sale del NUC.
-    readonly property var prueba: ({
-            servidor: "9 contenedores en marcha · sin alertas",
-            meta: 34,
-            ahora: [
-                {
-                    texto: "Entrega de prueba con fecha",
-                    seccion: "Clase",
-                    color: "#b48cff",
-                    prioridad: "maxima",
-                    cuando: "vence mañana"
-                },
-                {
-                    texto: "Revisar la copia de seguridad",
-                    seccion: "Homelab",
-                    color: "#6aa8ff",
-                    prioridad: "alta",
-                    cuando: "vence en 3 días"
-                },
-                {
-                    texto: "Una tarea sin fecha",
-                    seccion: "General",
-                    color: "",
-                    prioridad: "media",
-                    cuando: "sin fecha"
-                }
-            ]
-        })
-
     // Los colores de prioridad son los de la web (Theme.qml), para que una
     // tarea se vea igual en los dos sitios.
     function colorPrioridad(p) {
@@ -136,15 +123,84 @@ Item {
         return Math.ceil(((t - inicio) / 86400000 + 1) / 7);
     }
 
+    // La fecha y la semana: las del NUC si vienen y, si no, las locales.
     function hoy() {
         const d = new Date();
-        return Qt.locale("es_ES").toString(d, "dddd d 'de' MMMM") + " · semana " + contenido.semana(d);
+        const ini = contenido.api ? contenido.api.inicio : null;
+        const fecha = ini && ini.hoy ? ini.hoy : Qt.locale("es_ES").toString(d, "dddd d 'de' MMMM");
+        let sem = ini && ini.semana ? String(ini.semana) : String(contenido.semana(d));
+        if (sem.toLowerCase().indexOf("semana") < 0)
+            sem = "semana " + sem;
+        return fecha + " · " + sem;
+    }
+
+    // «hace 5 min», «hace 2 h», «hace 3 días».
+    function hace(fecha) {
+        if (!fecha)
+            return "";
+        const s = Math.max(0, (Date.now() - fecha.getTime()) / 1000);
+        if (s < 60)
+            return "hace un momento";
+        if (s < 3600)
+            return "hace " + Math.floor(s / 60) + " min";
+        if (s < 86400)
+            return "hace " + Math.floor(s / 3600) + " h";
+        const d = Math.floor(s / 86400);
+        return "hace " + d + (d === 1 ? " día" : " días");
+    }
+
+    function sinVer() {
+        const l = contenido.api ? contenido.api.alertas : null;
+        return l ? l.filter(a => !a.vista).length : 0;
+    }
+
+    // El servidor en una línea.
+    function textoServidor() {
+        const sv = contenido.api ? contenido.api.servidor : null;
+        if (!sv)
+            return "Servidor sin datos";
+        let t = sv.problemas > 0 ? sv.enMarcha + " de " + sv.total + " en marcha · " + sv.problemas + : sv.enMarcha + " de " + sv.total + " contenedores en marcha";
+        const n = contenido.sinVer();
+        return t + " · " + (n === 0 ? "sin alertas" : (n === 1 ? "1 alerta sin ver" : n + " alertas sin ver"));
+    }
+
+    // La línea de cada estado de conexión que no es «conectado».
+    function textoConexion() {
+        switch (contenido.api ? contenido.api.conexion : "") {
+        case "conectando":
+            return "Conectando con el NUC…";
+        case "sin-conexion":
+            return "Sin conexión con el NUC";
+        case "sin-credenciales":
+            return "Falta la contraseña del panel en el llavero";
+        case "no-autorizado":
+            return "El NUC no acepta la contraseña de este equipo";
+        default:
+            return "";
+        }
+    }
+
+    function detalleConexion() {
+        switch (contenido.api ? contenido.api.conexion : "") {
+        case "sin-conexion":
+            return "Reintenta solo, cada vez con más espera.";
+        case "sin-credenciales":
+            return 'secret-tool store --label="Panel del homelab" servicio homelab-panel usuario <equipo>';
+        default:
+            return "";
+        }
+    }
+
+    function estadoCabecera() {
+        const c = contenido.api ? contenido.api.conexion : "";
+        const u = contenido.api && contenido.api.usuario ? " · " + contenido.api.usuario : "";
+        return (c || "sin API") + u;
     }
 
     // Lo que el cajón aún no tiene, en la web, que ya pide la contraseña en el
     // navegador.
     function abrirEnLaWeb() {
-        Quickshell.execDetached(["xdg-open", "https://panel.lab.ishimi.es/" + contenido.actual.web]);
+        Quickshell.execDetached(["xdg-open", contenido.api.urlWeb(contenido.actual.web)]);
         if (!contenido.shell.fijado)
             contenido.shell.abierto = false;
     }
@@ -272,7 +328,7 @@ Item {
                     }
 
                     Text {
-                        text: "datos de prueba · fase 1"
+                        text: contenido.estadoCabecera()
                         color: Theme.faint
                         font.family: Theme.font
                         font.pixelSize: 10
@@ -314,173 +370,345 @@ Item {
         }
     }
 
-    // --- Inicio, de prueba ---
+    // --- Inicio ---
     Component {
         id: inicio
 
-        ColumnLayout {
-            spacing: 18
+        Flickable {
+            id: desplazable
+
+            clip: true
+            contentWidth: width
+            contentHeight: columna.implicitHeight
+            boundsBehavior: Flickable.StopAtBounds
 
             ColumnLayout {
-                Layout.fillWidth: true
-                spacing: 7
+                id: columna
 
-                Etiqueta {
-                    text: "DÓNDE ESTÁS"
-                }
+                width: desplazable.width
+                spacing: 18
 
-                Text {
-                    text: contenido.hoy()
-                    color: Theme.strong
-                    font.family: Theme.font
-                    font.pixelSize: 13
-                }
-
-                RowLayout {
-                    spacing: 8
-
-                    Rectangle {
-                        implicitWidth: 6
-                        implicitHeight: 6
-                        radius: 3
-                        color: contenido.colorEstado
-                    }
-
-                    Text {
-                        text: contenido.prueba.servidor
-                        color: Theme.text
-                        font.family: Theme.font
-                        font.pixelSize: 12
-                    }
-                }
-
-                // Sólo el porcentaje, como el mosaico de la web (F12).
-                RowLayout {
+                // Con la conexión caída, una línea clara; lo que ya hubiera se
+                // sigue viendo pero atenuado, para que se note que no está al día.
+                ColumnLayout {
                     Layout.fillWidth: true
-                    spacing: 10
+                    visible: !contenido.conectado
+                    spacing: 5
+
+                    RowLayout {
+                        spacing: 8
+
+                        Rectangle {
+                            implicitWidth: 6
+                            implicitHeight: 6
+                            radius: 3
+                            color: Theme.muted
+                        }
+
+                        Text {
+                            objectName: "lineaConexion"
+                            Layout.fillWidth: true
+                            text: contenido.textoConexion()
+                            color: Theme.strong
+                            font.family: Theme.font
+                            font.pixelSize: 12
+                            wrapMode: Text.WordWrap
+                        }
+                    }
 
                     Text {
-                        text: "Meta"
+                        objectName: "detalleConexion"
+                        Layout.fillWidth: true
+                        visible: text !== ""
+                        text: contenido.detalleConexion()
                         color: Theme.muted
                         font.family: Theme.font
-                        font.pixelSize: 12
-                    }
-
-                    Rectangle {
-                        id: barraMeta
-
-                        Layout.fillWidth: true
-                        implicitHeight: 4
-                        radius: 2
-                        color: Theme.rule
-
-                        Rectangle {
-                            width: barraMeta.width * contenido.prueba.meta / 100
-                            height: parent.height
-                            radius: 2
-                            color: Theme.text
-                        }
-                    }
-
-                    Text {
-                        text: contenido.prueba.meta + " %"
-                        color: Theme.text
-                        font.family: Theme.font
-                        font.pixelSize: 12
+                        font.pixelSize: 10
+                        wrapMode: Text.WrapAnywhere
                     }
                 }
-            }
 
-            ColumnLayout {
-                Layout.fillWidth: true
-                spacing: 8
+                ColumnLayout {
+                    Layout.fillWidth: true
+                    spacing: 18
+                    opacity: contenido.conectado ? 1 : 0.4
 
-                Etiqueta {
-                    text: "AHORA"
-                }
-
-                Repeater {
-                    model: contenido.prueba.ahora
-
-                    delegate: Rectangle {
-                        id: tarjeta
-
-                        required property var modelData
-
+                    ColumnLayout {
                         Layout.fillWidth: true
-                        implicitHeight: 56
-                        radius: 12
-                        color: Qt.rgba(1, 1, 1, 0.05)
-                        border.width: 1
-                        border.color: Theme.rule
+                        spacing: 7
 
-                        // La barra de la prioridad, a la izquierda, como en la web.
-                        Rectangle {
-                            id: barra
-
-                            anchors.left: parent.left
-                            anchors.leftMargin: 10
-                            anchors.verticalCenter: parent.verticalCenter
-                            width: 3
-                            height: parent.height - 22
-                            radius: 1.5
-                            color: contenido.colorPrioridad(tarjeta.modelData.prioridad)
+                        Etiqueta {
+                            text: "DÓNDE ESTÁS"
                         }
 
-                        ColumnLayout {
-                            anchors.left: barra.right
-                            anchors.leftMargin: 10
-                            anchors.right: parent.right
-                            anchors.rightMargin: 12
-                            anchors.verticalCenter: parent.verticalCenter
-                            spacing: 4
+                        Text {
+                            text: contenido.hoy()
+                            color: Theme.strong
+                            font.family: Theme.font
+                            font.pixelSize: 13
+                        }
+
+                        RowLayout {
+                            spacing: 8
+
+                            Rectangle {
+                                implicitWidth: 6
+                                implicitHeight: 6
+                                radius: 3
+                                color: contenido.colorEstado
+                            }
 
                             Text {
+                                objectName: "lineaServidor"
                                 Layout.fillWidth: true
-                                text: tarjeta.modelData.texto
+                                text: contenido.textoServidor()
                                 color: Theme.text
                                 font.family: Theme.font
-                                font.pixelSize: 13
-                                elide: Text.ElideRight
+                                font.pixelSize: 12
+                                wrapMode: Text.WordWrap
+                            }
+                        }
+
+                        // Sólo el porcentaje, como el mosaico de la web (F12), y
+                        // nada si no hay meta.
+                        RowLayout {
+                            readonly property var meta: contenido.api && contenido.api.inicio ? contenido.api.inicio.metaPorcentaje : null
+
+                            Layout.fillWidth: true
+                            visible: meta !== null && meta !== undefined
+                            spacing: 10
+
+                            Text {
+                                text: "Meta"
+                                color: Theme.muted
+                                font.family: Theme.font
+                                font.pixelSize: 12
                             }
 
-                            RowLayout {
-                                spacing: 6
+                            Rectangle {
+                                id: barraMeta
 
-                                // El cuadrado del proyecto, con su color, o sólo
-                                // el borde si no tiene (como en la web).
+                                Layout.fillWidth: true
+                                implicitHeight: 4
+                                radius: 2
+                                color: Theme.rule
+
                                 Rectangle {
-                                    implicitWidth: 8
-                                    implicitHeight: 8
+                                    width: barraMeta.width * Math.max(0, Math.min(100, parent.parent.meta || 0)) / 100
+                                    height: parent.height
                                     radius: 2
-                                    color: tarjeta.modelData.color || "transparent"
-                                    border.width: tarjeta.modelData.color ? 0 : 1
-                                    border.color: Theme.muted
+                                    color: Theme.text
+                                }
+                            }
+
+                            Text {
+                                text: parent.meta + " %"
+                                color: Theme.text
+                                font.family: Theme.font
+                                font.pixelSize: 12
+                            }
+                        }
+                    }
+
+                    // Las alertas abiertas, en vivo.
+                    ColumnLayout {
+                        Layout.fillWidth: true
+                        visible: contenido.api && contenido.api.alertas && contenido.api.alertas.length > 0
+                        spacing: 8
+
+                        Etiqueta {
+                            text: "ALERTAS"
+                        }
+
+                        Repeater {
+                            model: contenido.api ? contenido.api.alertas : []
+
+                            delegate: Rectangle {
+                                id: fila
+
+                                required property var modelData
+
+                                Layout.fillWidth: true
+                                implicitHeight: 52
+                                radius: 12
+                                color: Qt.rgba(1, 1, 1, 0.05)
+                                border.width: 1
+                                border.color: Theme.rule
+                                opacity: fila.modelData.vista ? 0.55 : 1
+
+                                Rectangle {
+                                    id: nivel
+
+                                    anchors.left: parent.left
+                                    anchors.leftMargin: 10
+                                    anchors.verticalCenter: parent.verticalCenter
+                                    width: 3
+                                    height: parent.height - 22
+                                    radius: 1.5
+                                    color: fila.modelData.nivel === "error" ? Theme.danger : Theme.warn
                                 }
 
-                                Text {
-                                    text: tarjeta.modelData.seccion + " · " + tarjeta.modelData.cuando
-                                    color: Theme.muted
-                                    font.family: Theme.font
-                                    font.pixelSize: 11
+                                ColumnLayout {
+                                    anchors.left: nivel.right
+                                    anchors.leftMargin: 10
+                                    anchors.right: vista.left
+                                    anchors.rightMargin: 8
+                                    anchors.verticalCenter: parent.verticalCenter
+                                    spacing: 3
+
+                                    Text {
+                                        Layout.fillWidth: true
+                                        text: fila.modelData.titulo
+                                        color: Theme.text
+                                        font.family: Theme.font
+                                        font.pixelSize: 12
+                                        elide: Text.ElideRight
+                                    }
+
+                                    Text {
+                                        Layout.fillWidth: true
+                                        text: (fila.modelData.nivel === "error" ? "error" : "aviso") + " · " + contenido.hace(fila.modelData.desde)
+                                        color: Theme.muted
+                                        font.family: Theme.font
+                                        font.pixelSize: 10
+                                        elide: Text.ElideRight
+                                    }
+                                }
+
+                                Rectangle {
+                                    id: vista
+
+                                    objectName: "botonVista"
+                                    anchors.right: parent.right
+                                    anchors.rightMargin: 10
+                                    anchors.verticalCenter: parent.verticalCenter
+                                    visible: !fila.modelData.vista
+                                    implicitWidth: 46
+                                    implicitHeight: 24
+                                    radius: 8
+                                    color: sobreVista.hovered ? Qt.rgba(1, 1, 1, 0.14) : Qt.rgba(1, 1, 1, 0.07)
+                                    border.width: 1
+                                    border.color: Qt.rgba(1, 1, 1, 0.22)
+
+                                    Text {
+                                        anchors.centerIn: parent
+                                        text: "Vista"
+                                        color: Theme.strong
+                                        font.family: Theme.font
+                                        font.pixelSize: 11
+                                    }
+
+                                    HoverHandler {
+                                        id: sobreVista
+                                        cursorShape: Qt.PointingHandCursor
+                                    }
+
+                                    TapHandler {
+                                        onTapped: contenido.api.marcarVista(fila.modelData.id)
+                                    }
+                                }
+                            }
+                        }
+                    }
+
+                    ColumnLayout {
+                        Layout.fillWidth: true
+                        visible: contenido.api && contenido.api.inicio
+                        spacing: 8
+
+                        Etiqueta {
+                            text: "AHORA"
+                        }
+
+                        Text {
+                            visible: contenido.api && contenido.api.inicio && contenido.api.inicio.tareas.length === 0
+                            text: "Nada para hoy"
+                            color: Theme.muted
+                            font.family: Theme.font
+                            font.pixelSize: 12
+                        }
+
+                        Repeater {
+                            model: contenido.api && contenido.api.inicio ? contenido.api.inicio.tareas : []
+
+                            delegate: Rectangle {
+                                id: tarjeta
+
+                                required property var modelData
+
+                                Layout.fillWidth: true
+                                implicitHeight: 56
+                                radius: 12
+                                color: Qt.rgba(1, 1, 1, 0.05)
+                                border.width: 1
+                                border.color: Theme.rule
+
+                                // La barra de la prioridad, a la izquierda, como en la web.
+                                Rectangle {
+                                    id: barra
+
+                                    anchors.left: parent.left
+                                    anchors.leftMargin: 10
+                                    anchors.verticalCenter: parent.verticalCenter
+                                    width: 3
+                                    height: parent.height - 22
+                                    radius: 1.5
+                                    color: contenido.colorPrioridad(tarjeta.modelData.prioridad)
+                                }
+
+                                ColumnLayout {
+                                    anchors.left: barra.right
+                                    anchors.leftMargin: 10
+                                    anchors.right: parent.right
+                                    anchors.rightMargin: 12
+                                    anchors.verticalCenter: parent.verticalCenter
+                                    spacing: 4
+
+                                    Text {
+                                        Layout.fillWidth: true
+                                        text: tarjeta.modelData.texto
+                                        color: Theme.text
+                                        font.family: Theme.font
+                                        font.pixelSize: 13
+                                        elide: Text.ElideRight
+                                    }
+
+                                    RowLayout {
+                                        spacing: 6
+
+                                        // El cuadrado del proyecto, con su color, o sólo
+                                        // el borde si no tiene (como en la web).
+                                        Rectangle {
+                                            implicitWidth: 8
+                                            implicitHeight: 8
+                                            radius: 2
+                                            color: tarjeta.modelData.color || "transparent"
+                                            border.width: tarjeta.modelData.color ? 0 : 1
+                                            border.color: Theme.muted
+                                        }
+
+                                        Text {
+                                            text: tarjeta.modelData.seccion
+                                            color: Theme.muted
+                                            font.family: Theme.font
+                                            font.pixelSize: 11
+                                        }
+
+                                        // Las vencidas, en el rojo de «máxima»: es lo que pide atención.
+                                        Text {
+                                            Layout.fillWidth: true
+                                            text: "· " + tarjeta.modelData.cuando
+                                            color: tarjeta.modelData.vencida ? Theme.prioMaxima : Theme.muted
+                                            font.family: Theme.font
+                                            font.pixelSize: 11
+                                            elide: Text.ElideRight
+                                        }
+                                    }
                                 }
                             }
                         }
                     }
                 }
-            }
-
-            Item {
-                Layout.fillHeight: true
-            }
-
-            Text {
-                Layout.fillWidth: true
-                text: "Todo esto es de prueba. Desde la fase 2 sale del panel del NUC."
-                color: Theme.faint
-                font.family: Theme.font
-                font.pixelSize: 10
-                wrapMode: Text.WordWrap
             }
         }
     }
