@@ -56,36 +56,13 @@ QtObject {
             total: 9,
             problemas: 1
         })
+    // Las tareas de Inicio salen del «servidor» de tareas de abajo (publicar),
+    // como en Api.qml, para que marcarlas desde Inicio cambie lo que se ve.
     property var inicio: ({
             hoy: "martes 20 de octubre",
             semana: "semana 43",
             metaPorcentaje: 34,
-            tareas: [
-                {
-                    texto: "Entrega de prueba con fecha",
-                    seccion: "Clase",
-                    color: "#b48cff",
-                    prioridad: "maxima",
-                    cuando: "vencida hace 2 días",
-                    vencida: true
-                },
-                {
-                    texto: "Revisar la copia de seguridad",
-                    seccion: "Homelab",
-                    color: "#6aa8ff",
-                    prioridad: "alta",
-                    cuando: "hoy",
-                    vencida: false
-                },
-                {
-                    texto: "Una tarea sin proyecto",
-                    seccion: "General",
-                    color: "",
-                    prioridad: "media",
-                    cuando: "mañana",
-                    vencida: false
-                }
-            ]
+            tareas: []
         })
     property var inicioCargado: new Date()
     property string error: ""
@@ -324,6 +301,63 @@ QtObject {
         };
         api.versionCargada = String(api.version);
         api.tareasCargadas = new Date();
+        api.inicio = Object.assign({}, api.inicio, {
+            tareas: api.tareasDeInicio(secciones)
+        });
+    }
+
+    // Las tareas de Inicio, con el mismo contrato que Api.qml: las abiertas
+    // vencidas o de hoy (como mucho 5) y, en su sitio, las hechas hoy, para
+    // poder desmarcarlas. Las de la nota llevan su id; la de otra nota, ""
+    // (no se marca desde el cajón). El orden es más sencillo que el de
+    // Api.qml (ese lo mira prueba-api.sh): lo que no está en pausa delante, y
+    // después por fecha.
+    function tareasDeInicio(secciones) {
+        const cuando = n => n === 0 ? "hoy" : n === -1 ? "vencida ayer" : "vencida hace " + -n + " días";
+        const l = [
+            {
+                orden: [0, -1, 0],
+                tarea: {
+                    id: "",
+                    hecha: false,
+                    texto: "Tarea en otra nota",
+                    seccion: "Proyecto de prueba",
+                    color: "",
+                    prioridad: "maxima",
+                    cuando: "vencida ayer",
+                    vencida: true
+                }
+            }
+        ];
+        for (const s of secciones)
+            for (const t of s.tareas) {
+                if (t.dias === null || t.dias > 0 || (t.hecha && t.hechaEl !== api.hoy))
+                    continue;
+                l.push({
+                    orden: [s.pausa ? 1 : 0, t.dias, t.linea],
+                    tarea: {
+                        id: t.id,
+                        hecha: t.hecha,
+                        texto: t.plano,
+                        seccion: s.titulo,
+                        color: s.color,
+                        prioridad: s.pausa ? "pausa" : t.efectiva || "minima",
+                        cuando: t.hecha ? "hecha hoy" : cuando(t.dias),
+                        vencida: !t.hecha && t.dias < 0
+                    }
+                });
+            }
+        l.sort((a, b) => a.orden[0] - b.orden[0] || a.orden[1] - b.orden[1] || a.orden[2] - b.orden[2]);
+        const r = [];
+        let abiertas = 0;
+        for (const x of l) {
+            if (abiertas === 5)
+                break;
+            if (!x.tarea.hecha)
+                abiertas++;
+            r.push(x.tarea);
+        }
+        return r;
     }
 
     function buscar(id) {

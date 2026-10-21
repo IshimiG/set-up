@@ -546,6 +546,7 @@ Item {
         Flickable {
             id: desplazable
 
+            objectName: "desplazableInicio"
             clip: true
             contentWidth: width
             contentHeight: columna.implicitHeight
@@ -842,17 +843,27 @@ Item {
                         Repeater {
                             model: contenido.api && contenido.api.inicio ? contenido.api.inicio.tareas : []
 
+                            // Cada tarjeta lleva su casilla, como las de Tareas: marcarTarea
+                            // con el id de la tarea. Al marcarla se queda en su sitio,
+                            // tachada, para poder desmarcarla. Las de otras notas no tienen
+                            // id ni casilla: se marcan en la nota (en la web también son de
+                            // solo lectura).
                             delegate: Rectangle {
                                 id: tarjeta
 
                                 required property var modelData
+                                required property int index
+                                readonly property bool hecha: tarjeta.modelData.hecha === true
+                                readonly property bool marcable: (tarjeta.modelData.id || "") !== ""
 
+                                objectName: "tarjetaInicio"
                                 Layout.fillWidth: true
                                 implicitHeight: 56
                                 radius: 12
                                 color: Qt.rgba(1, 1, 1, 0.05)
                                 border.width: 1
                                 border.color: Theme.rule
+                                opacity: tarjeta.hecha ? 0.6 : 1
 
                                 // La barra de la prioridad, a la izquierda, como en la web.
                                 Rectangle {
@@ -864,23 +875,24 @@ Item {
                                     width: 3
                                     height: parent.height - 22
                                     radius: 1.5
-                                    color: contenido.colorPrioridad(tarjeta.modelData.prioridad)
+                                    color: tarjeta.hecha ? Theme.faint : contenido.colorPrioridad(tarjeta.modelData.prioridad)
                                 }
 
                                 ColumnLayout {
                                     anchors.left: barra.right
                                     anchors.leftMargin: 10
-                                    anchors.right: parent.right
-                                    anchors.rightMargin: 12
+                                    anchors.right: marca.left
+                                    anchors.rightMargin: 10
                                     anchors.verticalCenter: parent.verticalCenter
                                     spacing: 4
 
                                     Text {
                                         Layout.fillWidth: true
                                         text: tarjeta.modelData.texto
-                                        color: Theme.text
+                                        color: tarjeta.hecha ? Theme.muted : Theme.text
                                         font.family: Theme.font
                                         font.pixelSize: 13
+                                        font.strikeout: tarjeta.hecha
                                         elide: Text.ElideRight
                                     }
 
@@ -909,11 +921,43 @@ Item {
                                         Text {
                                             Layout.fillWidth: true
                                             text: "· " + tarjeta.modelData.cuando
-                                            color: tarjeta.modelData.vencida ? Theme.prioMaxima : Theme.muted
+                                            color: tarjeta.modelData.vencida && !tarjeta.hecha ? Theme.prioMaxima : Theme.muted
                                             font.family: Theme.font
                                             font.pixelSize: 11
                                             elide: Text.ElideRight
                                         }
+                                    }
+                                }
+
+                                // A la derecha, la casilla; en las de otra nota, el
+                                // icono de una nota (nf-fa-file_text_o) en su sitio.
+                                Item {
+                                    id: marca
+
+                                    anchors.right: parent.right
+                                    anchors.rightMargin: 14
+                                    anchors.verticalCenter: parent.verticalCenter
+                                    width: 22
+                                    height: 22
+
+                                    Casilla {
+                                        objectName: "casillaInicio"
+                                        anchors.centerIn: parent
+                                        visible: tarjeta.marcable
+                                        lado: 22
+                                        marcada: tarjeta.hecha
+                                        tinte: contenido.colorPrioridad(tarjeta.modelData.prioridad)
+                                        enabled: !contenido.api.tareasOcupado
+                                        onActivado: contenido.api.marcarTarea(tarjeta.modelData.id, !tarjeta.hecha)
+                                    }
+
+                                    Text {
+                                        anchors.centerIn: parent
+                                        visible: !tarjeta.marcable
+                                        text: ""
+                                        color: Theme.faint
+                                        font.family: Theme.font
+                                        font.pixelSize: 13
                                     }
                                 }
                             }
