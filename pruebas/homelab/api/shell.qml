@@ -53,7 +53,14 @@ ShellRoot {
             const ok = prueba.condicion();
             if (ok || Date.now() > prueba.limite) {
                 sondeo.stop();
-                prueba.luego(ok);
+                // Una excepción en un paso es un fallo, y acaba la prueba con su
+                // recuento en vez de dejarla colgada hasta el tiempo máximo.
+                try {
+                    prueba.luego(ok);
+                } catch (e) {
+                    prueba.comprobar(false, "excepción en un paso: " + e);
+                    prueba.fin();
+                }
             }
         }
     }
@@ -107,6 +114,19 @@ ShellRoot {
         function onConexionChanged() {
             if (a.conexion === "sin-conexion" && prueba.tCorte === 0)
                 prueba.tCorte = Date.now();
+        }
+    }
+
+    // Los avisos de «a» (fase 3): conflictos y fallos de escritura.
+    property var avisos: []
+
+    Connections {
+        target: a
+        function onAviso(texto, error) {
+            prueba.avisos.push({
+                texto: texto,
+                error: error
+            });
         }
     }
 
@@ -398,7 +418,7 @@ ShellRoot {
                                     prueba.esperar(prueba.c.esperaMs + 6000, () => prueba.c.conexion === "conectado", ok4 => {
                                         prueba.comprobar(ok4, "Descongelado, reconecta solo", prueba.c.conexion);
                                         prueba.comprobar(a.conexion === "conectado", "  y el primer cajón (vigía de 70 s) ni se ha enterado", a.conexion);
-                                        prueba.fin();
+                                        prueba.fase3();
                                     });
                                 });
                             });
@@ -407,6 +427,311 @@ ShellRoot {
                 });
             });
         });
+    }
+
+
+    // =========================================================================
+    // Fase 3: tareas, hábitos y Aules, contra los endpoints de verdad del
+    // panel local. Las escrituras van al vault falso, nunca a otro sitio.
+    // =========================================================================
+
+    // Una tras otra: cada paso recibe «sig» y lo llama cuando acaba.
+    function serie(lista) {
+        let i = 0;
+        const sig = () => {
+            if (i < lista.length) {
+                try {
+                    lista[i++](sig);
+                } catch (e) {
+                    prueba.comprobar(false, "excepción en un paso: " + e);
+                    prueba.fin();
+                }
+            }
+        };
+        sig();
+    }
+
+    // ¿Sale ese texto en una línea de 00 Inicio.md del vault falso?
+    function enNota(fragmento, luego) {
+        prueba.sh("grep -q -F -- '" + fragmento + "' \"$PANEL_LOCAL_DIR/vault/00 Inicio.md\"", c => luego(c === 0));
+    }
+
+    function tarea(texto) {
+        for (const s of a.tareas ? a.tareas.secciones : [])
+            for (const t of s.tareas)
+                if (t.texto === texto)
+                    return t;
+        return null;
+    }
+
+    function fechaMas(n) {
+        const d = new Date();
+        d.setDate(d.getDate() + n);
+        const dos = x => (x < 10 ? "0" : "") + x;
+        return d.getFullYear() + "-" + dos(d.getMonth() + 1) + "-" + dos(d.getDate());
+    }
+
+    // Una escritura de tareas y su resultado.
+    function escribe(f, luego) {
+        prueba.res = undefined;
+        f(ok => {
+            prueba.res = ok;
+        });
+        prueba.esperar(8000, () => prueba.res !== undefined, () => luego(prueba.res));
+    }
+
+    property var res: undefined
+
+    function fase3() {
+        prueba.serie([
+            // --- Lo que se lee al conectar ---
+            sig => prueba.esperar(8000, () => a.tareas !== null && a.habitos !== null && a.clase !== null, ok => {
+                    prueba.comprobar(ok, "Al conectar se leen las tareas, los hábitos y lo de Aules", String(a.tareas !== null) + String(a.habitos !== null) + String(a.clase !== null));
+                    const t = a.tareas;
+                    prueba.comprobar(t && t.habilitado && t.error === "" && prueba.igual(t.secciones.map(s => s.id), ["homelab", "clase", "general", "en-pausa"]), "tareas: las cuatro secciones de la nota", t ? JSON.stringify(t.secciones.map(s => s.id)) : "");
+                    prueba.comprobar(t && t.secciones[0].color === "#6aa8ff" && t.secciones[1].color === "#b48cff" && t.secciones[2].color === "" && t.secciones[3].pausa === true, "  con el color de cada proyecto y la de En pausa marcada", t ? JSON.stringify(t.secciones.map(s => s.color)) : "");
+                    prueba.comprobar(t && /^[0-9a-f]{64}$/.test(t.version) && /^\d{4}-\d\d-\d\d$/.test(t.hoy) && a.tareasCargadas instanceof Date, "  la versión, el día de hoy y cuándo se leyeron", t ? t.version.slice(0, 8) + " " + t.hoy : "");
+                    const f = prueba.tarea("Cambiar el filtro del agua");
+                    prueba.comprobar(f && f.area === "Casa" && f.vence === prueba.fechaMas(0) && f.dias === 0 && f.venceHoy && f.prioridad === "" && f.efectiva === "maxima" && f.subida === "vence hoy" && !f.hecha && !f.fijada, "  una tarea de hoy sin prioridad: sube a máxima, con el motivo", f ? JSON.stringify(f) : "no está");
+                    const d = prueba.tarea("Mirar los discos");
+                    prueba.comprobar(d && d.prioridad === "media" && d.dias === 5 && prueba.igual(d.detalles, ["Comprobar el estado SMART"]) && prueba.igual(d.subtareas, [{ texto: "Hacer la copia antes", hecha: false }, { texto: "Mirar el aviso", hecha: true }]), "  una con detalles y subtareas", d ? JSON.stringify(d) : "no está");
+                    const u = prueba.tarea("Una sin fecha");
+                    prueba.comprobar(u && u.fijada && u.prioridad === "baja" && u.dias === null && u.vence === "", "  una fijada, sin fecha", u ? JSON.stringify(u) : "no está");
+                    const h = prueba.tarea("Una tarea ya hecha");
+                    prueba.comprobar(h && h.hecha && h.hechaEl === prueba.fechaMas(-1), "  una hecha, con su día", h ? JSON.stringify(h) : "no está");
+                    const e = prueba.tarea("Entrega de [[prueba]]");
+                    prueba.comprobar(e && e.plano === "Entrega de prueba" && e.prioridad === "maxima" && t.areas.indexOf("Casa") >= 0, "  el texto con enlaces (texto) y sin marcas (plano), y las áreas", e ? e.texto + " / " + e.plano : "no está");
+                    sig();
+                }),
+            // --- Escribir: hecha y deshecha ---
+            sig => {
+                const f = prueba.tarea("Cambiar el filtro del agua");
+                prueba.escribe(fin => a.marcarTarea(f.id, true, fin), ok => {
+                    const g = prueba.tarea("Cambiar el filtro del agua");
+                    prueba.comprobar(ok === true && g && g.hecha && g.hechaEl === prueba.fechaMas(0), "marcarTarea: ok, y la lista que vuelve la trae hecha con el día de hoy", g ? JSON.stringify(g) : "");
+                    prueba.enNota("- [x] **Casa** · Cambiar el filtro del agua", e => {
+                        prueba.comprobar(e, "  y 00 Inicio.md del vault tiene la tarea con [x]");
+                        sig();
+                    });
+                });
+            },
+            sig => {
+                const f = prueba.tarea("Cambiar el filtro del agua");
+                prueba.escribe(fin => a.marcarTarea(f.id, false, fin), ok => {
+                    const g = prueba.tarea("Cambiar el filtro del agua");
+                    prueba.comprobar(ok === true && g && !g.hecha && g.hechaEl === "", "marcarTarea(false): vuelve a estar abierta", g ? JSON.stringify(g) : "");
+                    prueba.enNota("- [ ] **Casa** · Cambiar el filtro del agua", e => {
+                        prueba.comprobar(e, "  y la nota ya no tiene la marca");
+                        sig();
+                    });
+                });
+            },
+            // --- Añadir ---
+            sig => {
+                prueba.escribe(fin => a.anadirTarea({ seccion: "general", texto: "Tarea de prueba desde el cajón", prioridad: "alta", fecha: prueba.fechaMas(3), area: "Prueba" }, fin), ok => {
+                    const g = prueba.tarea("Tarea de prueba desde el cajón");
+                    prueba.comprobar(ok === true && g && g.area === "Prueba" && g.prioridad === "alta" && g.vence === prueba.fechaMas(3) && g.dias === 3, "anadirTarea: sección, prioridad, fecha y área", g ? JSON.stringify(g) : "");
+                    prueba.comprobar(a.tareas.secciones.find(s => s.id === "general").tareas.some(t => t.texto === "Tarea de prueba desde el cajón"), "  y está en la sección que se pidió");
+                    prueba.enNota("Tarea de prueba desde el cajón ⏫ 📅 " + prueba.fechaMas(3), e => {
+                        prueba.comprobar(e, "  y en la nota, con ⏫ y 📅");
+                        sig();
+                    });
+                });
+            },
+            // --- Editar ---
+            sig => {
+                const f = prueba.tarea("Mirar los discos");
+                prueba.escribe(fin => a.editarTarea(f.id, { fijada: true, prioridad: "minima", texto: "Mirar los discos (editado)" }, fin), ok => {
+                    const g = prueba.tarea("Mirar los discos (editado)");
+                    prueba.comprobar(ok === true && g && g.fijada && g.prioridad === "minima", "editarTarea: fijar, prioridad y texto de una vez", g ? JSON.stringify(g) : "");
+                    prueba.comprobar(g && prueba.igual(g.detalles, ["Comprobar el estado SMART"]) && g.subtareas.length === 2, "  sin tocar sus detalles ni sus subtareas");
+                    prueba.enNota("Mirar los discos (editado) ⏬ 📌 📅 " + prueba.fechaMas(5), e => {
+                        prueba.comprobar(e, "  y la nota lleva 📌 y ⏬ (sin ⏫ ni 🔼)");
+                        sig();
+                    });
+                });
+            },
+            sig => {
+                const f = prueba.tarea("Mirar los discos (editado)");
+                prueba.escribe(fin => a.editarTarea(f.id, { detalles: ["Una línea", "**Etiqueta**: otra"], subtareas: [{ texto: "Hacer la copia antes", hecha: true }, { texto: "Una nueva", hecha: false }] }, fin), ok => {
+                    const g = prueba.tarea("Mirar los discos (editado)");
+                    prueba.comprobar(ok === true && g && prueba.igual(g.detalles, ["Una línea", "**Etiqueta**: otra"]) && prueba.igual(g.subtareas, [{ texto: "Hacer la copia antes", hecha: true }, { texto: "Una nueva", hecha: false }]), "editarTarea: detalles y subtareas se sustituyen", g ? JSON.stringify(g.detalles) + JSON.stringify(g.subtareas) : "");
+                    sig();
+                });
+            },
+            sig => {
+                const f = prueba.tarea("Mirar los discos (editado)");
+                prueba.escribe(fin => a.editarTarea(f.id, { seccion: "clase", fecha: "", prioridad: "" }, fin), ok => {
+                    const g = prueba.tarea("Mirar los discos (editado)");
+                    const s = a.tareas.secciones.find(x => x.id === "clase");
+                    prueba.comprobar(ok === true && g && s.tareas.indexOf(g) >= 0 && g.vence === "" && g.dias === null && g.prioridad === "" && g.subtareas.length === 2, "editarTarea: cambiar de sección, quitar la fecha y la prioridad", g ? JSON.stringify(g) : "");
+                    sig();
+                });
+            },
+            // --- Una escritura a la vez ---
+            sig => {
+                a.anadirTarea({ seccion: "general", texto: "Primera de dos" });
+                const ocupado = a.tareasOcupado;
+                let segunda = "sin llamar";
+                a.anadirTarea({ seccion: "general", texto: "Segunda de dos" }, ok => {
+                    segunda = ok;
+                });
+                prueba.comprobar(ocupado === true && segunda === false, "con una escritura en camino, otra no sale (tareasOcupado)", "ocupado " + ocupado + ", segunda " + segunda);
+                prueba.esperar(8000, () => !a.tareasOcupado, ok => {
+                    prueba.comprobar(ok && !!prueba.tarea("Primera de dos") && !prueba.tarea("Segunda de dos"), "  la primera se escribe y la segunda no");
+                    sig();
+                });
+            },
+            // --- Un 409: la nota cambió por otro lado ---
+            sig => {
+                const f = prueba.tarea("Una sin fecha");
+                const id = f.id;
+                prueba.avisos = [];
+                // Se cambia la línea de la tarea en el vault (como Obsidian).
+                prueba.sh("sed -i 's/Una sin fecha 🔽/Una sin fecha (cambiada) 🔽/' \"$PANEL_LOCAL_DIR/vault/00 Inicio.md\"", () => {
+                    prueba.escribe(fin => a.marcarTarea(id, true, fin), ok => {
+                        const g = prueba.tarea("Una sin fecha (cambiada)");
+                        prueba.comprobar(ok === false, "un id viejo (la nota cambió fuera) da 409: la escritura no sale", String(ok));
+                        prueba.comprobar(!!g && !g.hecha && !prueba.tarea("Una sin fecha"), "  se recarga la lista con lo de fuera y no se marca nada", g ? JSON.stringify(g) : "sin la tarea cambiada");
+                        prueba.comprobar(prueba.avisos.length === 1 && prueba.avisos[0].error === true && prueba.avisos[0].texto.indexOf("La nota cambió") === 0, "  y avisa con una línea", JSON.stringify(prueba.avisos));
+                        prueba.enNota("- [ ] Una sin fecha (cambiada)", e => {
+                            prueba.comprobar(e, "  y la nota se queda como estaba");
+                            sig();
+                        });
+                    });
+                });
+            },
+            // --- Un fallo que no es 409 ---
+            sig => {
+                prueba.avisos = [];
+                const f = prueba.tarea("Primera de dos");
+                prueba.escribe(fin => a.editarTarea(f.id, { fecha: "no-es-una-fecha" }, fin), ok => {
+                    prueba.comprobar(ok === false && prueba.avisos.length === 1 && prueba.avisos[0].texto === "No se pudo guardar la tarea (HTTP 422: La fecha debe ser AAAA-MM-DD y existir.)", "una escritura que el NUC rechaza (422): avisa con el motivo y no cambia nada", JSON.stringify(prueba.avisos));
+                    sig();
+                });
+            },
+            // --- Hábitos ---
+            sig => {
+                const h = a.habitos;
+                const hoy = prueba.fechaMas(0);
+                prueba.comprobar(h && h.habilitado && /^\d{4}-S\d\d$/.test(h.semana) && h.existe === false && h.hoy && h.hoy.fecha === hoy && h.hoy.gym === null && h.hoy.energia === null && h.totales.gym === "–", "habitos: la semana, hoy sin marcar y la nota de la semana sin crear", h ? JSON.stringify(h) : "");
+                a.anotarHabito("gym", "si");
+                prueba.comprobar(a.habitos.hoy.gym === true, "anotarHabito: el cambio se ve al momento (antes de que conteste el NUC)");
+                prueba.esperar(8000, () => a.habitos.existe === true, ok => {
+                    prueba.comprobar(ok && a.habitos.hoy.gym === true && a.habitos.totales.gym === "1/7", "  y con la respuesta, la nota de la semana ya existe y el total es 1/7", JSON.stringify(a.habitos));
+                    prueba.sh("ls \"$PANEL_LOCAL_DIR/vault/30 Áreas/Revisiones/Semanas/\"*.md >/dev/null", c => {
+                        prueba.comprobar(c === 0, "  y se ha creado desde la plantilla en el vault");
+                        sig();
+                    });
+                });
+            },
+            sig => {
+                a.anotarHabito("energia", "6");
+                prueba.esperar(8000, () => a.habitos.hoy.energia === 6 && a.habitos.totales.energia === "6", ok => {
+                    prueba.comprobar(ok, "energía 6", JSON.stringify(a.habitos.hoy) + " " + a.habitos.totales.energia);
+                    a.anotarHabito("gym", "no");
+                    prueba.esperar(8000, () => a.habitos.hoy.gym === false, ok2 => {
+                        prueba.comprobar(ok2 && a.habitos.totales.gym === "0/7", "gym «no»: false, y el total no lo cuenta", JSON.stringify(a.habitos.hoy));
+                        a.anotarHabito("gym", "");
+                        prueba.esperar(8000, () => a.habitos.hoy.gym === null, ok3 => {
+                            prueba.comprobar(ok3, "gym sin marcar: null");
+                            sig();
+                        });
+                    });
+                });
+            },
+            sig => {
+                prueba.avisos = [];
+                a.anotarHabito("energia", "11");
+                const optimista = a.habitos.hoy.energia === 11;
+                prueba.esperar(8000, () => prueba.avisos.length > 0, ok => {
+                    prueba.comprobar(optimista && ok && a.habitos.hoy.energia === 6 && prueba.avisos[0].error === true && prueba.avisos[0].texto.indexOf("No se pudo guardar el hábito (HTTP 422") === 0, "un valor que el NUC rechaza: se ve un momento, se deshace y avisa", JSON.stringify(prueba.avisos) + " " + a.habitos.hoy.energia);
+                    sig();
+                });
+            },
+            // --- Aules ---
+            sig => {
+                const c = a.clase;
+                prueba.comprobar(c && c.estado === "error" && c.ejecutando === false && c.terminado === null && c.error === "No se puede consultar systemd." && c.tareas === null && c.calendario === null && c.calendarioConectado === false && c.calendarioPersonalError === "", "clase: lo que da GET /api/clase/sync (sin systemd en el panel de prueba)", c ? JSON.stringify(c) : "");
+                prueba.avisos = [];
+                const antes = a.clase;
+                a.actualizarAules();
+                prueba.comprobar(a.clase.ejecutando === true && a.clase.estado === "ejecutando", "actualizarAules: se ve en marcha al momento");
+                prueba.esperar(8000, () => prueba.avisos.length > 0, ok => {
+                    prueba.comprobar(ok && a.clase.ejecutando === false && prueba.avisos[0].texto.indexOf("Aules: no se pudo lanzar (HTTP 502") === 0, "  y como el NUC no puede lanzarla, vuelve a como estaba y avisa", JSON.stringify(prueba.avisos));
+                    sig();
+                });
+            },
+            // --- Los eventos «tareas» y «clase» ---
+            sig => {
+                const leida = a.tareasCargadas;
+                a.bloque("event: tareas\ndata: {\"version\":\"" + a.tareas.version + "\"}\n\n");
+                prueba.dormir(1000, () => {
+                    prueba.comprobar(a.tareasCargadas === leida, "evento «tareas» con la versión que ya se tiene: no vuelve a leer");
+                    // Otra versión: se relee (el vault ha cambiado por fuera).
+                    prueba.sh("printf '%s\\n' '- [ ] Escrita fuera, en Obsidian' >> \"$PANEL_LOCAL_DIR/vault/00 Inicio.md\"", () => {
+                        a.bloque("event: tareas\ndata: {\"version\":\"otra\"}\n\n");
+                        prueba.esperar(8000, () => prueba.tarea("Escrita fuera, en Obsidian") !== null, ok => {
+                            prueba.comprobar(ok, "evento «tareas» con otra versión: relee y trae lo escrito fuera");
+                            sig();
+                        });
+                    });
+                });
+            },
+            sig => {
+                a.editandoTarea = true;
+                const leida = a.tareasCargadas;
+                prueba.sh("printf '%s\\n' '- [ ] Escrita fuera mientras se edita' >> \"$PANEL_LOCAL_DIR/vault/00 Inicio.md\"", () => {
+                    a.bloque("event: tareas\ndata: {\"version\":\"otra más\"}\n\n");
+                    prueba.dormir(1200, () => {
+                        prueba.comprobar(a.tareasObsoletas === true && a.tareasCargadas === leida && prueba.tarea("Escrita fuera mientras se edita") === null, "evento «tareas» mientras se edita: obsoletas, y no relee");
+                        a.editandoTarea = false;
+                        prueba.esperar(8000, () => prueba.tarea("Escrita fuera mientras se edita") !== null, ok => {
+                            prueba.comprobar(ok && a.tareasObsoletas === false, "  al cerrar el editor relee solo");
+                            sig();
+                        });
+                    });
+                });
+            },
+            sig => {
+                prueba.avisos = [];
+                a.bloque("event: clase\ndata: " + JSON.stringify({ estado: "ejecutando", ejecutando: true, resultado: "", terminado: null, tareas: null, calendario: null, calendarioConectado: true, calendarioPersonal: null }) + "\n\n");
+                prueba.comprobar(a.clase.ejecutando === true && a.clase.calendarioConectado === true, "evento «clase» (en marcha): lo mismo que GET /api/clase/sync");
+                const leida = a.tareasCargadas;
+                const terminado = new Date(Date.now() - 90000).toISOString();
+                a.bloque("event: clase\ndata: " + JSON.stringify({ estado: "ok", ejecutando: false, resultado: "success", terminado: terminado, tareas: { at: terminado, anadidas: 2, fechas: 1, completadas: 0 }, calendario: { at: terminado, creados: 1, cambiados: 0, borrados: 0 }, calendarioConectado: true, calendarioPersonal: { at: terminado, creados: 0, cambiados: 0, borrados: 0, error: "sin permiso" } }) + "\n\n");
+                const c = a.clase;
+                prueba.comprobar(c.estado === "ok" && !c.ejecutando && c.terminado instanceof Date && Math.abs(c.terminado.getTime() - Date.parse(terminado)) < 1000 && c.tareas.anadidas === 2 && c.tareas.fechas === 1 && c.calendario.creados === 1 && c.calendarioPersonalError === "sin permiso", "evento «clase» (acabada): normalizado, con fechas y fallo del calendario Personal", JSON.stringify(c));
+                prueba.comprobar(prueba.avisos.length === 1 && prueba.avisos[0].texto === "Aules actualizado" && prueba.avisos[0].error === false, "  y avisa de que acabó", JSON.stringify(prueba.avisos));
+                prueba.esperar(8000, () => a.tareasCargadas !== leida, ok => {
+                    prueba.comprobar(ok, "  y al acabar una en marcha relee las tareas (el cruce pudo cambiarlas)");
+                    sig();
+                });
+            },
+            // --- Cuándo se vuelve a leer ---
+            sig => {
+                const leida = a.tareasCargadas;
+                a.refrescar();
+                prueba.dormir(1200, () => {
+                    prueba.comprobar(a.tareasCargadas === leida, "refrescar() con las tareas de menos de 60 s no las vuelve a leer");
+                    a.inicioVale = 500;
+                    prueba.dormir(700, () => {
+                        a.refrescar();
+                        prueba.esperar(5000, () => a.tareasCargadas !== leida, ok => {
+                            prueba.comprobar(ok, "refrescar() con las tareas viejas las vuelve a leer");
+                            a.inicioVale = 60000;
+                            sig();
+                        });
+                    });
+                });
+            },
+            sig => {
+                // La contraseña no se ha colado en los avisos.
+                const todo = JSON.stringify(prueba.avisos) + JSON.stringify(a.tareas) + JSON.stringify(a.habitos) + JSON.stringify(a.clase);
+                prueba.comprobar(todo.indexOf("Pr0ba-") < 0, "ni los avisos ni los datos de la fase 3 llevan la contraseña");
+                prueba.fin();
+            }
+        ]);
     }
 
     function fin() {

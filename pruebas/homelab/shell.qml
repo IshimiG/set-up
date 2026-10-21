@@ -5,8 +5,10 @@ import "homelab"
 import "shared"
 
 // Prueba sin pantalla del cajón (la lanza prueba.sh, al lado): el Cajon.qml
-// del repo en una ventana de 700x900, con un shell falso y el ratón movido con
-// TestEvent. Cada comprobación imprime OK o FALLO; al final, el recuento.
+// del repo en una ventana de 700x900, con un shell falso y el ratón y el
+// teclado movidos con TestEvent. Cada comprobación imprime OK o FALLO; al
+// final, el recuento. La fase 3 (tareas, hábitos y Aules) va al final, con la
+// API falsa con estado de ApiFalsa.qml.
 FloatingWindow {
     id: ventana
 
@@ -55,6 +57,17 @@ FloatingWindow {
             color: "white"; font.pixelSize: 40
         }
 
+        // Otro sitio donde puede estar el foco del teclado, y cuántos Escape
+        // llegan hasta aquí (hasta Borde.qml, que es quien cierra el cajón).
+        Item {
+            id: otroFoco
+        }
+        property int escapes: 0
+        Keys.onPressed: event => {
+            if (event.key === Qt.Key_Escape)
+                envoltura.escapes++;
+        }
+
         Cajon {
             id: cajon
             anchors.fill: parent
@@ -67,8 +80,8 @@ FloatingWindow {
     property var fallos: []
     property int hechas: 0
 
-    function comprobar(ok, que) {
-        console.log((ok ? "OK     " : "FALLO  ") + que + "  (progreso " + cajon.progreso.toFixed(3) + ", abierto " + falso.abierto + ", asoma " + cajon.asoma + ")");
+    function comprobar(ok, que, extra) {
+        console.log((ok ? "OK     " : "FALLO  ") + que + "  (progreso " + cajon.progreso.toFixed(3) + ", abierto " + falso.abierto + ", asoma " + cajon.asoma + (extra !== undefined && extra !== "" ? "; " + extra : "") + ")");
         ventana.hechas++;
         if (!ok)
             ventana.fallos.push(que);
@@ -110,6 +123,149 @@ FloatingWindow {
 
     function tiene(trozo) {
         return ventana.textos().indexOf(trozo) >= 0;
+    }
+
+
+    // --- Fase 3: ayudas ------------------------------------------------------
+
+    // Un clic en el centro de un item, o en (dx, dy) de él.
+    function clic(item, dx, dy) {
+        ventana.verEnLista(item);
+        const p = item.mapToItem(envoltura, dx === undefined ? item.width / 2 : dx, dy === undefined ? item.height / 2 : dy);
+        ev.mouseClick(envoltura, p.x, p.y, Qt.LeftButton, Qt.NoModifier, -1);
+    }
+
+    // Si el item está en la lista de tareas (que se desplaza y recorta), la
+    // mueve hasta que se vea entero: un clic fuera de lo que enseña no llega.
+    function verEnLista(item) {
+        let f = item;
+        while (f && f.objectName !== "desplazableTareas")
+            f = f.parent;
+        if (!f)
+            return;
+        const y = item.mapToItem(f.contentItem, 0, 0).y;
+        if (y < f.contentY + 8 || y + item.height > f.contentY + f.height - 8)
+            f.contentY = Math.max(0, Math.min(f.contentHeight - f.height, y - 100));
+    }
+
+    function uno(nombre) {
+        const l = ventana.porNombre(nombre);
+        return l.length ? l[0] : null;
+    }
+
+    // Tareas.qml, esté a la vista o no (con el cajón cerrado no se ve).
+    function ui() {
+        let r = null;
+        ventana.recorrer(cajon, it => {
+            if (it.objectName === "seccionTareas")
+                r = it;
+        });
+        return r;
+    }
+
+    // Las filas y las tarjetas visibles bajo un item.
+    function filasDe(raiz) {
+        const l = [];
+        ventana.recorrer(raiz, it => {
+            if (it.visible && it.t !== undefined && it.ctx !== undefined && it.ctrl !== undefined)
+                l.push(it);
+        });
+        return l;
+    }
+
+    function filaDe(plano, ctx) {
+        return ventana.filasDe(ventana.ui()).find(f => f.t.plano === plano && f.ctx === ctx) || null;
+    }
+
+    // Que un item quede dentro de lo que enseña la lista de tareas.
+    function traer(item) {
+        const f = ventana.uno("desplazableTareas");
+        const y = item.mapToItem(f.contentItem, 0, 0).y;
+        f.contentY = Math.max(0, Math.min(f.contentHeight - f.height, y - 120));
+    }
+
+    // Un clic en una fila (en su texto, no en la casilla) o en una tarjeta.
+    function clicFila(plano, ctx) {
+        const f = ventana.filaDe(plano, ctx);
+        if (!f)
+            return false;
+        ventana.traer(f);
+        ventana.clic(f, ctx === "a" ? 90 : 160, ctx === "a" ? 50 : 17);
+        return true;
+    }
+
+    function grupos() {
+        const l = [];
+        ventana.recorrer(ventana.ui(), it => {
+            if (it.visible && it.objectName.indexOf("grupo-") === 0)
+                l.push(it);
+        });
+        return l;
+    }
+
+    function claves() {
+        return ventana.grupos().map(g => g.objectName.slice(6));
+    }
+
+    function planos(raiz) {
+        return ventana.filasDe(raiz).map(f => f.t.plano);
+    }
+
+    function ahoraPlanos() {
+        return ventana.ui() ? ventana.filasDe(ventana.ui()).filter(f => f.ctx === "a").map(f => f.t.plano) : [];
+    }
+
+    function ultima() {
+        return apiFalsa.escrituras[apiFalsa.escrituras.length - 1] || null;
+    }
+
+    function ultimaJSON() {
+        const u = ventana.ultima();
+        return u ? u.op + " " + JSON.stringify(u.cuerpo) : "(nada)";
+    }
+
+    // Una tecla (un carácter o un Qt.Key_...): la recoge quien tenga el foco de
+    // la ventana, que es lo que pasa con el teclado de verdad.
+    function tecla(t, mods) {
+        const m = mods === undefined ? Qt.NoModifier : mods;
+        if (typeof t === "string")
+            ev.keyClickChar(t, m, -1);
+        else
+            ev.keyClick(t, m, -1);
+    }
+
+    function igual(a, b) {
+        return JSON.stringify(a) === JSON.stringify(b);
+    }
+
+    function seccion(id) {
+        ventana.clic(ventana.uno("seccion-" + id));
+    }
+
+    function grupoPlegado(clave) {
+        const g = ventana.grupos().find(x => x.objectName === "grupo-" + clave);
+        return g ? g.plegado : null;
+    }
+
+    property int escrituras0: 0
+    property int lecturas0: 0
+    property bool fijadaAntes: false
+    property string versionNueva: ""
+
+    // El primer item visible con ese nombre bajo «raiz».
+    function hijo(raiz, nombre) {
+        let r = null;
+        ventana.recorrer(raiz, it => {
+            if (!r && it.visible && it.objectName === nombre)
+                r = it;
+        });
+        return r;
+    }
+
+    // La cabecera de un grupo, por su clave.
+    function cabecera(clave) {
+        const g = ventana.grupos().find(x => x.objectName === "grupo-" + clave);
+        return g ? ventana.hijo(g, "cabeceraGrupo") : null;
     }
 
     function asaX() {
@@ -293,6 +449,575 @@ FloatingWindow {
         [[300, () => ventana.comprobar(!falso.abierto && ventana.lanzadas.length === 3, "con el cajón cerrado, una alerta avisa pero no lo abre")]],
         [[50, () => falso.abierto = true]],
         [[800, () => ventana.comprobar(apiFalsa.refrescos === ventana.refrescosAntes + 1, "al abrir otra vez, otro refrescar")]],
+        // =====================================================================
+        // Fase 3: Tareas
+        // =====================================================================
+        [[50, () => ventana.seccion("tareas")]],
+        [[700, () => {
+            ventana.comprobar(ventana.ui() !== null, "la tira de secciones lleva a Tareas");
+            ventana.comprobar(ventana.tiene("AHORA") && ventana.uno("campoNueva") !== null, "Tareas enseña «Ahora» y la fila de añadir");
+            ventana.comprobar(ventana.igual(ventana.ahoraPlanos(), ["Fijada a mano sin fecha", "Entrega de prueba con fecha", "Revisar la copia de seguridad"]), "«Ahora»: la fijada primero, y después las más urgentes", JSON.stringify(ventana.ahoraPlanos()));
+            ventana.comprobar(ventana.ahoraPlanos().indexOf("Empieza la semana que viene") < 0, "«Ahora» no lleva lo que aún no ha empezado");
+            ventana.comprobar(ventana.ahoraPlanos().indexOf("Pausada que venció") < 0, "«Ahora» no lleva lo de En pausa");
+            const cuentas = ventana.porNombre("cuentaAtras").map(x => x.text);
+            ventana.comprobar(ventana.igual(cuentas, ["sin fecha", "vencida", "hoy"]), "las tarjetas llevan la cuenta atrás", JSON.stringify(cuentas));
+            ventana.comprobar(ventana.igual(ventana.claves(), ["plazo|Esta semana", "plazo|Con fecha más adelante", "plazo|Sin fecha", "pausa", "hechas"]), "vista Plazo: esta semana, más adelante, sin fecha, En pausa y Hechas", JSON.stringify(ventana.claves()));
+            ventana.captura("7-tareas-foco");
+        }]],
+        [[50, () => {
+            const g = ventana.grupos().find(x => x.objectName === "grupo-plazo|Esta semana");
+            ventana.comprobar(!!g && ventana.igual(ventana.planos(g), ["Empieza la semana que viene", "Cambiar los discos del NAS"]), "Plazo: dentro de un grupo, por prioridad de hoy y fecha (la de «Ahora» no se repite)", g ? JSON.stringify(ventana.planos(g)) : "sin grupo");
+            ventana.comprobar(ventana.grupoPlegado("pausa") === true && ventana.grupoPlegado("hechas") === true && ventana.grupoPlegado("plazo|Sin fecha") === false, "En pausa y Hechas empiezan plegados; los demás, no");
+            ventana.comprobar(!ventana.tiene("Pausada que venció") && !ventana.tiene("Ya hecha"), "lo plegado no se ve");
+        }]],
+        // Vistas.
+        [[50, () => ventana.clic(ventana.uno("vista-proyecto"))]],
+        [[500, () => {
+            ventana.comprobar(ventana.igual(ventana.claves(), ["proyecto|homelab", "proyecto|clase", "proyecto|general", "pausa", "hechas"]), "vista Proyecto: un grupo por sección de la nota", JSON.stringify(ventana.claves()));
+            const g = ventana.grupos().find(x => x.objectName === "grupo-proyecto|homelab");
+            let cuadrado = null;
+            ventana.recorrer(g, it => {
+                if (it.objectName === "" && it.radius === 2 && it.implicitWidth === 8)
+                    cuadrado = it;
+            });
+            ventana.comprobar(!!cuadrado && Qt.colorEqual(cuadrado.color, "#6aa8ff"), "  con el cuadrado del color del proyecto", cuadrado ? String(cuadrado.color) : "sin cuadrado");
+            ventana.captura("8-tareas-proyecto");
+        }]],
+        [[50, () => ventana.clic(ventana.uno("vista-prioridad"))]],
+        [[500, () => {
+            ventana.comprobar(ventana.igual(ventana.claves(), ["prioridad|maxima", "prioridad|media", "prioridad|baja", "prioridad|minima", "pausa", "hechas"]), "vista Prioridad: un grupo por nivel, el de hoy (lo que vence hoy ya es máxima)", JSON.stringify(ventana.claves()));
+            const g = ventana.grupos().find(x => x.objectName === "grupo-prioridad|media");
+            let punto = null;
+            ventana.recorrer(g, it => {
+                if (it.objectName === "" && it.radius === 4 && it.implicitWidth === 8)
+                    punto = it;
+            });
+            ventana.comprobar(!!punto && Qt.colorEqual(punto.color, Theme.prioMedia), "  con el punto del color de la prioridad", punto ? String(punto.color) : "sin punto");
+            const m = ventana.grupos().find(x => x.objectName === "grupo-prioridad|maxima");
+            ventana.comprobar(!!m && ventana.igual(ventana.planos(m), ["Entrega de prueba con fecha", "Revisar la copia de seguridad", "Empieza la semana que viene"]), "  y dentro, lo más cercano primero", m ? JSON.stringify(ventana.planos(m)) : "");
+            ventana.captura("9-tareas-prioridad");
+        }]],
+        [[50, () => ventana.clic(ventana.uno("vista-todas"))]],
+        [[500, () => {
+            ventana.comprobar(ventana.igual(ventana.claves(), ["todas|todas", "pausa", "hechas"]), "vista Todas: un solo grupo", JSON.stringify(ventana.claves()));
+            ventana.comprobar(ventana.filasDe(ventana.grupos()[0]).length === 7, "  con las 7 abiertas (sin las de En pausa)", String(ventana.filasDe(ventana.grupos()[0]).length));
+        }]],
+        [[50, () => ventana.clic(ventana.uno("vista-plazo"))]],
+        // Plegar y desplegar.
+        [[500, () => {
+            ventana.comprobar(ventana.tiene("Una tarea sin proyecto"), "Plazo: «Sin fecha» desplegado enseña su tarea");
+            ventana.clic(ventana.cabecera("plazo|Sin fecha"));
+        }]],
+        [[700, () => {
+            ventana.comprobar(ventana.grupoPlegado("plazo|Sin fecha") === true && !ventana.tiene("Una tarea sin proyecto"), "clic en la cabecera de un grupo lo pliega");
+            ventana.clic(ventana.cabecera("plazo|Sin fecha"));
+        }]],
+        [[700, () => ventana.comprobar(ventana.grupoPlegado("plazo|Sin fecha") === false && ventana.tiene("Una tarea sin proyecto"), "y otro clic lo despliega")]],
+        [[50, () => ventana.clic(ventana.uno("plegarTodo"))]],
+        [[700, () => {
+            ventana.comprobar(ventana.grupos().every(g => g.plegado), "«Contraer» pliega todos los grupos");
+            ventana.clic(ventana.uno("plegarTodo"));
+        }]],
+        [[700, () => {
+            ventana.comprobar(ventana.grupos().every(g => !g.plegado), "y «Expandir» los despliega todos");
+            // Como al empezar: En pausa y Hechas plegados.
+            ventana.ui().plegados = ({});
+        }]],
+        // Hecha, desde la tarjeta.
+        [[300, () => {
+            ventana.escrituras0 = apiFalsa.escrituras.length;
+            ventana.clic(ventana.hijo(ventana.filaDe("Entrega de prueba con fecha", "a"), "casillaTarjeta"));
+        }]],
+        [[500, () => {
+            ventana.comprobar(apiFalsa.escrituras.length === ventana.escrituras0 + 1 && ventana.ultima().op === "hecha" && ventana.ultima().cuerpo.hecha === true, "la casilla de una tarjeta marca la tarea como hecha", ventana.ultimaJSON());
+            ventana.comprobar(ventana.ahoraPlanos().indexOf("Entrega de prueba con fecha") < 0, "  y sale de «Ahora»", JSON.stringify(ventana.ahoraPlanos()));
+            ventana.comprobar(apiFalsa.tareas.secciones[1].tareas[0].hecha === true, "  y la lista que vuelve la trae hecha");
+            ventana.comprobar(!ventana.igual(ventana.ahoraPlanos().slice(0, 1), ["Entrega de prueba con fecha"]) && ventana.ahoraPlanos().length === 3, "  y «Ahora» se vuelve a llenar hasta tres", JSON.stringify(ventana.ahoraPlanos()));
+        }]],
+        // Deshacer: la casilla de la fila en Hechas.
+        [[50, () => {
+            ventana.ui().plegados = ({ "hechas": false });
+        }]],
+        [[700, () => {
+            ventana.traer(ventana.cabecera("hechas"));
+        }]],
+        [[100, () => {
+            const f = ventana.filaDe("Entrega de prueba con fecha", "r");
+            ventana.comprobar(!!f && f.t.hecha === true, "Hechas, desplegado, enseña la tarea hecha", f ? "" : "no está");
+            ventana.escrituras0 = apiFalsa.escrituras.length;
+            ventana.traer(f);
+            ventana.clic(ventana.hijo(f, "casillaFila"));
+        }]],
+        [[500, () => {
+            ventana.comprobar(ventana.ultima().op === "hecha" && ventana.ultima().cuerpo.hecha === false, "la casilla de una hecha la vuelve a abrir", ventana.ultimaJSON());
+            ventana.ui().plegados = ({});
+        }]],
+        // Detalles de una fila, y fijar.
+        [[300, () => {
+            ventana.clicFila("Cambiar los discos del NAS", "r");
+        }]],
+        [[700, () => {
+            const f = ventana.filaDe("Cambiar los discos del NAS", "r");
+            ventana.comprobar(ventana.ui().abiertos["r" + f.t.linea] === true && ventana.tiene("DETALLES") && ventana.tiene("Fijar en «Ahora»"), "un clic en una fila despliega sus detalles");
+            ventana.comprobar(ventana.ui().seleccion.ctx === "r" && ventana.ui().seleccion.linea === f.t.linea, "  y la elige");
+            ventana.escrituras0 = apiFalsa.escrituras.length;
+            ventana.clic(ventana.hijo(f, "fijarTarea"));
+        }]],
+        [[500, () => {
+            ventana.comprobar(ventana.ultima().op === "editar" && ventana.igual(ventana.ultima().cuerpo, { fijada: true }), "«Fijar en Ahora» manda fijada: true", ventana.ultimaJSON());
+            ventana.comprobar(ventana.igual(ventana.ahoraPlanos(), ["Cambiar los discos del NAS", "Fijada a mano sin fecha", "Entrega de prueba con fecha"]), "  y la fijada pasa a «Ahora»: las fijadas primero y se rellena hasta tres", JSON.stringify(ventana.ahoraPlanos()));
+        }]],
+        // Añadir.
+        [[100, () => {
+            const c = ventana.uno("campoNueva");
+            c.enfocar();
+            c.texto = "Tarea nueva de prueba";
+        }]],
+        [[100, () => {
+            ventana.escrituras0 = apiFalsa.escrituras.length;
+            ventana.tecla(Qt.Key_Return);
+        }]],
+        [[400, () => {
+            ventana.comprobar(ventana.igual(ventana.ultima().cuerpo, { seccion: "general", texto: "Tarea nueva de prueba", prioridad: "media" }), "Intro en la fila de añadir: tarea nueva en General con prioridad media", ventana.ultimaJSON());
+            ventana.comprobar(ventana.uno("campoNueva").texto === "", "  y el campo se vacía");
+            ventana.comprobar(ventana.tiene("Tarea nueva de prueba"), "  y la tarea sale en la lista");
+        }]],
+        [[50, () => ventana.clic(ventana.uno("opcionesAnadir"))]],
+        [[600, () => {
+            ventana.comprobar(ventana.uno("opcionesNueva") !== null && ventana.uno("opSeccion-clase") !== null, "el botón de opciones enseña sección, prioridad y fecha");
+            ventana.captura("11-tareas-anadir");
+            ventana.clic(ventana.uno("opSeccion-clase"));
+        }]],
+        [[100, () => ventana.clic(ventana.uno("opPrio-alta"))]],
+        [[100, () => ventana.clic(ventana.uno("opManana"))]],
+        [[100, () => {
+            ventana.comprobar(ventana.uno("opFecha").texto === "2026-10-21", "«Mañana» pone la fecha de mañana (la de hoy del NUC más uno)", ventana.uno("opFecha").texto);
+            const c = ventana.uno("campoNueva");
+            c.texto = "Entrega con fecha";
+            ventana.uno("opcionesNueva").area = "Aules";
+            ventana.clic(ventana.uno("botonAnadir"));
+        }]],
+        [[400, () => {
+            ventana.comprobar(ventana.igual(ventana.ultima().cuerpo, { seccion: "clase", texto: "Entrega con fecha", prioridad: "alta", area: "Aules", fecha: "2026-10-21" }), "añadir con opciones: sección, prioridad, área y fecha", ventana.ultimaJSON());
+            ventana.clic(ventana.uno("opcionesAnadir"));
+        }]],
+        // Editar el texto, desde el atajo e.
+        [[600, () => {
+            ventana.clicFila("Leer el tema 4", "r");
+        }]],
+        [[400, () => {
+            ventana.tecla("e");
+        }]],
+        [[500, () => {
+            ventana.comprobar(ventana.uno("editorTexto") !== null && ventana.uno("editorGuardar") !== null, "e abre el editor de la tarea elegida");
+            ventana.comprobar(ventana.uno("editorTexto").texto === "Leer el tema 4", "  con su texto");
+            ventana.comprobar(apiFalsa.editandoTarea === true, "  y avisa a la API de que se edita (para que una recarga de fuera espere)");
+            ventana.traer(ventana.uno("editorTexto"));
+            ventana.captura("12-tareas-editor");
+        }]],
+        [[400, () => {
+            ventana.uno("editorTexto").texto = "Leer el tema 4 (editado)";
+            ventana.clic(ventana.uno("opPrio-alta"));
+        }]],
+        [[100, () => ventana.clic(ventana.uno("opSinFecha"))]],
+        [[100, () => {
+            ventana.escrituras0 = apiFalsa.escrituras.length;
+            ventana.clic(ventana.uno("editorGuardar"));
+        }]],
+        [[500, () => {
+            ventana.comprobar(ventana.ultima().op === "editar" && ventana.igual(ventana.ultima().cuerpo, { texto: "Leer el tema 4 (editado)", fecha: "", prioridad: "alta" }), "guardar el editor manda solo lo que cambió", ventana.ultimaJSON());
+            ventana.comprobar(ventana.uno("editorTexto") === null && apiFalsa.editandoTarea === false, "  y el editor se cierra");
+            ventana.comprobar(ventana.tiene("Leer el tema 4 (editado)"), "  y el texto nuevo sale en la lista");
+        }]],
+        // Cancelar el editor con Escape.
+        [[100, () => {
+            ventana.clicFila("Leer el tema 4 (editado)", "r");
+        }]],
+        [[300, () => ventana.tecla("e")]],
+        [[400, () => {
+            ventana.comprobar(ventana.uno("editorTexto") !== null, "e vuelve a abrir el editor");
+            ventana.uno("editorTexto").texto = "no se guarda";
+            ventana.escrituras0 = apiFalsa.escrituras.length;
+            ventana.tecla(Qt.Key_Escape);
+        }]],
+        [[400, () => {
+            ventana.comprobar(ventana.uno("editorTexto") === null && apiFalsa.escrituras.length === ventana.escrituras0, "Escape cierra el editor sin escribir nada");
+        }]],
+        // Detalles y subtareas.
+        [[300, () => ventana.clicFila("Revisar la copia de seguridad", "r")]],
+        [[700, () => {
+            ventana.comprobar(ventana.tiene("<b>Hecho</b>: lo de ayer") && ventana.tiene("Comprobar restic"), "el detalle enseña las líneas de detalle (la etiqueta en negrita)");
+            ventana.comprobar(ventana.tiene("Mirar el log") && ventana.tiene("Probar una restauración") && ventana.tiene("SUBTAREAS · 1/2"), "  y las subtareas con su cuenta");
+            const f = ventana.filaDe("Revisar la copia de seguridad", "r");
+            ventana.traer(f);
+            ventana.captura("10-tareas-detalle");
+        }]],
+        [[400, () => {
+            const f = ventana.filaDe("Revisar la copia de seguridad", "r");
+            ventana.clic(ventana.hijo(f, "editarDetalles"));
+        }]],
+        [[300, () => {
+            const c = ventana.uno("campoDetalles");
+            ventana.comprobar(c !== null && c.texto === "**Hecho**: lo de ayer\nComprobar restic", "«Editar detalles» abre un campo con las líneas");
+            c.texto = "Una línea\nOtra línea\n\n";
+            ventana.tecla(Qt.Key_Return, Qt.ControlModifier);
+        }]],
+        [[500, () => {
+            ventana.comprobar(ventana.ultima().op === "editar" && ventana.igual(ventana.ultima().cuerpo, { detalles: ["Una línea", "Otra línea"] }), "Ctrl+Intro guarda los detalles (sin las líneas vacías)", ventana.ultimaJSON());
+            ventana.comprobar(ventana.tiene("Otra línea") && !ventana.tiene("Comprobar restic"), "  y se ven en la lista");
+        }]],
+        [[50, () => {
+            const f = ventana.filaDe("Revisar la copia de seguridad", "r");
+            ventana.clic(ventana.hijo(f, "anadirSub"));
+        }]],
+        [[300, () => {
+            const c = ventana.uno("campoSubNueva");
+            ventana.comprobar(c !== null, "«Añadir subtarea» abre su campo");
+            c.texto = "Subtarea nueva";
+            ventana.tecla(Qt.Key_Return);
+        }]],
+        [[500, () => {
+            ventana.comprobar(ventana.ultima().op === "editar" && ventana.igual(ventana.ultima().cuerpo, { subtareas: [{ texto: "Mirar el log", hecha: true }, { texto: "Probar una restauración", hecha: false }, { texto: "Subtarea nueva", hecha: false }] }), "Intro añade la subtarea al final y deja las demás como estaban", ventana.ultimaJSON());
+            ventana.clic(ventana.porNombre("casillaSub")[0]);
+        }]],
+        [[500, () => {
+            ventana.comprobar(ventana.igual(ventana.ultima().cuerpo.subtareas.map(x => x.hecha), [false, false, false]), "la casilla de una subtarea la marca o la desmarca", ventana.ultimaJSON());
+            ventana.clic(ventana.porNombre("textoSub")[1]);
+        }]],
+        [[300, () => {
+            const c = ventana.porNombre("campoSub");
+            ventana.comprobar(c.length === 1 && c[0].texto === "Probar una restauración", "un clic en el texto de una subtarea la edita");
+            c[0].texto = "Probar la restauración";
+            ventana.tecla(Qt.Key_Return);
+        }]],
+        [[500, () => {
+            ventana.comprobar(ventana.igual(ventana.ultima().cuerpo.subtareas.map(x => x.texto), ["Mirar el log", "Probar la restauración", "Subtarea nueva"]), "Intro guarda el texto nuevo de la subtarea", ventana.ultimaJSON());
+            ventana.clic(ventana.porNombre("quitarSub")[0]);
+        }]],
+        [[500, () => {
+            ventana.comprobar(ventana.igual(ventana.ultima().cuerpo.subtareas.map(x => x.texto), ["Probar la restauración", "Subtarea nueva"]), "la × quita la subtarea", ventana.ultimaJSON());
+            ventana.clicFila("Revisar la copia de seguridad", "r");
+        }]],
+        // Un 409: se recarga, se avisa y no se escribe nada.
+        [[700, () => {
+            ventana.comprobar(!ventana.tiene("Subtarea nueva"), "plegado el detalle, no se ven sus subtareas");
+            apiFalsa.conflictoPendiente = true;
+            ventana.escrituras0 = apiFalsa.escrituras.length;
+            const f = ventana.filaDe("Una tarea sin proyecto", "r");
+            ventana.traer(f);
+            ventana.clic(ventana.hijo(f, "casillaFila"));
+        }]],
+        [[500, () => {
+            ventana.comprobar(apiFalsa.escrituras.length === ventana.escrituras0 + 1, "(se intentó la escritura)");
+            const av = ventana.uno("textoAviso");
+            ventana.comprobar(!!av && av.text.indexOf("La nota cambió") === 0, "un 409 enseña un aviso corto abajo", av ? av.text : "sin aviso");
+            ventana.comprobar(apiFalsa.tareas.secciones[2].tareas[0].hecha === false, "  y no marca nada");
+            ventana.comprobar(ventana.tiene("Cambiada desde Obsidian"), "  y la lista recargada trae lo que cambió fuera");
+            ventana.captura("13-tareas-conflicto");
+        }]],
+        // Un 409 con el editor abierto: se recarga y no se pisa lo de fuera.
+        [[100, () => {
+            ventana.clicFila("Cambiada desde Obsidian", "r");
+        }]],
+        [[300, () => ventana.tecla("e")]],
+        [[400, () => {
+            const e = ventana.uno("editorTexto");
+            ventana.comprobar(e !== null, "(editor abierto otra vez)");
+            e.texto = "Esto no debe llegar al servidor";
+            apiFalsa.conflictoPendiente = true;
+            ventana.escrituras0 = apiFalsa.escrituras.length;
+            ventana.clic(ventana.uno("editorGuardar"));
+        }]],
+        [[500, () => {
+            const e = ventana.uno("editorTexto");
+            ventana.comprobar(apiFalsa.tareas.secciones[0].tareas[0].texto === "Cambiada desde Obsidian", "un 409 al guardar el editor no deja lo escrito en el servidor");
+            ventana.comprobar(ventana.uno("textoAviso") !== null && ventana.uno("textoAviso").text.indexOf("La nota cambió") === 0, "  y avisa");
+            ventana.tecla(Qt.Key_Escape);
+        }]],
+        // =====================================================================
+        // Los atajos
+        // =====================================================================
+        // Sin el foco del teclado, no hacen nada.
+        [[400, () => {
+            const t = ventana.filaDe("Una tarea sin proyecto", "r").t;
+            ventana.ui().seleccion = { ctx: "r", linea: t.linea };
+            otroFoco.forceActiveFocus();
+            ventana.escrituras0 = apiFalsa.escrituras.length;
+            ventana.tecla("x");
+            ventana.tecla("p");
+            ventana.tecla("1");
+            ventana.tecla("n");
+            ventana.tecla("/");
+            ventana.tecla("?");
+            ventana.tecla("j");
+            ventana.comprobar(!ventana.ui().activeFocus, "(el foco del teclado está en otro sitio)");
+            ventana.comprobar(apiFalsa.escrituras.length === ventana.escrituras0 && !ventana.uno("campoNueva").enfocado && !ventana.uno("campoFiltro").enfocado && !ventana.ui().ayuda && ventana.ui().seleccion.linea === t.linea, "x, p, 1, n, / , ? y j no hacen nada sin el foco del teclado");
+        }]],
+        // Con el foco pero con el cajón cerrado, tampoco.
+        [[50, () => {
+            ventana.ui().enfocar();
+            falso.abierto = false;
+        }]],
+        [[800, () => {
+            ventana.escrituras0 = apiFalsa.escrituras.length;
+            ventana.tecla("x");
+            ventana.tecla("n");
+            ventana.tecla("?");
+            ventana.comprobar(ventana.ui().activeFocus && apiFalsa.escrituras.length === ventana.escrituras0 && !ventana.ui().ayuda, "con el cajón cerrado, los atajos tampoco hacen nada, aunque el foco esté aquí");
+            falso.abierto = true;
+        }]],
+        [[900, () => {
+            // Al abrir, el foco vuelve a Tareas (el teclado de verdad sigue siendo del cajón solo tras un clic).
+            ventana.comprobar(ventana.ui().activeFocus, "al abrir el cajón, Tareas recupera el foco de los atajos");
+            ventana.ui().seleccion = { ctx: "", linea: -1 };
+            ventana.tecla("j");
+        }]],
+        [[200, () => {
+            const o = ventana.ui().orden;
+            ventana.comprobar(ventana.igual(ventana.ui().seleccion, o[0]), "j sin nada elegido elige la primera (la primera tarjeta de «Ahora»)", JSON.stringify(ventana.ui().seleccion));
+            ventana.tecla("j");
+        }]],
+        [[200, () => {
+            const o = ventana.ui().orden;
+            ventana.comprobar(ventana.igual(ventana.ui().seleccion, o[1]), "j otra vez, la siguiente", JSON.stringify(ventana.ui().seleccion));
+            ventana.tecla("k");
+        }]],
+        [[200, () => {
+            const o = ventana.ui().orden;
+            ventana.comprobar(ventana.igual(ventana.ui().seleccion, o[0]), "k vuelve a la anterior", JSON.stringify(ventana.ui().seleccion));
+            ventana.tecla("k");
+        }]],
+        [[200, () => {
+            ventana.comprobar(ventana.igual(ventana.ui().seleccion, ventana.ui().orden[0]), "k en la primera se queda en la primera");
+            ventana.tecla(Qt.Key_Return);
+        }]],
+        [[600, () => {
+            const s = ventana.ui().seleccion;
+            ventana.comprobar(ventana.ui().abiertos[s.ctx + s.linea] === true, "Intro abre el detalle de la elegida");
+            ventana.tecla("o");
+        }]],
+        [[600, () => {
+            const s = ventana.ui().seleccion;
+            ventana.comprobar(!ventana.ui().abiertos[s.ctx + s.linea], "o lo cierra");
+            ventana.escrituras0 = apiFalsa.escrituras.length;
+            ventana.tecla("x");
+        }]],
+        [[500, () => {
+            ventana.comprobar(ventana.ultima().op === "hecha" && ventana.ultima().cuerpo.hecha === true && apiFalsa.escrituras.length === ventana.escrituras0 + 1, "x marca como hecha la elegida", ventana.ultimaJSON());
+            ventana.tecla("x");
+        }]],
+        [[500, () => {
+            ventana.comprobar(ventana.ultima().op === "hecha" && ventana.ultima().cuerpo.hecha === false, "y otra x la desmarca", ventana.ultimaJSON());
+            ventana.fijadaAntes = ventana.ui().elegida().fijada;
+            ventana.tecla("p");
+        }]],
+        [[500, () => {
+            ventana.comprobar(ventana.ultima().op === "editar" && ventana.ultima().cuerpo.fijada === !ventana.fijadaAntes, "p cambia lo de fijar en «Ahora» de la elegida", ventana.ultimaJSON());
+            ventana.tecla("p");
+        }]],
+        [[500, () => {
+            ventana.comprobar(ventana.ultima().op === "editar" && "fijada" in ventana.ultima().cuerpo, "y p otra vez lo deshace", ventana.ultimaJSON());
+            // Prioridad: una de media.
+            const t = ventana.filaDe("Una tarea sin proyecto", "r").t;
+            ventana.ui().seleccion = { ctx: "r", linea: t.linea };
+            ventana.escrituras0 = apiFalsa.escrituras.length;
+            ventana.tecla("1");
+        }]],
+        [[500, () => {
+            ventana.comprobar(ventana.ultima().op === "editar" && ventana.igual(ventana.ultima().cuerpo, { prioridad: "maxima" }), "1 pone la prioridad máxima", ventana.ultimaJSON());
+            ventana.tecla("5");
+        }]],
+        [[500, () => {
+            ventana.comprobar(ventana.igual(ventana.ultima().cuerpo, { prioridad: "minima" }), "5 la mínima", ventana.ultimaJSON());
+            ventana.escrituras0 = apiFalsa.escrituras.length;
+            ventana.tecla("5");
+        }]],
+        [[300, () => {
+            ventana.comprobar(apiFalsa.escrituras.length === ventana.escrituras0, "la misma prioridad otra vez no escribe nada");
+            ventana.tecla("3");
+        }]],
+        [[500, () => {
+            ventana.comprobar(ventana.igual(ventana.ultima().cuerpo, { prioridad: "media" }) && ventana.igual(ventana.filaDe("Una tarea sin proyecto", "r").t.prioridad, "media"), "3 la media", ventana.ultimaJSON());
+            // n, el filtro y el campo.
+            ventana.tecla("n");
+        }]],
+        [[200, () => {
+            ventana.comprobar(ventana.uno("campoNueva").enfocado, "n enfoca el campo de añadir");
+            ventana.tecla("j");
+        }]],
+        [[200, () => {
+            ventana.comprobar(ventana.uno("campoNueva").texto === "j" || ventana.uno("campoNueva").texto === "", "mientras se escribe en un campo, los atajos no actúan (la j se escribe)", ventana.uno("campoNueva").texto);
+            ventana.uno("campoNueva").texto = "";
+            ventana.escrituras0 = apiFalsa.escrituras.length;
+            ventana.tecla("x");
+            ventana.comprobar(apiFalsa.escrituras.length === ventana.escrituras0, "  y la x tampoco marca nada");
+            ventana.uno("campoNueva").texto = "";
+            ventana.tecla(Qt.Key_Escape);
+        }]],
+        [[200, () => {
+            ventana.comprobar(!ventana.uno("campoNueva").enfocado && ventana.ui().activeFocus && envoltura.escapes === 0, "Escape suelta el campo y no cierra el cajón");
+            ventana.tecla("/");
+        }]],
+        [[200, () => {
+            ventana.comprobar(ventana.uno("campoFiltro").enfocado, "/ enfoca el filtro");
+            ventana.uno("campoFiltro").texto = "discos";
+        }]],
+        [[500, () => {
+            ventana.comprobar(ventana.tiene("Nada coincide con el filtro.") && ventana.filasDe(ventana.ui()).filter(f => f.ctx === "r").length === 0 && ventana.ahoraPlanos().length === 3, "el filtro «discos» (esa tarea está en «Ahora», que no se filtra) no deja filas y lo dice", String(ventana.filasDe(ventana.ui()).filter(f => f.ctx === "r").length));
+            ventana.uno("campoFiltro").texto = "tema";
+        }]],
+        [[500, () => {
+            ventana.comprobar(ventana.igual(ventana.filasDe(ventana.ui()).filter(f => f.ctx === "r").map(f => f.t.plano), ["Leer el tema 4 (editado)"]), "el filtro «tema» deja solo la tarea que lo lleva", JSON.stringify(ventana.filasDe(ventana.ui()).filter(f => f.ctx === "r").map(f => f.t.plano)));
+            ventana.tecla(Qt.Key_Escape);
+        }]],
+        [[400, () => {
+            ventana.comprobar(ventana.uno("campoFiltro").texto === "" && ventana.uno("campoFiltro").enfocado, "Escape en el filtro lo vacía primero");
+            ventana.tecla(Qt.Key_Escape);
+        }]],
+        [[300, () => {
+            ventana.comprobar(!ventana.uno("campoFiltro").enfocado && envoltura.escapes === 0, "y otro lo suelta, sin cerrar el cajón");
+            ventana.tecla("?");
+        }]],
+        [[500, () => {
+            ventana.comprobar(ventana.ui().ayuda === true && ventana.tiene("Atajos de las tareas") && ventana.tiene("Esta ayuda"), "? enseña la lista de atajos");
+            ventana.captura("14-tareas-ayuda");
+        }]],
+        [[400, () => {
+            ventana.escrituras0 = apiFalsa.escrituras.length;
+            ventana.tecla("x");
+            ventana.tecla("j");
+            ventana.comprobar(apiFalsa.escrituras.length === ventana.escrituras0, "con la ayuda a la vista, el resto de atajos no actúan");
+            ventana.tecla(Qt.Key_Escape);
+        }]],
+        [[500, () => {
+            ventana.comprobar(ventana.ui().ayuda === false && envoltura.escapes === 0, "Escape cierra la ayuda y no el cajón");
+            ventana.ui().seleccion = { ctx: "", linea: -1 };
+            ventana.tecla(Qt.Key_Escape);
+        }]],
+        [[300, () => ventana.comprobar(envoltura.escapes === 1, "con nada que cerrar, Escape sube hasta quien cierra el cajón", String(envoltura.escapes))]],
+        // =====================================================================
+        // Hábitos (en Inicio)
+        // =====================================================================
+        [[50, () => ventana.seccion("inicio")]],
+        [[700, () => {
+            ventana.comprobar(ventana.tiene("HÁBITOS DE HOY") && ventana.tiene("Gym") && ventana.tiene("Leído") && ventana.tiene("Programado") && ventana.tiene("Energía"), "Inicio enseña los hábitos de hoy: gym, leído, programado y energía");
+            ventana.comprobar(ventana.tiene("3/7 semana") && ventana.tiene("6,5 media"), "  con los totales de la semana");
+            const e = ventana.porNombre("habito-gym")[0].estado + "," + ventana.porNombre("habito-lectura")[0].estado + "," + ventana.porNombre("habito-programar")[0].estado;
+            ventana.comprobar(e === "si,,no", "  y cómo está cada uno hoy (sí, sin marcar, no)", e);
+            ventana.comprobar(Qt.colorEqual(ventana.porNombre("energia-7")[0].color, Qt.rgba(1, 1, 1, 0.22)), "  y la energía puesta (7) marcada");
+            ventana.captura("15-habitos");
+        }]],
+        [[400, () => {
+            ventana.escrituras0 = apiFalsa.escrituras.length;
+            ventana.clic(ventana.porNombre("habito-gym")[0]);
+        }]],
+        [[300, () => {
+            ventana.comprobar(ventana.ultima().op === "habito" && ventana.ultima().id === "gym" && ventana.ultima().cuerpo.valor === "no", "un clic en el gym (sí) lo pasa a «no»", ventana.ultimaJSON());
+            ventana.clic(ventana.porNombre("habito-gym")[0]);
+        }]],
+        [[300, () => {
+            ventana.comprobar(ventana.ultima().cuerpo.valor === "" && ventana.porNombre("habito-gym")[0].estado === "", "otro clic lo deja sin marcar", ventana.ultimaJSON());
+            ventana.clic(ventana.porNombre("habito-gym")[0]);
+        }]],
+        [[300, () => {
+            ventana.comprobar(ventana.ultima().cuerpo.valor === "si" && ventana.porNombre("habito-gym")[0].estado === "si", "y otro, «sí»: el ciclo es sin marcar, sí, no", ventana.ultimaJSON());
+            ventana.clic(ventana.porNombre("habito-lectura")[0]);
+        }]],
+        [[300, () => {
+            ventana.comprobar(ventana.ultima().id === "lectura" && ventana.ultima().cuerpo.valor === "si", "leído: de sin marcar a «sí»", ventana.ultimaJSON());
+            ventana.clic(ventana.porNombre("energia-3")[0]);
+        }]],
+        [[300, () => {
+            ventana.comprobar(ventana.ultima().id === "energia" && ventana.ultima().cuerpo.valor === "3", "un clic en un número de la energía la pone", ventana.ultimaJSON());
+            ventana.clic(ventana.porNombre("energia-3")[0]);
+        }]],
+        [[300, () => {
+            ventana.comprobar(ventana.ultima().id === "energia" && ventana.ultima().cuerpo.valor === "" && apiFalsa.habitos.hoy.energia === null, "y otro clic en la que está puesta la quita", ventana.ultimaJSON());
+            ventana.comprobar(ventana.textos().indexOf("€") < 0, "(sin euros en Inicio con los hábitos)");
+        }]],
+        // =====================================================================
+        // Clase: Actualizar Aules
+        // =====================================================================
+        [[50, () => ventana.seccion("clase")]],
+        [[700, () => {
+            ventana.comprobar(ventana.uno("seccionClase") !== null && ventana.uno("botonAules") !== null, "la tira lleva a Clase, con el botón «Actualizar Aules»");
+            const l = ventana.uno("lineaAules").text;
+            ventana.comprobar(l === "Aules actualizado hace 2 h · 2 tareas nuevas, 1 fecha cambiada · calendario: 1 nuevo", "la línea de estado dice cuándo y qué cambió", l);
+            ventana.captura("16-clase");
+        }]],
+        [[400, () => {
+            ventana.escrituras0 = apiFalsa.escrituras.length;
+            ventana.clic(ventana.uno("botonAules"));
+        }]],
+        [[400, () => {
+            ventana.comprobar(ventana.ultima().op === "aules" && apiFalsa.escrituras.length === ventana.escrituras0 + 1, "el botón lanza la actualización", ventana.ultimaJSON());
+            ventana.comprobar(ventana.uno("lineaAules").text.indexOf("Actualizando Aules…") === 0 && ventana.uno("botonAules").texto === "Actualizando…" && !ventana.uno("botonAules").encendido, "  la línea dice que está en marcha y el botón se apaga");
+            ventana.escrituras0 = apiFalsa.escrituras.length;
+            ventana.clic(ventana.uno("botonAules"));
+        }]],
+        [[300, () => {
+            ventana.comprobar(apiFalsa.escrituras.length === ventana.escrituras0, "con una en marcha, otro clic no lanza otra");
+            ventana.captura("17-clase-en-marcha");
+            // El evento «clase»: la actualización acaba.
+            ventana.lecturas0 = apiFalsa.lecturasTareas;
+            apiFalsa.eventoClase({ estado: "ok", ejecutando: false, terminado: new Date(), error: "", tareas: { anadidas: 3, fechas: 0, completadas: 1, error: "" }, calendario: null, calendarioConectado: false, calendarioPersonalError: "" });
+        }]],
+        [[300, () => {
+            const l = ventana.uno("lineaAules").text;
+            ventana.comprobar(l === "Aules actualizado hace un momento · 3 tareas nuevas, 1 entregada", "el evento «clase» cambia la línea sin tocar nada", l);
+            ventana.comprobar(ventana.uno("botonAules").encendido, "  y el botón vuelve");
+            ventana.comprobar(apiFalsa.lecturasTareas === ventana.lecturas0 + 1, "  y, como acabó una en marcha, se vuelven a leer las tareas", String(apiFalsa.lecturasTareas - ventana.lecturas0));
+            apiFalsa.eventoClase({ estado: "error", ejecutando: false, terminado: new Date(Date.now() - 600000), error: "aules-sync falló (exit-code)", tareas: null, calendario: null, calendarioConectado: false, calendarioPersonalError: "no hay token" });
+        }]],
+        [[300, () => {
+            ventana.comprobar(ventana.uno("lineaAules").text === "aules-sync falló (exit-code) (hace 10 min)", "un error de la última, con cuándo", ventana.uno("lineaAules").text);
+            ventana.comprobar(ventana.uno("lineaCalPersonal") !== null && ventana.uno("lineaCalPersonal").text.indexOf("no hay token") > 0, "  y el fallo del calendario «Personal», si lo hubo");
+            ventana.captura("18-clase-error");
+            apiFalsa.eventoClase({ estado: "nunca", ejecutando: false, terminado: null, error: "", tareas: null, calendario: null, calendarioConectado: false, calendarioPersonalError: "" });
+        }]],
+        [[300, () => ventana.comprobar(ventana.uno("lineaAules").text === "Aules todavía no se ha actualizado desde el panel.", "estado «nunca»")]],
+        [[50, () => {
+            apiFalsa.eventoClase({ estado: "sin-unidad", ejecutando: false, terminado: null, error: "No está la unidad aules-sync.", tareas: null, calendario: null, calendarioConectado: false, calendarioPersonalError: "" });
+        }]],
+        [[300, () => ventana.comprobar(ventana.uno("lineaAules").text === "No está la unidad aules-sync." && !ventana.uno("botonAules").encendido, "sin la unidad en el NUC: lo dice y el botón se apaga")]],
+        // =====================================================================
+        // El evento «tareas»
+        // =====================================================================
+        [[50, () => ventana.seccion("tareas")]],
+        [[700, () => {
+            ventana.lecturas0 = apiFalsa.lecturasTareas;
+            const v = apiFalsa.cambioExterno("Texto cambiado en Obsidian");
+            ventana.versionNueva = v;
+            apiFalsa.eventoTareas(apiFalsa.versionCargada);
+        }]],
+        [[300, () => {
+            ventana.comprobar(apiFalsa.lecturasTareas === ventana.lecturas0, "un evento «tareas» con la versión que ya se tiene no vuelve a leer");
+            apiFalsa.eventoTareas(ventana.versionNueva);
+        }]],
+        [[500, () => {
+            ventana.comprobar(apiFalsa.lecturasTareas === ventana.lecturas0 + 1 && ventana.tiene("Texto cambiado en Obsidian"), "con otra versión, relee las tareas y la lista se pone al día", String(apiFalsa.lecturasTareas - ventana.lecturas0));
+        }]],
+        // Con una tarea en edición: se marca como obsoleta y se espera.
+        [[50, () => {
+            ventana.clicFila("Texto cambiado en Obsidian", "r");
+        }]],
+        [[300, () => ventana.tecla("e")]],
+        [[500, () => {
+            ventana.comprobar(ventana.uno("editorTexto") !== null && apiFalsa.editandoTarea, "(editando una tarea)");
+            ventana.uno("editorTexto").texto = "Lo que estoy escribiendo";
+            ventana.lecturas0 = apiFalsa.lecturasTareas;
+            ventana.versionNueva = apiFalsa.cambioExterno("Otro cambio desde la web");
+            apiFalsa.eventoTareas(ventana.versionNueva);
+        }]],
+        [[400, () => {
+            ventana.comprobar(apiFalsa.lecturasTareas === ventana.lecturas0 && apiFalsa.tareasObsoletas === true, "un evento «tareas» mientras se edita: se marca como obsoleta y no relee");
+            ventana.comprobar(ventana.uno("editorTexto") !== null && ventana.uno("editorTexto").texto === "Lo que estoy escribiendo", "  y no toca lo que se está escribiendo");
+            ventana.tecla(Qt.Key_Escape);
+        }]],
+        [[500, () => {
+            ventana.comprobar(apiFalsa.lecturasTareas === ventana.lecturas0 + 1 && apiFalsa.tareasObsoletas === false && ventana.tiene("Otro cambio desde la web"), "al cerrar el editor, relee las tareas y se pone al día", String(apiFalsa.lecturasTareas - ventana.lecturas0));
+            ventana.comprobar(ventana.textos().indexOf("€") < 0, "(sin euros en Tareas)");
+        }]],
         [[50, () => ventana.comprobar(ventana.textos().indexOf("€") < 0, "no aparece ningún € en todo el texto del cajón")]],
         [[300, () => {
             console.log("Resultado: " + (ventana.hechas - ventana.fallos.length) + " de " + ventana.hechas + " bien" + (ventana.fallos.length ? "; fallan: " + ventana.fallos.join(" | ") : ""));
@@ -310,7 +1035,12 @@ FloatingWindow {
             if (ventana.i >= ventana.pasos.length)
                 return;
             const p = ventana.pasos[ventana.i++];
-            p[1]();
+            // Una excepción en un paso es un fallo, no el final de la prueba.
+            try {
+                p[1]();
+            } catch (e) {
+                ventana.comprobar(false, "excepción en el paso " + ventana.i + ": " + e);
+            }
             motor.interval = ventana.i < ventana.pasos.length ? ventana.pasos[ventana.i][0] : 100;
             motor.restart();
         }
