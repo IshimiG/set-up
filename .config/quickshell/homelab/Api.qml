@@ -75,9 +75,12 @@ Scope {
     // unhealthy. null sin datos.
     readonly property var servidor: p.servidor
     // { hoy, semana, metaPorcentaje, tareas }, o null sin cargar. Las tareas
-    // son las vencidas y las de hoy, como mucho 5, de la más urgente a la
-    // menos: { texto, seccion, color, prioridad, cuando, vencida }. La meta
-    // es solo el %, nunca una cantidad (E11).
+    // son las abiertas vencidas y las de hoy, como mucho 5, de la más urgente
+    // a la menos, y en su sitio las de 00 Inicio que se han hecho hoy (para
+    // poder desmarcarlas): { id, hecha, texto, seccion, color, prioridad,
+    // cuando, vencida }. id es el de «tareas», el que pide marcarTarea, y ""
+    // en las de otras notas, que no se marcan desde el cajón. La meta es solo
+    // el %, nunca una cantidad (E11).
     readonly property var inicio: p.inicio
     // Cuándo se leyó inicio por última vez (Date), o null.
     readonly property var inicioCargado: p.inicioCargado
@@ -277,6 +280,10 @@ Scope {
         property bool primeraLista: true
 
         property bool cargandoInicio: false
+        // Lo último de /api/personal y de /api/tareas, tal como llegó: las
+        // tareas de Inicio se vuelven a sacar de aquí con cada lista nueva.
+        property var personalInicio: null
+        property var ultimasTareas: null
 
         // Fase 3. Cada lectura y cada escritura de tareas lleva un número de
         // secuencia: una lectura que contesta después de una escritura más
@@ -762,6 +769,7 @@ Scope {
             return;
         p.cargandoInicio = true;
         const gen = p.generacion;
+        const sec = p.secTareas;
         const r = {};
         let faltan = 3;
         // La respuesta de cada una; con las tres, se junta.
@@ -775,7 +783,7 @@ Scope {
                     return;
                 p.cargandoInicio = false;
                 if (gen === p.generacion)
-                    api.juntarInicio(r);
+                    api.juntarInicio(r, sec);
             };
         }
         api.pedir("GET", "/api/personal", undefined, una("personal"));
@@ -783,7 +791,8 @@ Scope {
         api.pedir("GET", "/api/finanzas/resumen", undefined, una("finanzas"));
     }
 
-    function juntarInicio(r) {
+    // sec: el número de secuencia de las tareas al empezar a leer Inicio.
+    function juntarInicio(r, sec) {
         if (r.personal.estado === 401 || r.tareas.estado === 401) {
             api.noAutorizado();
             return;
@@ -798,11 +807,16 @@ Scope {
         // Solo el %; el resto del resumen ni se mira.
         const fin = api.leerJSON(r.finanzas);
         const meta = fin && fin.enabled && fin.ready && isFinite(fin.porcentaje) ? Math.round(fin.porcentaje) : null;
+        p.personalInicio = personal;
+        // Si mientras tanto ha llegado otra lista de tareas (una escritura,
+        // una lectura), se usa esa: esta pudo leerse antes, y sus id ya no
+        // valdrían para marcar.
+        const lista = sec !== p.secTareas && p.ultimasTareas ? p.ultimasTareas : tareas;
         p.inicio = {
             hoy: api.textoHoy(personal.today),
             semana: api.textoSemana(personal.isoWeek),
             metaPorcentaje: meta,
-            tareas: api.tareasDeInicio(tareas, personal)
+            tareas: api.tareasDeInicio(lista, personal)
         };
         p.inicioCargado = new Date();
         api.bien();
@@ -882,29 +896,40 @@ Scope {
         return "en " + n + " días";
     }
 
+    // tareas es lo de /api/tareas (o la respuesta de una escritura, que es lo
+    // mismo) y personal, lo de /api/personal.
     function tareasDeInicio(tareas, personal) {
         const hoyT = api.diaNum(tareas.today) ?? api.diaNum(personal.today) ?? api.hoyLocal();
         const hoyP = api.diaNum(personal.today) ?? hoyT;
         const lista = [];
-        const meter = (t, hoy, eff, pausa, seccion, color, fuente, ruta) => {
-            if (t.done)
-                return;
+        // id: el de /api/tareas, o "" si es de otra nota.
+        const meter = (t, hoy, eff, pausa, seccion, color, fuente, ruta, id) => {
             const d = api.diaNum(t.due);
-            const vencida = !!t.overdue || (d !== null && d < hoy);
-            if (!vencida && !t.dueToday && d !== hoy)
-                return;
+            let vencida = false;
+            if (t.done) {
+                // Hecha: solo si es de 00 Inicio, se hizo hoy y estaba aquí
+                // (vencía hoy o antes), para poder desmarcarla.
+                if (id === "" || api.diaNum(t.doneDate) !== hoy || d === null || d > hoy)
+                    return;
+            } else {
+                vencida = !!t.overdue || (d !== null && d < hoy);
+                if (!vencida && !t.dueToday && d !== hoy)
+                    return;
+            }
             lista.push({
                 // Primero lo que no está en pausa; después, la prioridad de
                 // hoy, la fecha y el orden de las notas (00 Inicio delante).
                 orden: [pausa ? 1 : 0, eff in api.rangoPrio ? api.rangoPrio[eff] : 5, t.due || "9999", fuente, ruta, t.line || 0],
                 tarea: {
+                    id: id,
+                    hecha: !!t.done,
                     texto: api.plano(t.text),
                     seccion: seccion,
                     color: /^#[0-9a-fA-F]{6}$/.test(color || "") ? color : "",
                     // Una tarea sin prioridad no llega aquí: vencida o de hoy,
                     // el panel ya la ha subido a máxima.
                     prioridad: pausa ? "pausa" : api.nombrePrio[eff] || "minima",
-                    cuando: api.cuando(d !== null ? d - hoy : 0),
+                    cuando: t.done ? "hecha hoy" : api.cuando(d !== null ? d - hoy : 0),
                     vencida: vencida
                 }
             });
@@ -915,15 +940,19 @@ Scope {
                 // tarjetas «Ahora» de la web.
                 const area = String(t.area || "").trim();
                 const seccion = String(s.title || "") + (area && area.toLowerCase() !== String(s.title || "").trim().toLowerCase() ? " · " + area : "");
-                meter(t, hoyT, t.effective || t.priority || "", s.id === "en-pausa", seccion, s.color, 0, "");
+                // El NUC no sube la prioridad de una hecha: se calcula como si
+                // siguiera abierta, para que no cambie de sitio al marcarla.
+                const d = api.diaNum(t.due);
+                const eff = t.done ? api.efectiva(t.priority || "", d === null ? null : d - hoyT) : t.effective || t.priority || "";
+                meter(t, hoyT, eff, s.id === "en-pausa", seccion, s.color, 0, "", String(t.id || ""));
             }
         }
         for (const t of personal.tasks || []) {
-            if (t.path === "00 Inicio.md")
+            if (t.path === "00 Inicio.md" || t.done)
                 continue;
             const d = api.diaNum(t.due);
             const nota = String(t.path || "").split("/").pop().replace(/\.md$/, "");
-            meter(t, hoyP, api.efectiva(t.priority || "", d === null ? null : d - hoyP), false, nota, "", 1, String(t.path || ""));
+            meter(t, hoyP, api.efectiva(t.priority || "", d === null ? null : d - hoyP), false, nota, "", 1, String(t.path || ""), "");
         }
         lista.sort((a, b) => {
             for (let i = 0; i < a.orden.length; i++) {
@@ -934,7 +963,17 @@ Scope {
             }
             return 0;
         });
-        return lista.slice(0, 5).map(x => x.tarea);
+        // Como mucho 5 abiertas; las hechas que caen entre ellas se quedan.
+        const r = [];
+        let abiertas = 0;
+        for (const x of lista) {
+            if (abiertas === 5)
+                break;
+            if (!x.tarea.hecha)
+                abiertas++;
+            r.push(x.tarea);
+        }
+        return r;
     }
 
     // --- Fase 3: tareas -------------------------------------------------------
@@ -1006,11 +1045,19 @@ Scope {
     // Pone la lista que ha llegado (de una lectura o de una escritura).
     function aplicarTareas(d) {
         p.secTareas++;
+        p.ultimasTareas = d;
         p.tareas = api.tareasDe(d);
         p.tareasVersion = p.tareas.version;
         p.tareasCargadas = new Date();
         p.tareasError = "";
         p.tareasObsoletas = false;
+        // Las tareas de Inicio salen de la misma lista: se ponen al día a la
+        // vez, con los id nuevos, para que su casilla se pueda volver a pulsar
+        // sin un 409.
+        if (p.inicio && p.personalInicio)
+            p.inicio = Object.assign({}, p.inicio, {
+                tareas: api.tareasDeInicio(d, p.personalInicio)
+            });
     }
 
     function cargarTareas() {
@@ -1119,11 +1166,9 @@ Scope {
                 texto: texto
             });
             if (estado === 200 && d) {
+                // También pone al día las tareas de Inicio.
                 api.aplicarTareas(d);
                 api.bien();
-                // Inicio sale de las mismas tareas: que no se quede atrás.
-                p.inicioCargado = null;
-                api.cargarInicio();
                 fin(true);
             } else if (estado === 409) {
                 if (d && d.tareas)

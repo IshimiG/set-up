@@ -135,11 +135,12 @@ FloatingWindow {
         ev.mouseClick(envoltura, p.x, p.y, Qt.LeftButton, Qt.NoModifier, -1);
     }
 
-    // Si el item está en la lista de tareas (que se desplaza y recorta), la
-    // mueve hasta que se vea entero: un clic fuera de lo que enseña no llega.
+    // Si el item está en la lista de tareas o en Inicio (que se desplazan y
+    // recortan), la mueve hasta que se vea entero: un clic fuera de lo que
+    // enseña no llega.
     function verEnLista(item) {
         let f = item;
-        while (f && f.objectName !== "desplazableTareas")
+        while (f && f.objectName !== "desplazableTareas" && f.objectName !== "desplazableInicio")
             f = f.parent;
         if (!f)
             return;
@@ -152,6 +153,17 @@ FloatingWindow {
         const l = ventana.porNombre(nombre);
         return l.length ? l[0] : null;
     }
+
+    // Una tarjeta de las tareas de Inicio, por su texto.
+    function tarjetaInicio(texto) {
+        return ventana.porNombre("tarjetaInicio").find(t => t.modelData.texto === texto) || null;
+    }
+
+    function textosInicio() {
+        return ventana.porNombre("tarjetaInicio").map(t => t.modelData.texto);
+    }
+
+    property string idInicio: ""
 
     // Tareas.qml, esté a la vista o no (con el cajón cerrado no se ve).
     function ui() {
@@ -377,8 +389,8 @@ FloatingWindow {
             ventana.comprobar(ventana.tiene("martes 20 de octubre · semana 43"), "el Inicio enseña la fecha y la semana de la API");
             ventana.comprobar(ventana.tiene("8 de 9 en marcha · 1 con problemas · 2 alertas sin ver"), "el Inicio enseña el servidor y las alertas sin ver en una línea");
             ventana.comprobar(ventana.tiene("34 %"), "el Inicio enseña el porcentaje de la meta");
-            ventana.comprobar(ventana.tiene("Entrega de prueba con fecha") && ventana.tiene("Una tarea sin proyecto"), "el Inicio enseña las tareas de la API");
-            ventana.comprobar(ventana.tiene("vencida hace 2 días") && ventana.tiene("mañana"), "las tareas enseñan su «cuando»");
+            ventana.comprobar(ventana.tiene("Entrega de prueba con fecha") && ventana.tiene("Revisar la copia de seguridad") && ventana.tiene("Tarea en otra nota"), "el Inicio enseña las tareas de la API");
+            ventana.comprobar(ventana.tiene("vencida hace 2 días") && ventana.tiene("vencida ayer") && ventana.tiene("vencida hace 3 días"), "las tareas enseñan su «cuando»");
             ventana.comprobar(ventana.tiene("Contenedor caído: caddy") && ventana.tiene("Disco al 85 % en /srv") && ventana.tiene("hace 12 min"), "el Inicio enseña las alertas abiertas con su título y desde cuándo");
             ventana.comprobar(ventana.porNombre("botonVista").length === 2, "«Vista» sólo en las alertas sin ver");
             ventana.comprobar(!ventana.tiene("datos de prueba") && !ventana.tiene("Todo esto es de prueba"), "ya no queda el texto de datos de prueba");
@@ -391,6 +403,67 @@ FloatingWindow {
         [[300, () => {
             ventana.comprobar(apiFalsa.vistas.length === 1 && apiFalsa.vistas[0] === "a1", "«Vista» llama a marcarVista con el id de la alerta");
             ev.mouseMove(envoltura, 350, 450, -1, Qt.NoButton, Qt.NoModifier);
+        }]],
+        // Las casillas de las tareas de Inicio: marcan y desmarcan como las de
+        // Tareas (marcarTarea con el id de la tarea), menos las de otras notas.
+        [[50, () => {
+            ventana.comprobar(ventana.igual(ventana.textosInicio(), ["Entrega de prueba con fecha", "Tarea en otra nota", "Revisar la copia de seguridad", "Pausada que venció"]), "Inicio: una tarjeta por tarea vencida o de hoy", JSON.stringify(ventana.textosInicio()));
+            const con = ventana.porNombre("tarjetaInicio").filter(t => ventana.hijo(t, "casillaInicio") !== null).map(t => t.modelData.texto);
+            ventana.comprobar(ventana.igual(con, ["Entrega de prueba con fecha", "Revisar la copia de seguridad", "Pausada que venció"]), "  las de la nota llevan casilla; la de otra nota no (no se marca desde el cajón, como en la web)", JSON.stringify(con));
+            const t = ventana.tarjetaInicio("Entrega de prueba con fecha");
+            ventana.escrituras0 = apiFalsa.escrituras.length;
+            ventana.idInicio = t.modelData.id;
+            ventana.clic(ventana.hijo(t, "casillaInicio"));
+        }]],
+        [[400, () => {
+            const u = ventana.ultima();
+            ventana.comprobar(apiFalsa.escrituras.length === ventana.escrituras0 + 1 && u.op === "hecha" && u.id === ventana.idInicio && u.cuerpo.hecha === true, "Inicio: un clic en la casilla marca la tarea como hecha, con su id", ventana.ultimaJSON() + " " + (u ? u.id : "") + " / " + ventana.idInicio);
+            ventana.comprobar(apiFalsa.tareas.secciones[1].tareas[0].hecha === true, "  y el servidor la tiene hecha");
+            const t = ventana.tarjetaInicio("Entrega de prueba con fecha");
+            const c = t ? ventana.hijo(t, "casillaInicio") : null;
+            ventana.comprobar(!!c && c.marcada && t.modelData.cuando === "hecha hoy" && t.index === 0, "  y la tarjeta se queda en su sitio, marcada, para poder deshacerlo", t ? JSON.stringify(t.modelData) + " en " + t.index : "no está");
+            ventana.comprobar(ventana.igual(ventana.textosInicio(), ["Entrega de prueba con fecha", "Tarea en otra nota", "Revisar la copia de seguridad", "Pausada que venció"]), "  y las demás siguen como estaban", JSON.stringify(ventana.textosInicio()));
+            ventana.captura("4b-inicio-hecha");
+        }]],
+        [[300, () => {
+            const t = ventana.tarjetaInicio("Entrega de prueba con fecha");
+            ventana.idInicio = t.modelData.id;
+            ventana.clic(ventana.hijo(t, "casillaInicio"));
+        }]],
+        [[400, () => {
+            const u = ventana.ultima();
+            ventana.comprobar(apiFalsa.escrituras.length === ventana.escrituras0 + 2 && u.op === "hecha" && u.id === ventana.idInicio && u.cuerpo.hecha === false, "Inicio: otro clic la desmarca, con el id nuevo", ventana.ultimaJSON());
+            const t = ventana.tarjetaInicio("Entrega de prueba con fecha");
+            ventana.comprobar(!!t && !ventana.hijo(t, "casillaInicio").marcada && t.modelData.cuando === "vencida hace 2 días" && apiFalsa.tareas.secciones[1].tareas[0].hecha === false, "  y vuelve a estar abierta, en el servidor y en la tarjeta", t ? JSON.stringify(t.modelData) : "no está");
+            const av = ventana.uno("textoAviso");
+            ventana.comprobar(av === null, "  sin ningún aviso", av ? av.text : "");
+            ventana.escrituras0 = apiFalsa.escrituras.length;
+            ventana.clic(ventana.tarjetaInicio("Tarea en otra nota"));
+        }]],
+        [[300, () => {
+            ventana.comprobar(apiFalsa.escrituras.length === ventana.escrituras0, "Inicio: un clic en la de otra nota no escribe nada");
+            apiFalsa.tareasOcupado = true;
+            ventana.clic(ventana.hijo(ventana.tarjetaInicio("Revisar la copia de seguridad"), "casillaInicio"));
+        }]],
+        [[300, () => {
+            ventana.comprobar(apiFalsa.escrituras.length === ventana.escrituras0, "Inicio: con una escritura en camino, la casilla no manda otra");
+            apiFalsa.tareasOcupado = false;
+            apiFalsa.conflictoPendiente = true;
+            ventana.clic(ventana.hijo(ventana.tarjetaInicio("Revisar la copia de seguridad"), "casillaInicio"));
+        }]],
+        [[500, () => {
+            const av = ventana.uno("textoAviso");
+            ventana.comprobar(apiFalsa.escrituras.length === ventana.escrituras0 + 1 && !!av && av.text.indexOf("La nota cambió") === 0, "Inicio: un 409 avisa abajo", av ? av.text : "sin aviso");
+            const t = ventana.tarjetaInicio("Cambiada desde Obsidian");
+            ventana.comprobar(!!t && !t.modelData.hecha && ventana.tarjetaInicio("Revisar la copia de seguridad") === null && apiFalsa.tareas.secciones[0].tareas[0].hecha === false, "  y la tarjeta trae lo de fuera, sin marcar nada", JSON.stringify(ventana.textosInicio()));
+            ventana.captura("4c-inicio-conflicto");
+        }]],
+        [[300, () => {
+            // Todo como al principio, para lo que sigue (aunque algo de aquí
+            // haya fallado).
+            apiFalsa.conflictoPendiente = false;
+            apiFalsa.tareasOcupado = false;
+            apiFalsa.arrancar();
         }]],
         // Sin meta: ni la palabra.
         [[50, () => apiFalsa.inicio = Object.assign({}, apiFalsa.inicio, { metaPorcentaje: null })]],
