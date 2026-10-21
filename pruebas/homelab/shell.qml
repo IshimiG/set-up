@@ -32,6 +32,23 @@ FloatingWindow {
         id: apiFalsa
     }
 
+    // Un segundo TareasEstado, para ver que lo guardado se lee de verdad.
+    Component {
+        id: lectorEstado
+
+        TareasEstado {
+            property string vistaLeida: ""
+            property var plegadosLeidos: null
+
+            onLeido: (vista, plegados) => {
+                vistaLeida = vista;
+                plegadosLeidos = plegados;
+            }
+        }
+    }
+
+    property var lector: null
+    property bool plegadoAntes: false
     property var lanzadas: []
     property int refrescosAntes: 0
 
@@ -1144,6 +1161,65 @@ FloatingWindow {
         [[500, () => {
             ventana.comprobar(apiFalsa.lecturasTareas === ventana.lecturas0 + 1 && apiFalsa.tareasObsoletas === false && ventana.tiene("Otro cambio desde la web"), "al cerrar el editor, relee las tareas y se pone al día", String(apiFalsa.lecturasTareas - ventana.lecturas0));
             ventana.comprobar(ventana.textos().indexOf("€") < 0, "(sin euros en Tareas)");
+        }]],
+        // Mejoras pequeñas de Tareas: la cuenta, lo que se recuerda, «Reintentar» y el pie del detalle.
+        [[50, () => ventana.seccion("tareas")]],
+        [[500, () => ventana.clic(ventana.uno("vista-todas"))]],
+        [[400, () => {
+            const c = ventana.uno("cuentaTareas");
+            ventana.comprobar(!!c && /^\d+ abiertas · \d+ vencidas?$/.test(c.text), "la cabecera de Tareas cuenta las abiertas y las vencidas", c ? c.text : "sin cuenta");
+            ventana.plegadoAntes = ventana.grupoPlegado("hechas");
+            ventana.clic(ventana.cabecera("hechas"));
+        }]],
+        [[1200, () => {
+            ventana.comprobar(ventana.grupoPlegado("hechas") === !ventana.plegadoAntes, "un clic en la cabecera de Hechas la pliega o la despliega");
+            ventana.lector = lectorEstado.createObject(ventana);
+        }]],
+        [[500, () => {
+            ventana.comprobar(ventana.lector.vistaLeida === "todas" && ventana.lector.plegadosLeidos !== null && ventana.lector.plegadosLeidos["hechas"] === !ventana.plegadoAntes, "la vista y los grupos plegados se guardan y se leen al volver a arrancar", ventana.lector ? ventana.lector.vistaLeida + " " + JSON.stringify(ventana.lector.plegadosLeidos) : "");
+            ventana.lector.destroy();
+            ventana.clic(ventana.uno("vista-plazo"));
+        }]],
+        [[300, () => ventana.clic(ventana.cabecera("hechas"))]],
+        [[800, () => {
+            ventana.lector = lectorEstado.createObject(ventana);
+        }]],
+        [[500, () => {
+            ventana.comprobar(ventana.lector.vistaLeida === "plazo" && ventana.lector.plegadosLeidos["hechas"] === ventana.plegadoAntes, "y el último cambio es el que queda", ventana.lector ? ventana.lector.vistaLeida + " " + JSON.stringify(ventana.lector.plegadosLeidos) : "");
+            ventana.lector.destroy();
+        }]],
+        // El pie del detalle: ⏳ y «fijada en Ahora».
+        [[300, () => ventana.clicFila("Leer el tema 4", "r")]],
+        [[600, () => {
+            const pies = ventana.porNombre("pieDetalle").map(x => x.text);
+            ventana.comprobar(pies.some(x => x.indexOf("\u23f3 23 oct") >= 0), "el pie del detalle enseña la fecha programada con ⏳", JSON.stringify(pies));
+            ventana.comprobar(!pies.some(x => x.indexOf("\u23f3") >= 0 && x.indexOf("fijada") >= 0), "  y la fijada no la lleva (no es la misma tarea)");
+        }]],
+        [[400, () => ventana.clicFila("Fijada a mano sin fecha", "a")]],
+        [[600, () => {
+            const pies = ventana.porNombre("pieDetalle").map(x => x.text);
+            ventana.comprobar(pies.some(x => x.indexOf("fijada en \u00abAhora\u00bb") >= 0), "  y «fijada en «Ahora»» si lo está", JSON.stringify(pies));
+        }]],
+        // Sin datos y con error: «Reintentar» vuelve a pedirlas.
+        [[300, () => {
+            apiFalsa.tareas = null;
+            apiFalsa.tareasError = "No se pudieron leer las tareas";
+        }]],
+        [[300, () => {
+            const b = ventana.uno("reintentarTareas");
+            ventana.comprobar(!!b && ventana.uno("tareasSinDatos").text === "No se pudieron leer las tareas", "sin datos y con error, Tareas ofrece «Reintentar»");
+            ventana.lecturas0 = apiFalsa.lecturasTareas;
+            ventana.clic(b);
+        }]],
+        [[400, () => {
+            ventana.comprobar(apiFalsa.lecturasTareas === ventana.lecturas0 + 1 && ventana.uno("reintentarTareas") === null && ventana.uno("campoNueva") !== null, "«Reintentar» vuelve a leer las tareas y la lista reaparece", String(apiFalsa.lecturasTareas - ventana.lecturas0));
+            ventana.seccion("inicio");
+        }]],
+        // El chip de Inicio.
+        [[500, () => {
+            const t = ventana.uno("textoPlazos");
+            ventana.comprobar(!!t && /vencidas?/.test(t.text) && t.text.indexOf("para hoy") > 0, "Inicio enseña el chip de lo vencido y lo de hoy", t ? t.text : "sin chip");
+            ventana.captura("7b-inicio-chip");
         }]],
         // =====================================================================
         // Fase 4: Proyectos

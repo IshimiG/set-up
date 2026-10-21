@@ -1174,6 +1174,7 @@ Scope {
             vence: vence,
             dias: d !== null && hoy !== null ? d - hoy : null,
             empieza: empieza,
+            programada: String(t.scheduled || ""),
             noEmpezada: ed !== null && hoy !== null && ed > hoy,
             hechaEl: String(t.doneDate || ""),
             vencida: !!t.overdue,
