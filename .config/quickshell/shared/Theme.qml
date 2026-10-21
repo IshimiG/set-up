@@ -74,6 +74,25 @@ Singleton {
     readonly property color prioMinima: "#7c7b8a"
     readonly property color prioPausa: "#6aa8ff"
 
+    // El color de una prioridad por su nombre en español ("maxima", "alta",
+    // "media", "baja", "minima" o "pausa"); sin prioridad, el gris de la mínima.
+    function colorPrioridad(nombre) {
+        switch (nombre) {
+        case "maxima":
+            return prioMaxima;
+        case "alta":
+            return prioAlta;
+        case "media":
+            return prioMedia;
+        case "baja":
+            return prioBaja;
+        case "pausa":
+            return prioPausa;
+        default:
+            return prioMinima;
+        }
+    }
+
     readonly property string font: "JetBrainsMono Nerd Font"
 
     // --- Medidas ---------------------------------------------------------

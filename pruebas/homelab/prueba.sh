@@ -23,11 +23,11 @@ tmp=$(mktemp -d "${TMPDIR:-/tmp}/prueba-cajon.XXXXXX")
 mkdir -p "$tmp/homelab" "$tmp/capturas"
 cp "$aqui/shell.qml" "$aqui/ApiFalsa.qml" "$tmp/"
 cp -r "$qs_dir/shared" "$tmp/shared"
-cp "$qs_dir/homelab/"*.qml "$tmp/homelab/"
+cp "$qs_dir/homelab/"*.qml "$qs_dir/homelab/"*.js "$tmp/homelab/"
 ln -s ../shared "$tmp/homelab/shared"
 
 cd "$tmp"
-PRUEBA_DIR=$tmp QT_QPA_PLATFORM=offscreen timeout 60 qs -p ./shell.qml 2>&1 |
+PRUEBA_DIR=$tmp QT_QPA_PLATFORM=offscreen timeout 300 qs -p ./shell.qml 2>&1 |
 	sed -E 's/\x1b\[[0-9;]*m//g' |
 	grep -E "qml: " | sed -E 's/^.*qml: //'
 

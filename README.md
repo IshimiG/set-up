@@ -52,17 +52,21 @@ choca.
   homelab: el cajón que sale del centro del borde derecho, o con SUPER+H, con
   los datos del panel del NUC; cada equipo entra con su usuario, y la contraseña
   va en el llavero: `secret-tool store --label="Panel del homelab" servicio
-  homelab-panel usuario <equipo>`) y `shared` (la paleta).
+  homelab-panel usuario <equipo>`; secciones: Inicio con los hábitos de hoy,
+  Tareas al estilo Foco, editables y con los atajos de la web, y Clase con el
+  botón «Actualizar Aules») y `shared` (la paleta).
 - `.config/systemd/user/notificaciones.*`: el latido de los recordatorios.
 - `.local/bin/launch-or-focus`: enfoca una ventana o lanza la app.
 - `.local/bin/actualizar-equipo` (sólo en la rama de un equipo, si lo quiere):
   lo que el botón «Actualizar ahora» del aviso hace después de `paru -Syu`.
 - `sddm/`: el tema "cristal" de la pantalla de login (`sudo sddm/install.sh`).
 - `pruebas/homelab/`: pruebas sin pantalla del cajón del homelab. `prueba.sh`
-  prueba la interfaz con una API falsa, y `api/prueba-api.sh`, la conexión
-  (`Api.qml`) contra un panel local (`panel-local.sh`, el panel del repo
-  `homelab` con un Docker y un Caddy falsos, en Docker), con un llavero de usar
-  y tirar. Ninguna toca el NUC ni el llavero de verdad.
+  prueba la interfaz (el cajón, Inicio, tareas con sus atajos, hábitos y Aules)
+  con una API falsa con estado (`ApiFalsa.qml`; `--guardar` deja las capturas),
+  y `api/prueba-api.sh`, la conexión y las escrituras (`Api.qml`) contra un panel
+  local (`panel-local.sh`, el panel del repo `homelab` con un Docker y un Caddy
+  falsos, en Docker, y un vault falso), con un llavero de usar y tirar. Ninguna
+  toca el NUC ni el llavero de verdad.
 
 ## Instalación
 

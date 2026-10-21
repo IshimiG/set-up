@@ -22,8 +22,9 @@ PanelWindow {
     // («delante»), y por debajo de una ventana a pantalla completa, así que con
     // un vídeo a pantalla completa el asa no estorba.
     WlrLayershell.layer: WlrLayer.Top
-    // El teclado sólo con el cajón abierto (Escape, y en la fase 3 los atajos de
-    // las tareas). Cerrado, no le quita el foco a nadie.
+    // El teclado sólo con el cajón abierto (Escape, y los atajos de las tareas,
+    // que recoge Tareas.qml; lo que no gasta, Escape incluido, sube hasta el Item
+    // de abajo). Cerrado, no le quita el foco a nadie.
     WlrLayershell.keyboardFocus: borde.shell.abierto ? WlrKeyboardFocus.OnDemand : WlrKeyboardFocus.None
     // Tapa lo que hay debajo; no aparta las ventanas (decisión E4 del plan).
     exclusionMode: ExclusionMode.Ignore

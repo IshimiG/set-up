@@ -10,6 +10,11 @@ import "shared"
 // Api.qml (shell.api), ya normalizados: aquí no se conoce el JSON de la API, sólo
 // se pinta. Las reglas (la prioridad que sube con la fecha, qué se puede
 // escribir) siguen en el NUC.
+//
+// Este fichero solo reparte: la tira de secciones, la cabecera y el aviso de
+// abajo. Cada sección vive en el suyo: Inicio (aquí, con Habitos.qml), Tareas.qml
+// y Clase.qml. Tareas y Clase se crean una vez y solo se esconden al cambiar de
+// sección, para que no pierdan lo que tenían abierto.
 Item {
     id: contenido
 
@@ -94,6 +99,27 @@ Item {
     ]
 
     readonly property var actual: contenido.secciones.find(s => s.id === contenido.seccion) || contenido.secciones[0]
+
+    // El aviso de abajo: un conflicto, un fallo al escribir… Lo manda Api.qml y se
+    // recoge solo a los pocos segundos. Los fallos, en el rojo de «máxima».
+    property string avisoTexto: ""
+    property bool avisoError: false
+
+    Connections {
+        target: contenido.api
+
+        function onAviso(texto, error) {
+            contenido.avisoTexto = texto;
+            contenido.avisoError = error;
+            avisoReloj.restart();
+        }
+    }
+
+    Timer {
+        id: avisoReloj
+        interval: 6000
+        onTriggered: contenido.avisoTexto = ""
+    }
 
     // Los colores de prioridad son los de la web (Theme.qml), para que una
     // tarea se vea igual en los dos sitios.
@@ -268,6 +294,7 @@ Item {
                     required property var modelData
                     readonly property bool elegida: contenido.seccion === boton.modelData.id
 
+                    objectName: "seccion-" + boton.modelData.id
                     implicitWidth: 36
                     implicitHeight: 36
                     radius: 10
@@ -362,11 +389,93 @@ Item {
                 color: Theme.rule
             }
 
-            Loader {
+            Item {
                 Layout.fillWidth: true
                 Layout.fillHeight: true
-                sourceComponent: contenido.seccion === "inicio" ? inicio : pronto
+
+                Loader {
+                    anchors.fill: parent
+                    visible: contenido.seccion === "inicio"
+                    sourceComponent: inicio
+                }
+
+                Tareas {
+                    objectName: "seccionTareas"
+                    anchors.fill: parent
+                    visible: contenido.seccion === "tareas"
+                    shell: contenido.shell
+                    lineaConexion: contenido.conectado ? "" : contenido.textoConexion()
+                    onAbrirWeb: contenido.abrirEnLaWeb()
+                }
+
+                Clase {
+                    objectName: "seccionClase"
+                    anchors.fill: parent
+                    visible: contenido.seccion === "clase"
+                    shell: contenido.shell
+                    lineaConexion: contenido.conectado ? "" : contenido.textoConexion()
+                }
+
+                Loader {
+                    anchors.fill: parent
+                    active: contenido.seccion !== "inicio" && contenido.seccion !== "tareas" && contenido.seccion !== "clase"
+                    visible: active
+                    sourceComponent: pronto
+                }
             }
+        }
+    }
+
+
+    // --- El aviso de abajo ---
+    Rectangle {
+        id: aviso
+
+        objectName: "avisoCajon"
+        anchors.horizontalCenter: parent.horizontalCenter
+        anchors.bottom: parent.bottom
+        anchors.bottomMargin: 18
+        z: 10
+        width: Math.min(parent.width - 2 * Theme.pad, textoAviso.implicitWidth + 28)
+        height: textoAviso.implicitHeight + 18
+        radius: 10
+        color: Theme.glassTop
+        border.width: 1
+        border.color: contenido.avisoError ? Theme.prioMaxima : Theme.edgeTop
+        visible: opacity > 0.01
+        opacity: contenido.avisoTexto !== "" ? 1 : 0
+        scale: contenido.avisoTexto !== "" ? 1 : 0.94
+
+        Behavior on opacity {
+            NumberAnimation {
+                duration: contenido.avisoTexto !== "" ? Theme.animIn / 2 : Theme.animOut / 2
+                easing.type: Easing.InOutQuint
+            }
+        }
+
+        Behavior on scale {
+            NumberAnimation {
+                duration: contenido.avisoTexto !== "" ? Theme.animIn : Theme.animOut
+                easing.type: contenido.avisoTexto !== "" ? Easing.OutBack : Easing.InOutQuint
+                easing.overshoot: Theme.overshootIn
+            }
+        }
+
+        Text {
+            id: textoAviso
+
+            objectName: "textoAviso"
+            anchors.centerIn: parent
+            width: Math.min(implicitWidth, aviso.parent.width - 2 * Theme.pad - 28)
+            // Al recogerse no se vacía de golpe: se queda el último texto.
+            text: contenido.avisoTexto !== "" ? contenido.avisoTexto : textoAviso.ultimo
+            property string ultimo: ""
+            onTextChanged: if (contenido.avisoTexto !== "")
+                textoAviso.ultimo = contenido.avisoTexto
+            color: Theme.text
+            font.family: Theme.font
+            font.pixelSize: 11
+            wrapMode: Text.WordWrap
         }
     }
 
@@ -609,6 +718,12 @@ Item {
                                 }
                             }
                         }
+                    }
+
+                    // Los hábitos de hoy (fase 3).
+                    Habitos {
+                        Layout.fillWidth: true
+                        api: contenido.api
                     }
 
                     ColumnLayout {
