@@ -21,6 +21,11 @@ Rectangle {
         edit.forceActiveFocus();
     }
 
+    // El cursor tras el último carácter (para seguir escribiendo).
+    function alFinal() {
+        edit.cursorPosition = edit.length;
+    }
+
     function seleccionarTodo() {
         edit.selectAll();
     }

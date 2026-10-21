@@ -52,6 +52,18 @@ ColumnLayout {
         font.pixelSize: 11
     }
 
+    // Sin el día de hoy no hay filas, pero los totales de la semana siguen ahí.
+    Text {
+        objectName: "totalesSemana"
+        Layout.fillWidth: true
+        visible: habitos.datos !== null && habitos.datos.hoy === null
+        text: "Semana: Gym " + (habitos.datos ? habitos.datos.totales.gym : "") + " · Leído " + (habitos.datos ? habitos.datos.totales.lectura : "") + " · Programado " + (habitos.datos ? habitos.datos.totales.programar : "") + " · Energía " + (habitos.datos ? habitos.datos.totales.energia : "")
+        color: Theme.faint
+        font.family: Theme.font
+        font.pixelSize: 10
+        wrapMode: Text.WordWrap
+    }
+
     Repeater {
         model: habitos.datos && habitos.datos.hoy ? habitos.filas : []
 

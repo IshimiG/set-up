@@ -65,6 +65,20 @@ FocusScope {
     // foco dentro.
     readonly property bool teclasActivas: tareas.shell.abierto && tareas.visible && tareas.activeFocus
 
+    // La vista y los grupos plegados se recuerdan entre reinicios.
+    onVistaChanged: recuerdo.guardar(tareas.vista, tareas.plegados)
+    onPlegadosChanged: recuerdo.guardar(tareas.vista, tareas.plegados)
+
+    TareasEstado {
+        id: recuerdo
+
+        objectName: "recuerdoTareas"
+        onLeido: (vista, plegados) => {
+            tareas.vista = vista;
+            tareas.plegados = plegados;
+        }
+    }
+
     onEditoresChanged: if (tareas.api)
         tareas.api.editandoTarea = tareas.editores > 0
     Component.onDestruction: if (tareas.api)
@@ -382,15 +396,28 @@ FocusScope {
         }
 
         // Sin datos todavía: cargando, o por qué no.
-        Text {
-            objectName: "tareasSinDatos"
+        RowLayout {
             Layout.fillWidth: true
             visible: tareas.datos === null && tareas.lineaConexion === ""
-            text: tareas.api && tareas.api.tareasError !== "" ? tareas.api.tareasError : "Cargando las tareas…"
-            color: Theme.muted
-            font.family: Theme.font
-            font.pixelSize: 12
-            wrapMode: Text.WordWrap
+            spacing: 8
+
+            Text {
+                objectName: "tareasSinDatos"
+                Layout.fillWidth: true
+                text: tareas.api && tareas.api.tareasError !== "" ? tareas.api.tareasError : "Cargando las tareas…"
+                color: Theme.muted
+                font.family: Theme.font
+                font.pixelSize: 12
+                wrapMode: Text.WordWrap
+            }
+
+            Chip {
+                objectName: "reintentarTareas"
+                visible: tareas.api && tareas.api.tareasError !== ""
+                texto: "Reintentar"
+                glifo: "\uf021"
+                onActivado: tareas.api.cargarTareas()
+            }
         }
 
         Text {
@@ -470,6 +497,17 @@ FocusScope {
             Layout.fillWidth: true
             visible: tareas.datos !== null && tareas.datos.habilitado
             spacing: 8
+
+            // Cuántas hay abiertas y cuántas vencidas, como en la cabecera de la web.
+            Text {
+                objectName: "cuentaTareas"
+                Layout.fillWidth: true
+                text: Logica.textoCuenta(Logica.resumenPlazos(tareas.todas))
+                color: Theme.faint
+                font.family: Theme.font
+                font.pixelSize: 10
+                elide: Text.ElideRight
+            }
 
             RowLayout {
                 Layout.fillWidth: true

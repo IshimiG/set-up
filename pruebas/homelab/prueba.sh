@@ -13,6 +13,10 @@
 #
 #   pruebas/homelab/prueba.sh            la prueba, y la carpeta se borra
 #   pruebas/homelab/prueba.sh --guardar  la deja, para mirar las capturas
+#
+# Con PRUEBA_NOTA_REAL, Notas abre además esa nota del vault de verdad (sólo
+# leer, y sólo de las carpetas que abre el NUC; PRUEBA_VAULT, ~/Notes si no):
+#   PRUEBA_NOTA_REAL="30 Áreas/Servidor/26-panel-escritorio.md" pruebas/homelab/prueba.sh --guardar
 set -e
 
 aqui=$(dirname "$(readlink -f "$0")")
@@ -20,14 +24,14 @@ repo=$(readlink -f "$aqui/../..")
 qs_dir=$repo/.config/quickshell
 tmp=$(mktemp -d "${TMPDIR:-/tmp}/prueba-cajon.XXXXXX")
 
-mkdir -p "$tmp/homelab" "$tmp/capturas"
-cp "$aqui/shell.qml" "$aqui/ApiFalsa.qml" "$tmp/"
+mkdir -p "$tmp/homelab" "$tmp/capturas" "$tmp/estado"
+cp "$aqui/"*.qml "$tmp/"
 cp -r "$qs_dir/shared" "$tmp/shared"
 cp "$qs_dir/homelab/"*.qml "$qs_dir/homelab/"*.js "$tmp/homelab/"
 ln -s ../shared "$tmp/homelab/shared"
 
 cd "$tmp"
-PRUEBA_DIR=$tmp QT_QPA_PLATFORM=offscreen timeout 300 qs -p ./shell.qml 2>&1 |
+PRUEBA_DIR=$tmp PANEL_ESTADO_DIR=$tmp/estado QT_QPA_PLATFORM=offscreen timeout 300 qs -p ./shell.qml 2>&1 |
 	sed -E 's/\x1b\[[0-9;]*m//g' |
 	grep -E "qml: " | sed -E 's/^.*qml: //'
 
