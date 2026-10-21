@@ -50,15 +50,27 @@ bloqueo) está en `main`, porque se adapta solo a la máquina.
 
 ## Restos de Omarchy
 
-Siguen instalados y ya no los usa el escritorio. Quitarlos es opcional:
+Limpieza del 2026-10-21. Lo quitado se movió (no se borró) a
+`~/Templates/omarchy-restos-2026-10-21/`:
 
-- Sin uso: `waybar`, `mako`, `walker` y los 13 `elephant-*`, `swayosd`,
-  `swaybg`, `hyprsunset`, `omarchy-walker`. `mako` es el único que puede
-  molestar: D-Bus lo arranca solo si alguien manda una notificación antes de
-  que la barra esté en pie, y entonces se queda con ellas.
-- `~/.local/bin/hyprdots-sync`, `launch-waybar-multimonitor`,
-  `omarchy-float-tidy` y el repo `~/.local/share/hypr-dotfiles.git`
-  (seguía la waybar del primer commit de `main`).
+- `~/.local/bin/hyprdots-sync`, `launch-waybar-multimonitor` y
+  `omarchy-float-tidy`; el repo `~/.local/share/hypr-dotfiles.git` y su log.
+- Unidades de usuario `elephant`, `swayosd-server`,
+  `omarchy-recover-internal-monitor` (deshabilitada) y el drop-in
+  `app-walker@autostart.service.d`.
+
+Pendiente, con sudo y opcional: los paquetes sin uso `waybar`, `mako`,
+`walker`, los `elephant-*`, `swayosd`, `swaybg`, `hyprsunset` y
+`omarchy-walker` (nada los necesita; el demonio de notificaciones es
+Quickshell). `mako` es el único que puede molestar: D-Bus lo arranca solo si
+alguien manda una notificación antes de que la barra esté en pie.
+
+Se dejó a propósito:
+
+- `ydotool.service` (unidad del paquete, activa) y los `mirroring-phone*` de
+  `~/.local/bin`, que siguen siendo la forma de usar el espejo del móvil.
+- La función `hyprdots`/`pushHyprDots` de `~/.bashrc` apunta al repo movido;
+  ya no sirve.
 - Todavía en uso: `~/.config/uwsm` (la sesión arranca con uwsm), el autologin
   de SDDM, el aviso de batería baja (`omarchy-battery-monitor.timer`) y
   `~/.config/omarchy` (los temas de nvim, btop y alacritty leen de ahí).
