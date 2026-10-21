@@ -5,14 +5,14 @@ import "shared"
 
 // El menú de sesión, ahora como contenido de la isla en vez de una superficie
 // propia. Es el mismo menú de siempre: bloquear, suspender, cerrar sesión,
-// reiniciar y apagar.
+// actualizar, reiniciar y apagar.
 //
 // Las tres acciones destructivas piden confirmación en un segundo menú cuya
 // primera entrada —la preseleccionada— es "Cancelar", así que un Enter de más no
 // apaga el equipo. La decisión va por índice y no por el texto, para que cambiar
 // un glifo no rompa nada.
 //
-// Al pasar a la confirmación la lista baja de cinco filas a dos, y eso encoge la
+// Al pasar a la confirmación la lista baja de seis filas a dos, y eso encoge la
 // isla con la misma animación con la que se abrió: el panel no salta de tamaño,
 // se reajusta.
 Item {
@@ -49,6 +49,14 @@ Item {
             // que recibe como Lua y "exit" a secas no es nada.
             cmd: "command -v hyprshutdown >/dev/null 2>&1 && hyprshutdown || hyprctl dispatch 'hl.dsp.exit()'",
             confirm: "Cerrar sesión"
+        },
+        {
+            icon: "󰚰",
+            label: "Actualizar",
+            // Repos y AUR en una terminal que se queda abierta; el mismo script
+            // que lanza el aviso de actualizaciones del inicio de sesión.
+            cmd: "ghostty --title=Actualizar -e \"$HOME/.config/hypr/scripts/actualizar.sh\"",
+            confirm: ""
         },
         {
             icon: "󰜉",
