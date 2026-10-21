@@ -76,15 +76,9 @@ PanelWindow {
     readonly property int cardW: 320
     readonly property int pad: 22
 
-    // Actualiza repos y AUR de una vez. No lleva sudo delante a propósito:
-    // paru lo pide por su cuenta cuando le hace falta y se niega a arrancar
-    // como root, porque compilar paquetes del AUR con privilegios es
-    // justamente lo que no se debe hacer. La terminal se queda abierta al
-    // terminar para poder leer lo que ha pasado.
-    //
-    // paru en la torre (CachyOS) y yay en el portátil, que es el que trajo
-    // Omarchy. Los dos aceptan -Syu igual y piden sudo igual.
-    readonly property string updateCmd: "if command -v paru >/dev/null; then paru -Syu; else yay -Syu; fi; printf '\\n'; read -r -p 'Pulsa Enter para cerrar… '"
+    // Actualiza repos y AUR de una vez; el porqué de cada paso está en el
+    // propio script, que comparte con el menú de sesión de la barra.
+    readonly property string updateScript: Quickshell.env("HOME") + "/.config/hypr/scripts/actualizar.sh"
 
     // Las cuentas llegan por entorno. Un valor que no se pueda leer cuenta
     // como cero en vez de dejar un "NaN" en mitad de la tarjeta.
@@ -119,7 +113,7 @@ PanelWindow {
     }
 
     function runUpdate() {
-        Quickshell.execDetached(["ghostty", "--title=Actualizar", "-e", "bash", "-c", root.updateCmd]);
+        Quickshell.execDetached(["ghostty", "--title=Actualizar", "-e", root.updateScript]);
         root.dismiss();
     }
 

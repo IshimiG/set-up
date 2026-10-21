@@ -1,3 +1,6 @@
 # Bytecode que Python deja al importar los scripts de la barra.
 __pycache__/
 *.pyc
+
+# La skill de Obsidian lleva rutas y reglas privadas: vive en ~/.claude/skills, no aquí
+.claude/skills/obsidian-notes/

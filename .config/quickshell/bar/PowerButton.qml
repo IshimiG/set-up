@@ -3,7 +3,7 @@ import Quickshell
 import "shared"
 
 // El botón de sesión. Clic abre el menú, clic derecho bloquea directo, que es la
-// única de las cinco opciones que se usa a diario.
+// única de las seis opciones que se usa a diario.
 //
 // En reposo va atenuado y al pasar por encima se enciende en el rojo de los
 // estados críticos, para que quede claro que detrás hay algo que apaga el
