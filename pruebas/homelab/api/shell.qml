@@ -6,7 +6,9 @@ import "homelab"
 // Prueba sin pantalla de Api.qml (la lanza prueba-api.sh, al lado): el Api.qml
 // del repo contra el panel local de panel-local.sh, detrás de su Caddy falso,
 // con un llavero de usar y tirar. Cada comprobación imprime OK o FALLO; al
-// final, el recuento.
+// final, el recuento. Va por fases: la conexión y lo de Inicio (fase 2), las
+// tareas, los hábitos y Aules (fase 3), y el servidor, el Registro, los
+// proyectos y lo que no puede hacer el usuario movil (fase 4).
 ShellRoot {
     id: prueba
 
@@ -94,6 +96,12 @@ ShellRoot {
     }
 
     property var nuevas: []
+    // Si cada alerta de alertaNueva estaba en «alertas» al emitirse, con los
+    // mismos datos (después puede llegar otra lista). Con los mismos datos y
+    // no el mismo objeto: desde Qt 6.12, un objeto de JS que pasa por una
+    // señal llega copiado (como un QVariantMap), con las claves en otro
+    // orden; por eso se compara con igualObj y no con JSON.stringify.
+    property var enLista: []
     property var tiempos: []
     // Cuándo pasó «a» a "sin-conexion" por última vez.
     property double tCorte: 0
@@ -104,6 +112,7 @@ ShellRoot {
         target: a
         function onAlertaNueva(alerta) {
             prueba.nuevas.push(alerta);
+            prueba.enLista.push(a.alertas.some(x => x.id === alerta.id && prueba.igualObj(x, alerta)));
         }
         function onIntentosChanged() {
             prueba.tiempos.push(Date.now());
@@ -279,7 +288,7 @@ ShellRoot {
             prueba.esperar(15000, () => prueba.nuevas.length > 0, ok => {
                 const n = prueba.nuevas[0];
                 prueba.comprobar(ok && n.id.indexOf("apt:") === 0 && n.nivel === "error", "Una alerta nueva con el cajón conectado emite alertaNueva", n ? n.id : "nada");
-                prueba.comprobar(!!n && a.alertas.indexOf(n) >= 0, "  con el mismo objeto que en alertas");
+                prueba.comprobar(!!n && prueba.enLista[0] === true, "  con los mismos datos que en alertas");
                 prueba.marcarVistas(n ? n.id : "");
             });
         });
@@ -807,6 +816,395 @@ ShellRoot {
                 // La contraseña no se ha colado en los avisos.
                 const todo = JSON.stringify(prueba.avisos) + JSON.stringify(a.tareas) + JSON.stringify(a.habitos) + JSON.stringify(a.clase);
                 prueba.comprobar(todo.indexOf("Pr0ba-") < 0, "ni los avisos ni los datos de la fase 3 llevan la contraseña");
+                prueba.fase4();
+            }
+        ]);
+    }
+
+    // =========================================================================
+    // Fase 4: el servidor (los stacks, las acciones de Docker, los logs y el
+    // consumo), el Registro, los proyectos y GitHub, contra el panel local.
+    // Las acciones llegan al Docker falso; los proyectos se escriben en el
+    // vault falso; GitHub no tiene token, así que nunca se le habla.
+    // =========================================================================
+
+    property var resultados: []
+    property var m: null
+    property var movilAvisos: []
+
+    Connections {
+        target: a
+        function onResultado(r) {
+            prueba.resultados.push(r);
+        }
+    }
+
+    // Las líneas del Registro van por su hora (no por su id: una acción se
+    // apunta al acabar con la hora a la que empezó).
+    function deNuevaAVieja(entradas) {
+        return entradas.every((e, i) => i === 0 || e.hora.getTime() <= entradas[i - 1].hora.getTime());
+    }
+
+    // Lo mismo, sin mirar el orden de las claves.
+    function igualObj(x, y) {
+        const orden = o => JSON.stringify(Object.keys(o || {}).sort().map(k => [k, o[k]]));
+        return orden(x) === orden(y);
+    }
+
+    function stack(nombre, api) {
+        return (api || a).stacks.find(s => s.nombre === nombre) || null;
+    }
+
+    function contenedor(nombre, api) {
+        for (const s of (api || a).stacks)
+            for (const c of s.contenedores)
+                if (c.nombre === nombre)
+                    return c;
+        return null;
+    }
+
+    function proyecto(titulo) {
+        return (a.proyectos || []).find(p => p.titulo === titulo) || null;
+    }
+
+    function enFichero(ruta, fragmento, luego) {
+        prueba.sh("grep -q -F -- '" + fragmento + "' \"$PANEL_LOCAL_DIR/vault/" + ruta + "\"", c => luego(c === 0));
+    }
+
+    // Cuántas veces se ha lanzado curl contra esa ruta. En ordenes.txt la
+    // dirección va en su propia línea (el -w de curl lleva saltos de línea).
+    function contarCurl(ruta, luego) {
+        prueba.sh("exit $(grep -c -- '" + ruta + "$' \"$PRUEBA_DIR/ordenes.txt\")", c => luego(c));
+    }
+
+    // ¿Hay un curl corriendo con eso?
+    function curlVivo(patron, luego) {
+        prueba.sh("ps -eo args | grep -q '[c]url -K - -N .*" + patron + "'", c => luego(c === 0));
+    }
+
+    function fase4() {
+        prueba.serie([
+            // --- Los stacks, en vivo ---
+            sig => {
+                const nombres = a.stacks.map(s => s.nombre);
+                prueba.comprobar(prueba.igual(nombres.slice(0, 3), ["homelab", "sync", "immich"]) && nombres.indexOf("traderepublic") >= 0 && nombres.indexOf("") >= 0, "stacks: los de la configuración del panel primero, después los demás y los sueltos", JSON.stringify(nombres));
+                const h = prueba.stack("homelab");
+                prueba.comprobar(h && h.gestionado && !h.protegido && h.ocupado === "" && prueba.igualObj(h.acciones, { up: "", stop: "homelab", down: "homelab", update: "homelab" }), "  homelab: del panel, con las acciones y palabras del NUC (parar todo pide su nombre: lleva caddy)", h ? JSON.stringify(h.acciones) : "");
+                const caddy = prueba.contenedor("caddy");
+                prueba.comprobar(caddy && caddy.critico && caddy.estado === "running" && caddy.salud === "healthy" && caddy.desde instanceof Date && caddy.hasta === null && caddy.ocupado === "" && prueba.igualObj(caddy.acciones, { start: "", stop: "caddy", restart: "" }), "  caddy: crítico, sano, desde cuándo, y pararlo pide su nombre", caddy ? JSON.stringify(caddy) : "");
+                const vw = prueba.contenedor("vaultwarden");
+                prueba.comprobar(vw && vw.estado === "exited" && vw.codigo === 1 && vw.hasta instanceof Date && prueba.igualObj(vw.acciones, { start: "", stop: "", restart: "" }), "  vaultwarden: parado con código 1, con su hora y sin palabras", vw ? JSON.stringify(vw) : "");
+                const im = prueba.stack("immich");
+                prueba.comprobar(im && im.protegido && prueba.igualObj(im.acciones, { up: "immich", stop: "immich" }) && prueba.igualObj(prueba.contenedor("immich_server").acciones, { start: "immich", stop: "immich", restart: "immich" }), "  immich, protegido: solo levantar y parar, y todo con su nombre", im ? JSON.stringify(im.acciones) : "");
+                const tr = prueba.stack("traderepublic");
+                prueba.comprobar(tr && !tr.gestionado && prueba.igual(tr.acciones, {}) && tr.contenedores.length === 1 && prueba.igual(tr.contenedores[0].acciones, {}) && tr.contenedores[0].unUso, "  un stack que no es del panel: sin acciones", tr ? JSON.stringify(tr) : "");
+                prueba.comprobar(a.puedeDocker === true && a.dockerError === "", "puedeDocker, de /api/yo, y sin error de Docker");
+                prueba.comprobar(a.alertas.length > 0 && a.alertas.every(x => typeof x.entrada === "number" && x.entrada >= 0), "las alertas llevan «entrada» (su línea del Registro, o 0)", JSON.stringify(a.alertas.map(x => x.entrada)));
+                sig();
+            },
+            // --- El Registro ---
+            sig => {
+                a.cargarRegistro("");
+                prueba.esperar(8000, () => a.registro !== null && !a.registro.cargando, ok => {
+                    const r = a.registro;
+                    prueba.comprobar(ok && r.error === "" && r.entradas.length > 0 && prueba.deNuevaAVieja(r.entradas), "cargarRegistro(\"\"): las líneas, de la más nueva a la más vieja", r.entradas.length + " líneas; «" + r.error + "»");
+                    const d = r.entradas.find(e => e.titulo.indexOf("Disco casi lleno") === 0);
+                    prueba.comprobar(!!d && d.fuente === "disk" && d.nivel === "warn" && d.hora instanceof Date && d.conDetalle === true && d.objetivo === "/", "  normalizadas: fuente, nivel, hora (Date), objetivo y si tienen detalle", d ? JSON.stringify(d) : "");
+                    prueba.comprobar(r.notas.some(n => n.indexOf("systemd") >= 0), "  y las notas de lo que el panel no puede ver", JSON.stringify(r.notas));
+                    sig();
+                });
+            },
+            // --- Una acción y cómo acaba ---
+            sig => {
+                prueba.resultados = [];
+                prueba.avisos = [];
+                const antes = a.registro.entradas.length;
+                prueba.escribe(fin => a.accionDocker("contenedor", "syncthing", "restart", "", fin), ok => {
+                    prueba.comprobar(ok === true, "accionDocker (reiniciar syncthing): el NUC la acepta (202)", String(ok));
+                    prueba.esperar(8000, () => prueba.resultados.length > 0, ok2 => {
+                        const r = prueba.resultados[0];
+                        prueba.comprobar(ok2 && r.tipo === "contenedor" && r.objetivo === "syncthing" && r.accion === "restart" && r.ok === true && r.error === "", "  cómo acaba llega por el evento «result»", JSON.stringify(r));
+                        prueba.comprobar(prueba.avisos.some(x => x.texto === "Reiniciar · syncthing: hecho" && x.error === false), "  y sale como aviso", JSON.stringify(prueba.avisos));
+                        prueba.esperar(5000, () => a.registro.entradas.length > antes && a.registro.entradas[0].titulo === "Reiniciar contenedor · syncthing", ok3 => {
+                            const e = a.registro.entradas[0];
+                            prueba.comprobar(ok3 && e.fuente === "panel" && e.nivel === "info" && e.conDetalle && e.objetivo === "syncthing", "  y su línea llega sola al Registro (evento «journal»), arriba", JSON.stringify(e));
+                            let det = null;
+                            a.detalleRegistro(e.id, (texto, error) => det = {
+                                    texto: texto,
+                                    error: error
+                                });
+                            prueba.esperar(5000, () => det !== null, ok4 => {
+                                prueba.comprobar(ok4 && det.error === "" && det.texto.indexOf("Por: " + prueba.usuarioPrueba) === 0 && det.texto.indexOf("Duración:") > 0, "detalleRegistro: el detalle de la línea (quién y cuánto tardó)", JSON.stringify(det));
+                                sig();
+                            });
+                        });
+                    });
+                });
+            },
+            // --- La palabra de confirmación ---
+            sig => {
+                prueba.avisos = [];
+                prueba.escribe(fin => a.accionDocker("contenedor", "caddy", "stop", "", fin), ok => {
+                    prueba.comprobar(ok === false && prueba.avisos.length === 1 && prueba.avisos[0].texto === "Parar · caddy: hay que escribir «caddy» para confirmarla", "parar caddy sin su nombre: el NUC no lo hace (428) y se dice qué escribir", JSON.stringify(prueba.avisos));
+                    prueba.resultados = [];
+                    prueba.escribe(fin => a.accionDocker("contenedor", "caddy", "stop", "caddy", fin), ok2 => {
+                        prueba.esperar(8000, () => prueba.resultados.length > 0, ok3 => {
+                            prueba.comprobar(ok2 === true && ok3 && prueba.resultados[0].ok && prueba.resultados[0].accion === "stop" && prueba.resultados[0].objetivo === "caddy", "  con «caddy», sí", JSON.stringify(prueba.resultados));
+                            sig();
+                        });
+                    });
+                });
+            },
+            sig => {
+                prueba.avisos = [];
+                prueba.escribe(fin => a.accionDocker("stack", "sync", "update", "otro", fin), ok => {
+                    prueba.comprobar(ok === false && prueba.avisos.length === 1 && prueba.avisos[0].texto === "Actualizar · sync: hay que escribir «sync» para confirmarla", "actualizar un stack con otra palabra: no", JSON.stringify(prueba.avisos));
+                    prueba.resultados = [];
+                    prueba.escribe(fin => a.accionDocker("stack", "sync", "down", "sync", fin), ok2 => {
+                        prueba.esperar(8000, () => prueba.resultados.length > 0, ok3 => {
+                            const r = prueba.resultados[0];
+                            prueba.comprobar(ok2 === true && ok3 && r.tipo === "stack" && r.objetivo === "sync" && r.accion === "down" && r.ok, "bajar un stack con su nombre: se hace (docker compose down)", JSON.stringify(r));
+                            prueba.avisos = [];
+                            prueba.escribe(fin => a.accionDocker("contenedor", "no-existe", "restart", "", fin), ok4 => {
+                                prueba.comprobar(ok4 === false && prueba.avisos.length === 1 && prueba.avisos[0].texto === "Reiniciar · no-existe: ya no está en el NUC", "un contenedor que no está: 404, y se dice", JSON.stringify(prueba.avisos));
+                                sig();
+                            });
+                        });
+                    });
+                });
+            },
+            // --- El Registro: filtros y páginas ---
+            sig => {
+                a.cargarRegistro("panel");
+                prueba.esperar(8000, () => a.registro.filtro === "panel" && !a.registro.cargando, ok => {
+                    const r = a.registro;
+                    prueba.comprobar(ok && r.entradas.length >= 3 && r.entradas.every(e => e.fuente === "panel"), "cargarRegistro(\"panel\"): solo lo del panel", JSON.stringify(r.entradas.map(e => e.titulo)));
+                    prueba.comprobar(r.entradas.some(e => e.titulo === "Bajar stack · sync") && r.entradas.some(e => e.titulo === "Parar contenedor · caddy"), "  con las acciones de antes");
+                    a.cargarRegistro("level:warn");
+                    prueba.esperar(8000, () => a.registro.filtro === "level:warn" && !a.registro.cargando, ok2 => {
+                        const w = a.registro;
+                        prueba.comprobar(ok2 && w.entradas.length > 0 && w.entradas.every(e => e.nivel !== "info"), "cargarRegistro(\"level:warn\"): solo avisos y errores", JSON.stringify(w.entradas.map(e => e.nivel)));
+                        sig();
+                    });
+                });
+            },
+            sig => {
+                a.paginaRegistro = 2;
+                a.cargarRegistro("");
+                prueba.esperar(8000, () => a.registro.filtro === "" && !a.registro.cargando, ok => {
+                    const r = a.registro;
+                    prueba.comprobar(ok && r.entradas.length === 2 && r.mas === true && r.siguiente !== "", "con páginas de 2: la primera, y que hay más", r.entradas.length + " " + r.mas);
+                    const primeras = r.entradas.map(e => e.id);
+                    a.masRegistro();
+                    prueba.esperar(8000, () => !a.registro.cargando && a.registro.entradas.length > 2, ok2 => {
+                        const ids = a.registro.entradas.map(e => e.id);
+                        const sinRepetir = ids.every((x, i) => ids.indexOf(x) === i);
+                        prueba.comprobar(ok2 && ids.length === 4 && prueba.igual(ids.slice(0, 2), primeras) && sinRepetir && prueba.deNuevaAVieja(a.registro.entradas), "masRegistro(): la página siguiente, más vieja, detrás y sin repetir", JSON.stringify(ids));
+                        a.paginaRegistro = 50;
+                        sig();
+                    });
+                });
+            },
+            // --- Los logs ---
+            sig => {
+                a.abrirLogs("caddy");
+                prueba.comprobar(a.logs !== null && a.logs.contenedor === "caddy" && a.logs.estado === "conectando", "abrirLogs: «conectando» al momento");
+                prueba.esperar(8000, () => a.logs && a.logs.estado === "fin", ok => {
+                    const l = a.logs;
+                    const linea = l ? l.lineas.find(x => !x.nota) : null;
+                    prueba.comprobar(ok && !!linea && linea.texto === "línea de prueba del contenedor" && /^\d\d:\d\d:\d\d$/.test(linea.hora), "  las líneas del contenedor, con su hora (la de aquí)", l ? JSON.stringify(l.lineas) : "");
+                    const ultima = l ? l.lineas[l.lineas.length - 1] : null;
+                    prueba.comprobar(ultima && ultima.nota && ultima.texto === "— fin del log (el contenedor se ha parado)" && l.total === l.lineas.length, "  y «fin» cuando el log acaba (el contenedor se ha parado)", l ? JSON.stringify(l) : "");
+                    a.abrirLogs("no-existe");
+                    prueba.esperar(8000, () => a.logs && a.logs.estado === "cortado", ok2 => {
+                        prueba.comprobar(ok2 && a.logs.contenedor === "no-existe" && a.logs.error === "Ese contenedor ya no está en el NUC.", "abrirLogs de uno que no está: «cortado», y por qué", a.logs ? JSON.stringify(a.logs) : "");
+                        a.cerrarLogs();
+                        prueba.comprobar(a.logs === null, "cerrarLogs(): null");
+                        sig();
+                    });
+                });
+            },
+            // --- El consumo, solo mientras se mira ---
+            sig => {
+                prueba.comprobar(a.consumo === null, "sin verConsumo no hay consumo");
+                prueba.contarCurl("/api/stats", n0 => {
+                    prueba.comprobar(n0 === 0, "  ni se ha pedido nunca", String(n0));
+                    a.verConsumo = true;
+                    prueba.esperar(10000, () => a.consumo !== null, ok => {
+                        const c = a.consumo;
+                        prueba.comprobar(ok && c.host.memTotal > 0 && c.host.memUsada > 0 && c.host.cpu >= 0 && c.cuando instanceof Date && c.host.discos.length === 1 && c.host.discos[0].ruta === "/" && c.host.discos[0].total > 0, "verConsumo: el consumo del NUC (CPU, memoria y discos)", c ? JSON.stringify(c.host) : "");
+                        const cd = c ? c.contenedores.caddy : null;
+                        prueba.comprobar(!!cd && Math.abs(cd.cpu - 40) < 0.01 && cd.mem === 190 * 1048576 && cd.memLimite === 2 * 1073741824, "  y el de cada contenedor en marcha", c ? JSON.stringify(c.contenedores) : "");
+                        const primera = c ? c.cuando : null;
+                        prueba.esperar(8000, () => a.consumo && a.consumo.cuando !== primera, ok2 => {
+                            prueba.comprobar(ok2, "  y otra muestra a los pocos segundos, sola");
+                            a.verConsumo = false;
+                            prueba.comprobar(a.consumo === null, "verConsumo a false: se olvida el consumo");
+                            prueba.dormir(1500, () => prueba.curlVivo("/api/stats", vivo => {
+                                    prueba.contarCurl("/api/stats", n => {
+                                        prueba.comprobar(!vivo && n === 1, "  y se para el curl de /api/stats (uno solo en todo el rato)", "vivo " + vivo + ", lanzados " + n);
+                                        a.verConsumo = true;
+                                        prueba.esperar(10000, () => a.consumo !== null, ok3 => {
+                                            prueba.comprobar(ok3, "verConsumo otra vez: vuelve");
+                                            a.verConsumo = false;
+                                            sig();
+                                        });
+                                    });
+                                }));
+                        });
+                    });
+                });
+            },
+            // --- Los proyectos ---
+            sig => {
+                const pr = prueba.proyecto("Proyecto de prueba");
+                const sub = prueba.proyecto("Subproyecto de prueba");
+                prueba.comprobar(pr && pr.tipo === "proyecto" && pr.padre === "" && pr.estado === "activo" && pr.prioridad === "media" && pr.progreso === 40 && prueba.igual(pr.siguiente, ["Algo que hacer"]) && pr.siguientePanel === false && pr.repo === "", "proyectos (de /api/personal): el proyecto, con su progreso y el siguiente paso de la nota", pr ? JSON.stringify(pr) : "no está");
+                prueba.comprobar(sub && sub.tipo === "subproyecto" && sub.padre === "10 Proyectos/Proyecto de prueba.md" && sub.progreso === null && sub.prioridad === "baja", "  y su subproyecto, con la ruta de su proyecto", sub ? JSON.stringify(sub) : "no está");
+                prueba.escribe(fin => a.editarProyecto(sub.ruta, {
+                        estado: "pausado",
+                        progreso: 55
+                    }, fin), ok => {
+                    const s2 = prueba.proyecto("Subproyecto de prueba");
+                    prueba.comprobar(ok === true && s2.estado === "pausado" && s2.progreso === 55 && s2.actualizado === prueba.fechaMas(0), "editarProyecto: estado y progreso de una vez (y «actualizado», hoy)", JSON.stringify(s2));
+                    prueba.enFichero("10 Proyectos/Subproyecto de prueba.md", "estado: pausado", e1 => prueba.enFichero("10 Proyectos/Subproyecto de prueba.md", "progreso: 55", e2 => {
+                            prueba.comprobar(e1 && e2, "  y la nota del vault lo tiene en el frontmatter");
+                            sig();
+                        }));
+                });
+            },
+            sig => {
+                const pr = prueba.proyecto("Proyecto de prueba");
+                prueba.escribe(fin => a.editarProyecto(pr.ruta, {
+                        siguiente: "Uno\n- Dos\n\n",
+                        prioridad: "alta"
+                    }, fin), ok => {
+                    const p2 = prueba.proyecto("Proyecto de prueba");
+                    prueba.comprobar(ok === true && prueba.igual(p2.siguiente, ["Uno", "Dos"]) && p2.siguientePanel && p2.prioridad === "alta", "editarProyecto: el siguiente paso pasa a ser el bloque del panel", JSON.stringify(p2));
+                    prueba.enFichero("10 Proyectos/Proyecto de prueba.md", "%% panel:siguiente:start %%", e1 => prueba.enFichero("10 Proyectos/Proyecto de prueba.md", "- Algo que hacer", e2 => {
+                            prueba.comprobar(e1 && e2, "  y en la nota va al principio de su sección, sin tocar lo que ya había");
+                            sig();
+                        }));
+                });
+            },
+            sig => {
+                prueba.avisos = [];
+                const sub = prueba.proyecto("Subproyecto de prueba");
+                prueba.sh("sed -i 's/^estado: pausado$/estado: idea/' \"$PANEL_LOCAL_DIR/vault/10 Proyectos/Subproyecto de prueba.md\"", () => {
+                    prueba.escribe(fin => a.editarProyecto(sub.ruta, {
+                            estado: "activo"
+                        }, fin), ok => {
+                        const s2 = prueba.proyecto("Subproyecto de prueba");
+                        prueba.comprobar(ok === false && s2.estado === "idea", "un proyecto que cambió en la nota (409): no se escribe y se recarga como está", JSON.stringify(s2));
+                        prueba.comprobar(prueba.avisos.length === 1 && prueba.avisos[0].error && prueba.avisos[0].texto.indexOf("El proyecto cambió en tus notas") === 0, "  y avisa", JSON.stringify(prueba.avisos));
+                        prueba.enFichero("10 Proyectos/Subproyecto de prueba.md", "estado: idea", e => {
+                            prueba.comprobar(e, "  y la nota se queda como estaba");
+                            sig();
+                        });
+                    });
+                });
+            },
+            sig => {
+                prueba.avisos = [];
+                const sub = prueba.proyecto("Subproyecto de prueba");
+                prueba.escribe(fin => a.editarProyecto(sub.ruta, {
+                        progreso: 150
+                    }, fin), ok => {
+                    prueba.comprobar(ok === false && prueba.avisos.length === 1 && prueba.avisos[0].texto === "No se pudo guardar el proyecto (HTTP 422: El progreso es un número de 0 a 100.)", "un valor que el NUC rechaza (422): avisa con el motivo", JSON.stringify(prueba.avisos));
+                    sig();
+                });
+            },
+            // --- Las escrituras de proyectos, en cola ---
+            sig => {
+                prueba.avisos = [];
+                const sub = prueba.proyecto("Subproyecto de prueba");
+                const r = [null, null, null];
+                a.editarProyecto(sub.ruta, {
+                    estado: "activo"
+                }, ok => r[0] = ok);
+                const ocupado = a.proyectosOcupado;
+                a.editarProyecto(sub.ruta, {
+                    estado: "pausado",
+                    progreso: 60
+                }, ok => r[1] = ok);
+                // Lo mismo que deja la de antes: no hace falta escribir nada.
+                a.editarProyecto(sub.ruta, {
+                    progreso: 60
+                }, ok => r[2] = ok);
+                prueba.comprobar(ocupado && r[1] === null && r[2] === null, "editarProyecto con otra en camino: espera en cola, no se pierde", JSON.stringify(r));
+                prueba.esperar(8000, () => r.every(x => x !== null), ok => {
+                    const s2 = prueba.proyecto("Subproyecto de prueba");
+                    prueba.comprobar(ok && r.every(x => x === true) && s2.estado === "pausado" && s2.progreso === 60 && prueba.avisos.length === 0, "  y sale al acabar la de antes, sobre lo que ésta dejó (sin 409)", JSON.stringify(r) + " " + s2.estado + " " + s2.progreso + " " + JSON.stringify(prueba.avisos));
+                    prueba.enFichero("10 Proyectos/Subproyecto de prueba.md", "estado: pausado", e1 => prueba.enFichero("10 Proyectos/Subproyecto de prueba.md", "progreso: 60", e2 => {
+                            prueba.comprobar(e1 && e2, "  y la nota queda con lo último");
+                            sig();
+                        }));
+                });
+            },
+            sig => {
+                prueba.avisos = [];
+                const sub = prueba.proyecto("Subproyecto de prueba");
+                prueba.sh("sed -i 's/^estado: pausado$/estado: idea/' \"$PANEL_LOCAL_DIR/vault/10 Proyectos/Subproyecto de prueba.md\"", () => {
+                    const r = [null, null];
+                    a.editarProyecto(sub.ruta, {
+                        estado: "hecho"
+                    }, ok => r[0] = ok);
+                    a.editarProyecto(sub.ruta, {
+                        prioridad: "alta"
+                    }, ok => r[1] = ok);
+                    prueba.esperar(8000, () => r.every(x => x !== null), ok => {
+                        const s2 = prueba.proyecto("Subproyecto de prueba");
+                        prueba.comprobar(ok && r[0] === false && r[1] === false && s2.estado === "idea" && s2.prioridad === "baja" && prueba.avisos.length === 1, "tras un 409, las que esperaban en cola para ese proyecto no salen", JSON.stringify(r) + " " + JSON.stringify(s2));
+                        prueba.enFichero("10 Proyectos/Subproyecto de prueba.md", "prioridad: baja", e => {
+                            prueba.comprobar(e, "  y la nota no se toca");
+                            sig();
+                        });
+                    });
+                });
+            },
+            // --- GitHub: el panel de prueba no tiene token ---
+            sig => {
+                a.cargarGithub();
+                prueba.esperar(8000, () => a.github !== null, ok => {
+                    prueba.comprobar(ok && a.github.habilitado === false && a.github.error === "", "cargarGithub: sin GITHUB_TOKEN en el NUC, «no habilitado»", JSON.stringify(a.github));
+                    a.cargarRepo("IshimiG/homelab");
+                    prueba.esperar(8000, () => !!a.repos["ishimig/homelab"] && !a.repos["ishimig/homelab"].cargando, ok2 => {
+                        const r = a.repos["ishimig/homelab"];
+                        prueba.comprobar(ok2 && r.error === "GitHub sin conectar: falta GITHUB_TOKEN en el NUC." && r.pulls.length === 0, "cargarRepo: sin token, lo dice", JSON.stringify(r));
+                        sig();
+                    });
+                });
+            },
+            // --- El usuario movil: lo ve todo, pero no actúa (E10, M5) ---
+            sig => prueba.sh("secret-tool clear servicio homelab-panel usuario " + prueba.usuarioPrueba + " && secret-tool store --label='Panel del homelab' servicio homelab-panel usuario movil < '" + prueba.dir + "/clave-movil'", () => {
+                    prueba.m = otroApi.createObject(prueba);
+                    prueba.esperar(10000, () => prueba.m.conexion === "conectado" && prueba.m.permisos !== null && prueba.m.stacks.length > 0, ok => {
+                        const m = prueba.m;
+                        prueba.comprobar(ok && m.usuario === "movil" && m.puedeDocker === false && prueba.igual(m.permisos, { acciones_docker: false, login_traderepublic: false }), "con el usuario movil: puedeDocker false (de /api/yo)", m.usuario + " " + JSON.stringify(m.permisos));
+                        prueba.comprobar(m.stacks.every(s => prueba.igual(s.acciones, {}) && s.contenedores.every(c => prueba.igual(c.acciones, {}))), "  los stacks llegan sin ninguna acción (no hay botones)");
+                        m.aviso.connect((texto, error) => prueba.movilAvisos.push(texto));
+                        let res = "sin llamar";
+                        m.accionDocker("contenedor", "syncthing", "restart", "", r => res = r);
+                        prueba.comprobar(res === false && prueba.movilAvisos.length === 1 && prueba.movilAvisos[0] === "Reiniciar · syncthing: el usuario movil no tiene acciones de Docker", "  accionDocker ni sale: lo dice", JSON.stringify(prueba.movilAvisos));
+                        // Y si saliera (un cajón con los permisos viejos), el NUC la para.
+                        let estado = -1;
+                        m.pedir("POST", "/api/containers/syncthing/restart", {
+                            confirm: ""
+                        }, (e, t) => estado = e);
+                        prueba.esperar(8000, () => estado !== -1, ok2 => {
+                            prueba.comprobar(ok2 && estado === 403, "  y si una saliera, el NUC contesta 403", String(estado));
+                            m.cargarRegistro("panel");
+                            prueba.esperar(8000, () => m.registro !== null && !m.registro.cargando && m.registro.entradas.some(e => e.titulo.indexOf("No permitido") === 0), ok3 => {
+                                const e = m.registro.entradas[0];
+                                prueba.comprobar(ok3 && e.titulo === "No permitido: Reiniciar contenedor · syncthing" && e.nivel === "warn", "  y el intento queda en el Registro (que movil sí puede leer)", JSON.stringify(m.registro.entradas.slice(0, 2)));
+                                sig();
+                            });
+                        });
+                    });
+                }),
+            sig => {
+                const todo = JSON.stringify(a.registro) + JSON.stringify(a.stacks) + JSON.stringify(a.proyectos) + JSON.stringify(a.logs) + JSON.stringify(prueba.avisos) + JSON.stringify(prueba.movilAvisos);
+                prueba.comprobar(todo.indexOf("Pr0ba-") < 0, "ni el Registro, ni los stacks, ni los proyectos, ni los avisos llevan las contraseñas");
                 prueba.fin();
             }
         ]);

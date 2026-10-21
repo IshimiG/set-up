@@ -43,6 +43,12 @@ ShellRoot {
         api: root.api
     }
 
+    // Lo que tiene fecha, para el calendario de la barra (otro proceso), en un
+    // fichero de $XDG_RUNTIME_DIR.
+    Agenda {
+        api: root.api
+    }
+
     function estado(): string {
         if (!root.abierto)
             return "cerrado";

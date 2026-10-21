@@ -8,10 +8,14 @@
 #
 #   - un vault falso: un «00 Inicio.md» con tareas vencidas, de hoy, futuras,
 #     hechas y en pausa (una con detalles y subtareas, otra fijada), una nota
-#     de proyecto con otra tarea vencida y la plantilla de la semana, para los
-#     hábitos (la nota de esta semana no existe: se crea al anotar el primero);
+#     de proyecto con otra tarea vencida y su siguiente paso, un subproyecto
+#     suyo y la plantilla de la semana, para los hábitos (la nota de esta
+#     semana no existe: se crea al anotar el primero);
 #   - un Docker falso (api/falsos/docker-falso.go) dentro del contenedor: el
 #     socket de verdad nunca se le da, porque sus acciones son root;
+#   - tres stacks en la configuración, como en el NUC: homelab (con caddy, que
+#     pide su nombre para pararlo), sync e immich (protegido). Sus acciones
+#     llegan al Docker falso, y «docker compose» es un script que no hace nada;
 #   - una alerta de disco desde el principio (diskAlertPercent 1 con «/»), y
 #     las de los contenedores falsos;
 #   - sin tokens de GitHub ni de Google y sin FINANZAS_DSN.
@@ -33,15 +37,21 @@
 #   panel-local.sh estado        cómo están los contenedores
 #
 # Direcciones: http://127.0.0.1:8791 (el Caddy falso, con contraseña) y
-# http://127.0.0.1:8790 (el panel directo, sin contraseña: usuario «-»).
+# http://127.0.0.1:8790 (el panel directo, sin contraseña: usuario «-»), o
+# PANEL_LOCAL_PUERTO + 1 y PANEL_LOCAL_PUERTO.
 #
 # Variables (todas opcionales):
 #   PANEL_LOCAL_DIR           la carpeta de trabajo (vault, estado, registro)
 #   PANEL_LOCAL_CREDENCIALES  un fichero «usuario:contraseña» para el Caddy
 #                             falso; sin él se inventa uno en la carpeta
 #   PANEL_SRC                 el código del panel (~/Projects/homelab/panel)
+#   PANEL_LOCAL_NOMBRE        cómo empiezan los contenedores (prueba-fase2)
+#   PANEL_LOCAL_PUERTO        el puerto del panel (8790); el del Caddy falso es
+#                             el siguiente
 #
-# Los contenedores se llaman prueba-fase2-*, y «parar» los quita.
+# Los contenedores se llaman <nombre>-panel y <nombre>-caddy, y «parar» los
+# quita. Con otro nombre y otro puerto pueden correr dos a la vez (dos pruebas
+# en dos copias del repo).
 set -eu
 
 aqui=$(dirname "$(readlink -f "$0")")
@@ -49,11 +59,14 @@ dir=${PANEL_LOCAL_DIR:-${TMPDIR:-/tmp}/homelab-panel-local}
 src=${PANEL_SRC:-$HOME/Projects/homelab/panel}
 imagen=golang:1.27.1-trixie
 cache=${XDG_CACHE_HOME:-$HOME/.cache}/homelab-panel-build
-bin=${XDG_CACHE_HOME:-$HOME/.cache}/set-up-pruebas/homelab-panel
-panel=prueba-fase2-panel
-caddy=prueba-fase2-caddy
-puerto_panel=8790
-puerto_caddy=8791
+# Lo compilado, aparte para cada copia del repo: los falsos de una copia no
+# son los de otra, y si compartieran carpeta una se quedaría con los de la otra.
+bin=${XDG_CACHE_HOME:-$HOME/.cache}/set-up-pruebas/$(printf '%s' "$aqui" | md5sum | cut -c1-12)/homelab-panel
+nombre=${PANEL_LOCAL_NOMBRE:-prueba-fase2}
+panel=$nombre-panel
+caddy=$nombre-caddy
+puerto_panel=${PANEL_LOCAL_PUERTO:-8790}
+puerto_caddy=$((puerto_panel + 1))
 
 # Espera a que una dirección responda con ese código, hasta $3 décimas.
 esperar() {
@@ -76,7 +89,7 @@ compilar() {
 		return
 	fi
 	echo "Compilando el panel y los falsos en $imagen…"
-	docker run --rm --name prueba-fase2-compilar \
+	docker run --rm --name "$nombre-compilar" \
 		--user "$(id -u):$(id -g)" \
 		-v "$src:/src:ro" -v "$aqui/api/falsos:/falsos:ro" -v "$bin:/out" \
 		-v "$cache/mod:/go/pkg/mod" -v "$cache/build:/tmp/gocache" \
@@ -131,10 +144,27 @@ vault() {
 		tipo: proyecto
 		estado: activo
 		prioridad: media
+		progreso: 40
 		---
 		# Proyecto de prueba
 
 		- [ ] Tarea en otra nota 📅 $(d -2)
+
+		## ⏭️ Siguiente paso
+
+		- Algo que hacer
+	EOF
+	cat >"$dir/vault/10 Proyectos/Subproyecto de prueba.md" <<-EOF
+		---
+		tipo: subproyecto
+		proyecto: "[[Proyecto de prueba]]"
+		estado: activo
+		prioridad: baja
+		actualizado: $(d -3)
+		---
+		# Subproyecto de prueba
+
+		Sin siguiente paso todavía.
 	EOF
 }
 
@@ -144,9 +174,13 @@ arrancar() {
 		echo "Ya hay un panel local; antes, $0 parar" >&2
 		exit 1
 	fi
-	mkdir -p "$dir/estado" "$dir/apt"
+	mkdir -p "$dir/estado" "$dir/apt" "$dir/compose"
 	chmod 700 "$dir"
 	vault
+	# Los compose de los stacks: solo se leen («Ver compose»).
+	for st in homelab sync immich; do
+		printf 'name: %s\nservices: {}\n' "$st" >"$dir/compose/$st.yml"
+	done
 	: >"$dir/apt/history.log"
 	# Los colores de dos secciones, como si se hubieran elegido en la web.
 	printf '{"colores": {"homelab": "#6aa8ff", "clase": "#b48cff"}}\n' >"$dir/estado/estado.json"
@@ -157,6 +191,12 @@ arrancar() {
 		  "diskAlertPercent": 1,
 		  "disks": ["/"],
 		  "vault": "/vault",
+		  "critical": ["caddy"],
+		  "stacks": [
+		    {"name": "homelab", "file": "/prueba/compose/homelab.yml"},
+		    {"name": "sync", "file": "/prueba/compose/sync.yml"},
+		    {"name": "immich", "file": "/prueba/compose/immich.yml", "protected": true}
+		  ],
 		  "finanzas": {"extractos": "/tmp/extractos"},
 		  "clase": {"data": "/tmp/clase"}
 		}
@@ -183,6 +223,7 @@ arrancar() {
 		--user "$(id -u):$(id -g)" \
 		-v "$bin:/prueba/bin:ro" -v "$dir/dev.json:/prueba/dev.json:ro" \
 		-v "$dir/arranque.sh:/prueba/arranque.sh:ro" -v "$dir/docker:/usr/local/bin/docker:ro" \
+		-v "$dir/compose:/prueba/compose:ro" \
 		-v "$dir/vault:/vault" -v "$dir/estado:/estado" -v "$dir/apt:/var/log/apt" \
 		-v /etc/localtime:/etc/localtime:ro \
 		-e DOCKER_HOST=unix:///tmp/docker-falso.sock \
@@ -234,7 +275,7 @@ seguir-panel) seguir_panel ;;
 alerta) alerta ;;
 congelar) docker pause "$panel" >/dev/null ;;
 descongelar) docker unpause "$panel" >/dev/null ;;
-estado) docker ps -a --filter name=prueba-fase2- --format '{{.Names}}\t{{.Status}}' ;;
+estado) docker ps -a --filter "name=$nombre-" --format '{{.Names}}\t{{.Status}}' ;;
 *)
 	sed -n '2,/^set -eu/p' "$0" | sed '$d' | sed 's/^# \{0,1\}//'
 	exit 2

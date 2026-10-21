@@ -7,8 +7,9 @@ import "shared"
 // Prueba sin pantalla del cajón (la lanza prueba.sh, al lado): el Cajon.qml
 // del repo en una ventana de 700x900, con un shell falso y el ratón y el
 // teclado movidos con TestEvent. Cada comprobación imprime OK o FALLO; al
-// final, el recuento. La fase 3 (tareas, hábitos y Aules) va al final, con la
-// API falsa con estado de ApiFalsa.qml.
+// final, el recuento. La fase 3 (tareas, hábitos y Aules) y la 4 (proyectos,
+// servidor y registro) van al final, con la API falsa con estado de
+// ApiFalsa.qml.
 FloatingWindow {
     id: ventana
 
@@ -135,12 +136,14 @@ FloatingWindow {
         ev.mouseClick(envoltura, p.x, p.y, Qt.LeftButton, Qt.NoModifier, -1);
     }
 
-    // Si el item está en la lista de tareas o en Inicio (que se desplazan y
-    // recortan), la mueve hasta que se vea entero: un clic fuera de lo que
-    // enseña no llega.
+    // Las listas que se desplazan y recortan.
+    readonly property var desplazables: ["desplazableTareas", "desplazableInicio", "desplazableProyectos", "detalleProyecto", "desplazableServidor", "desplazableRegistro"]
+
+    // Si el item está en una lista que se desplaza (y recorta), la mueve hasta
+    // que se vea entero: un clic fuera de lo que enseña no llega.
     function verEnLista(item) {
         let f = item;
-        while (f && f.objectName !== "desplazableTareas" && f.objectName !== "desplazableInicio")
+        while (f && ventana.desplazables.indexOf(f.objectName) < 0)
             f = f.parent;
         if (!f)
             return;
@@ -278,6 +281,57 @@ FloatingWindow {
     function cabecera(clave) {
         const g = ventana.grupos().find(x => x.objectName === "grupo-" + clave);
         return g ? ventana.hijo(g, "cabeceraGrupo") : null;
+    }
+
+    // --- Fase 4: ayudas ------------------------------------------------------
+
+    property var enlaces: []
+    property int escapes0: 0
+    property int acciones0: 0
+    property int edicionesAntes: 0
+    property int detallesAntes: 0
+    property int masAntes: 0
+    property int lecturasAntes: 0
+
+    // Los nombres de los items visibles que empiezan por «prefijo», sin él,
+    // en el orden del árbol.
+    function nombresCon(prefijo) {
+        const l = [];
+        ventana.recorrer(cajon, it => {
+            if (it.visible && it.objectName.indexOf(prefijo) === 0)
+                l.push(it.objectName.slice(prefijo.length));
+        });
+        return l;
+    }
+
+    // El primer item con ese nombre, esté a la vista o no.
+    function cualquiera(nombre) {
+        let r = null;
+        ventana.recorrer(cajon, it => {
+            if (!r && it.objectName === nombre)
+                r = it;
+        });
+        return r;
+    }
+
+    function ultimaProyecto() {
+        return apiFalsa.edicionesProyecto[apiFalsa.edicionesProyecto.length - 1] || null;
+    }
+
+    function ultimaAccion() {
+        return apiFalsa.acciones[apiFalsa.acciones.length - 1] || null;
+    }
+
+    // La línea de estado de un contenedor en Servidor.
+    function estadoDe(nombre) {
+        const c = ventana.uno("contenedor-" + nombre);
+        const t = c ? ventana.hijo(c, "estadoContenedor") : null;
+        return t ? t.text : "";
+    }
+
+    function textoAviso() {
+        const a = ventana.uno("textoAviso");
+        return a ? a.text : "";
     }
 
     function asaX() {
@@ -1090,6 +1144,315 @@ FloatingWindow {
         [[500, () => {
             ventana.comprobar(apiFalsa.lecturasTareas === ventana.lecturas0 + 1 && apiFalsa.tareasObsoletas === false && ventana.tiene("Otro cambio desde la web"), "al cerrar el editor, relee las tareas y se pone al día", String(apiFalsa.lecturasTareas - ventana.lecturas0));
             ventana.comprobar(ventana.textos().indexOf("€") < 0, "(sin euros en Tareas)");
+        }]],
+        // =====================================================================
+        // Fase 4: Proyectos
+        // =====================================================================
+        [[50, () => {
+            ventana.cualquiera("contenido").lanzar = args => ventana.enlaces = ventana.enlaces.concat([args]);
+            ventana.escapes0 = envoltura.escapes;
+            ventana.lecturas0 = apiFalsa.lecturasGithub;
+            ventana.seccion("proyectos");
+        }]],
+        [[700, () => {
+            ventana.comprobar(ventana.uno("seccionProyectos") !== null, "la tira lleva a Proyectos");
+            ventana.comprobar(apiFalsa.lecturasGithub === ventana.lecturas0 + 1, "al entrar en Proyectos se pide el resumen de GitHub (una vez)", String(apiFalsa.lecturasGithub - ventana.lecturas0));
+            const g = ventana.nombresCon("grupoProyectos-");
+            ventana.comprobar(ventana.igual(g, ["activo", "pausado", "idea", "otros"]), "los proyectos van por estado: activos, pausados, ideas y otros (el archivado)", JSON.stringify(g));
+            ventana.comprobar(ventana.tiene("ACTIVOS · 1") && ventana.tiene("PAUSADOS · 1") && ventana.tiene("OTROS · 1"), "  con la cuenta de cada grupo");
+            ventana.comprobar(ventana.uno("sub-Panel en el escritorio") !== null && ventana.uno("sub-Finanzas") !== null && ventana.uno("proyecto-Panel en el escritorio") === null, "los subproyectos salen dentro de su proyecto, no sueltos");
+            ventana.comprobar(ventana.tiene("Fase 4 del panel en el escritorio") && !ventana.tiene("**panel**") && ventana.tiene("60 %"), "cada proyecto enseña su progreso y su primer siguiente paso, sin marcas");
+            ventana.comprobar(ventana.tiene(" 2") && ventana.tiene(" 1"), "  y cuántas PR e issues tiene abiertas su repo");
+            ventana.captura("19-proyectos");
+        }]],
+        [[300, () => ventana.clic(ventana.uno("proyecto-Homelab"), 80, 14)]],
+        [[600, () => {
+            ventana.comprobar(ventana.uno("detalleProyecto") !== null && ventana.uno("tituloProyecto").text === "Homelab", "un clic en un proyecto lo abre");
+            ventana.comprobar(apiFalsa.reposPedidos.indexOf("IshimiG/homelab") >= 0, "  y pide las PR e issues de su repo", JSON.stringify(apiFalsa.reposPedidos));
+            ventana.comprobar(ventana.tiene("#7  Panel del homelab en el escritorio, fase 2") && ventana.tiene("panel-fase2 → main") && ventana.tiene("borrador"), "  que salen en la lista, con sus ramas y si son borrador");
+            ventana.comprobar(ventana.uno("estado-activo").activo && ventana.uno("prioridadProyecto-alta").activo && ventana.uno("textoProgreso").text === "60 %", "  con el estado, la prioridad y el progreso de ahora");
+            ventana.captura("20-proyecto");
+            ventana.clic(ventana.uno("estado-pausado"));
+        }]],
+        [[400, () => {
+            const u = ventana.ultimaProyecto();
+            ventana.comprobar(!!u && u.ruta === "30 Áreas/Servidor/22-ecosistema.md" && ventana.igual(u.cambios, { estado: "pausado" }), "un clic en otro estado lo guarda en la nota", JSON.stringify(u));
+            ventana.comprobar(ventana.uno("estado-pausado").activo && ventana.uno("tituloProyecto") !== null, "  y se queda en el proyecto, con el estado nuevo");
+            ventana.clic(ventana.uno("estado-activo"));
+        }]],
+        [[400, () => ventana.clic(ventana.uno("prioridadProyecto-ninguna"))]],
+        [[400, () => {
+            ventana.comprobar(ventana.igual(ventana.ultimaProyecto().cambios, { prioridad: "" }), "«Sin prioridad» la quita", JSON.stringify(ventana.ultimaProyecto()));
+            ventana.clic(ventana.uno("prioridadProyecto-alta"));
+        }]],
+        [[400, () => {
+            const d = ventana.uno("progresoProyecto");
+            ventana.clic(d, d.width * 0.25, d.height / 2);
+        }]],
+        [[400, () => {
+            ventana.comprobar(ventana.igual(ventana.ultimaProyecto().cambios, { progreso: 25 }), "un clic en la barra del progreso lo pone, de 5 en 5", JSON.stringify(ventana.ultimaProyecto()));
+            ventana.comprobar(ventana.uno("textoProgreso").text === "25 %", "  y se ve", ventana.uno("textoProgreso").text);
+            ventana.clic(ventana.uno("editarSiguiente"));
+        }]],
+        [[400, () => {
+            const c = ventana.uno("campoSiguiente");
+            ventana.comprobar(c !== null && c.texto === "Fase 4 del **panel** en el escritorio\nLos hashes de Caddy", "«Editar» el siguiente paso abre un campo con los del bloque del panel", c ? JSON.stringify(c.texto) : "");
+            c.texto = "Uno\nDos";
+            ventana.tecla(Qt.Key_Return, Qt.ControlModifier);
+        }]],
+        [[400, () => {
+            ventana.comprobar(ventana.igual(ventana.ultimaProyecto().cambios, { siguiente: "Uno\nDos" }), "Ctrl+Intro lo guarda", JSON.stringify(ventana.ultimaProyecto()));
+            ventana.comprobar(ventana.uno("campoSiguiente") === null && ventana.tiene("•  Uno") && ventana.tiene("•  Dos"), "  y el campo se cierra con los pasos nuevos");
+            ventana.edicionesAntes = apiFalsa.edicionesProyecto.length;
+            ventana.clic(ventana.uno("editarSiguiente"));
+        }]],
+        [[300, () => {
+            ventana.uno("campoSiguiente").texto = "no se guarda";
+            ventana.tecla(Qt.Key_Escape);
+        }]],
+        [[300, () => {
+            ventana.comprobar(ventana.uno("campoSiguiente") === null && apiFalsa.edicionesProyecto.length === ventana.edicionesAntes && ventana.uno("tituloProyecto") !== null && envoltura.escapes === ventana.escapes0, "Escape en el campo lo cierra sin guardar y sigue en el proyecto", String(envoltura.escapes - ventana.escapes0));
+            ventana.clic(ventana.uno("pestana-issues"));
+        }]],
+        [[300, () => {
+            ventana.comprobar(ventana.tiene("#12  Una issue abierta") && !ventana.tiene("#7  Panel del homelab"), "la pestaña Issues enseña las issues");
+            falso.fijado = true;
+            ventana.clic(ventana.uno("github-12"));
+        }]],
+        [[300, () => {
+            ventana.comprobar(ventana.igual(ventana.enlaces[ventana.enlaces.length - 1], ["xdg-open", "https://github.com/IshimiG/homelab/issues/12"]), "un clic en una issue la abre en el navegador", JSON.stringify(ventana.enlaces));
+            ventana.comprobar(falso.abierto, "  y, con el cajón fijado, el cajón se queda");
+            falso.fijado = false;
+            ventana.clic(ventana.uno("subDetalle-Panel en el escritorio"));
+        }]],
+        [[500, () => {
+            ventana.comprobar(ventana.uno("tituloProyecto").text === "Panel en el escritorio" && ventana.uno("irAlPadre") !== null, "un subproyecto se abre desde su proyecto, con un botón para volver a él");
+            ventana.comprobar(ventana.uno("repoProyecto").text === "IshimiG/homelab · el de Homelab", "  sin repo propio, enseña el de su proyecto", ventana.uno("repoProyecto").text);
+            ventana.comprobar(ventana.tiene("Sale de la sección «Siguiente paso» de la nota.") && ventana.tiene("•  Fusionar la fase 2"), "  y su siguiente paso de la sección de la nota, sin marcas");
+            apiFalsa.conflictoProyecto = true;
+            ventana.clic(ventana.uno("estado-idea"));
+        }]],
+        [[400, () => {
+            ventana.comprobar(ventana.textoAviso().indexOf("El proyecto cambió en tus notas") === 0, "un 409 al guardar un proyecto avisa", ventana.textoAviso());
+            ventana.comprobar(ventana.uno("estado-activo").activo && ventana.uno("textoProgreso").text === "70 %", "  y enseña el proyecto como está ahora, sin el cambio", ventana.uno("textoProgreso").text);
+            ventana.clic(ventana.uno("irAlPadre"));
+        }]],
+        [[400, () => {
+            ventana.comprobar(ventana.uno("tituloProyecto") !== null && ventana.uno("tituloProyecto").text === "Homelab", "el botón del proyecto vuelve a él");
+            ventana.tecla(Qt.Key_Escape);
+        }]],
+        [[400, () => {
+            ventana.comprobar(ventana.uno("tituloProyecto") === null && ventana.uno("desplazableProyectos") !== null && envoltura.escapes === ventana.escapes0 && falso.abierto, "Escape en un proyecto vuelve a la lista, sin cerrar el cajón", String(envoltura.escapes - ventana.escapes0));
+        }]],
+        // =====================================================================
+        // Fase 4: Servidor
+        // =====================================================================
+        [[50, () => ventana.seccion("servidor")]],
+        [[700, () => {
+            ventana.comprobar(ventana.uno("seccionServidor") !== null && apiFalsa.verConsumo === true, "la tira lleva a Servidor, y con él a la vista se lee el consumo");
+            ventana.comprobar(ventana.tiene("12 %") && ventana.tiene("carga 0,52") && ventana.tiene("6,0 GiB") && ventana.tiene("38 % de 16 GiB") && ventana.tiene("80 % de 500 GiB") && ventana.tiene("sin montar"), "el consumo: CPU, RAM y discos (uno sin montar)");
+            ventana.comprobar(ventana.igual(ventana.nombresCon("stack-"), ["homelab", "sync", "immich", ""]), "los stacks, con los contenedores sueltos al final", JSON.stringify(ventana.nombresCon("stack-")));
+            ventana.comprobar(ventana.estadoDe("caddy") === "arriba hace 3 h · sano  ·  CPU 3,0 % · RAM 120 MiB", "un contenedor en marcha: desde cuándo, su salud y lo que gasta", ventana.estadoDe("caddy"));
+            ventana.comprobar(ventana.estadoDe("vaultwarden") === "parado hace 2 días · código 1" && ventana.estadoDe("immich_server") === "con fallos · arriba hace 3 h", "  uno parado con su código, y uno con fallos", ventana.estadoDe("vaultwarden") + " | " + ventana.estadoDe("immich_server"));
+            ventana.comprobar(ventana.uno("accion-caddy-stop") !== null && ventana.uno("accion-caddy-restart") !== null && ventana.uno("accion-vaultwarden-start") !== null && ventana.uno("accion-vaultwarden-stop") === null && ventana.uno("logs-pdftotext-prueba") !== null && ventana.nombresCon("accion-pdftotext").length === 0, "cada contenedor, los botones de su estado (los de la web), solo si el NUC los permite");
+            ventana.comprobar(ventana.uno("accionStack-immich-stop") !== null && ventana.uno("accionStack-immich-up") === null && ventana.uno("menuStack-immich") === null && ventana.uno("accionStack-homelab-up") !== null && ventana.nombresCon("accionStack--").length === 0, "cada stack: levantar o parar todo según lo que esté en marcha; nada en los que no son del panel");
+            ventana.captura("21-servidor");
+        }]],
+        [[300, () => ventana.clic(ventana.uno("accion-syncthing-restart"))]],
+        [[150, () => {
+            ventana.comprobar(ventana.igual(ventana.ultimaAccion(), { tipo: "contenedor", nombre: "syncthing", accion: "restart", confirmacion: "" }), "Reiniciar (sin palabra) sale al momento, sin confirmación", JSON.stringify(ventana.ultimaAccion()));
+            ventana.comprobar(ventana.uno("confirmarServidor") === null, "  (no sale la confirmación)");
+            ventana.comprobar(ventana.estadoDe("syncthing") === "restart…" && ventana.uno("accion-syncthing-stop") === null, "  y mientras dura, el contenedor dice en qué paso va y no lleva botones", ventana.estadoDe("syncthing"));
+        }]],
+        [[700, () => {
+            ventana.comprobar(ventana.textoAviso() === "Reiniciar · syncthing: hecho", "al acabar (evento «result») sale cómo acabó", ventana.textoAviso());
+            ventana.comprobar(ventana.estadoDe("syncthing").indexOf("arriba") === 0, "  y el contenedor vuelve a su estado", ventana.estadoDe("syncthing"));
+            ventana.acciones0 = apiFalsa.acciones.length;
+            ventana.clic(ventana.uno("accion-caddy-stop"));
+        }]],
+        [[400, () => {
+            const c = ventana.uno("confirmarServidor");
+            ventana.comprobar(c !== null && ventana.uno("tituloConfirmar").text === "Parar · caddy", "Parar caddy (el que abre el panel) pide confirmación");
+            ventana.comprobar(ventana.uno("textoConfirmar") !== null && ventana.uno("textoConfirmar").text.indexOf("Caddy es la puerta del panel") === 0, "  y explica por qué");
+            ventana.comprobar(apiFalsa.acciones.length === ventana.acciones0 && !ventana.uno("aceptarConfirmar").encendido, "  no sale nada, y el botón está apagado hasta escribir el nombre");
+            ventana.comprobar(ventana.uno("campoConfirmar").enfocado, "  con el campo ya enfocado");
+            ventana.uno("campoConfirmar").texto = "Caddy";
+        }]],
+        [[200, () => {
+            ventana.comprobar(!ventana.uno("aceptarConfirmar").encendido, "con otra cosa escrita («Caddy»), sigue apagado");
+            ventana.uno("campoConfirmar").texto = "caddy";
+        }]],
+        [[200, () => {
+            ventana.comprobar(ventana.uno("aceptarConfirmar").encendido, "con «caddy», se enciende");
+            ventana.captura("22-servidor-confirmar");
+        }]],
+        [[300, () => ventana.clic(ventana.uno("aceptarConfirmar"))]],
+        [[300, () => {
+            ventana.comprobar(ventana.igual(ventana.ultimaAccion(), { tipo: "contenedor", nombre: "caddy", accion: "stop", confirmacion: "caddy" }), "y la acción sale con la palabra escrita", JSON.stringify(ventana.ultimaAccion()));
+            ventana.comprobar(ventana.uno("confirmarServidor") === null, "  y la confirmación se cierra");
+        }]],
+        [[800, () => {
+            ventana.acciones0 = apiFalsa.acciones.length;
+            ventana.clic(ventana.uno("accion-caddy-stop"));
+        }]],
+        [[300, () => ventana.tecla(Qt.Key_Escape)]],
+        [[300, () => {
+            ventana.comprobar(ventana.uno("confirmarServidor") === null && apiFalsa.acciones.length === ventana.acciones0 && envoltura.escapes === ventana.escapes0 && falso.abierto, "Escape cancela la confirmación sin hacer nada y sin cerrar el cajón", String(envoltura.escapes - ventana.escapes0));
+            ventana.clic(ventana.uno("menuStack-sync"));
+        }]],
+        [[500, () => {
+            ventana.comprobar(ventana.uno("accionStack-sync-update") !== null && ventana.uno("accionStack-sync-down") !== null, "«⋯» de un stack enseña actualizar y bajar");
+            ventana.clic(ventana.uno("accionStack-sync-update"));
+        }]],
+        [[400, () => {
+            ventana.comprobar(ventana.uno("tituloConfirmar") !== null && ventana.uno("tituloConfirmar").text === "Actualizar · sync" && ventana.uno("textoConfirmar").text.indexOf("Descarga las imágenes") === 0, "Actualizar un stack pide su nombre y dice qué hace");
+            ventana.clic(ventana.uno("cancelarConfirmar"));
+        }]],
+        [[400, () => {
+            ventana.comprobar(ventana.uno("confirmarServidor") === null && apiFalsa.acciones.length === ventana.acciones0, "«Cancelar» no hace nada");
+            ventana.clic(ventana.uno("menuStack-sync"));
+        }]],
+        [[500, () => ventana.clic(ventana.uno("accionStack-sync-down"))]],
+        [[400, () => {
+            ventana.comprobar(ventana.uno("textoConfirmar") !== null && ventana.uno("textoConfirmar").text.indexOf("Quita los contenedores") === 0, "Bajar un stack explica que los volúmenes y los datos se quedan");
+            ventana.uno("campoConfirmar").texto = "sync";
+            ventana.tecla(Qt.Key_Return);
+        }]],
+        [[200, () => {
+            ventana.comprobar(ventana.igual(ventana.ultimaAccion(), { tipo: "stack", nombre: "sync", accion: "down", confirmacion: "sync" }), "Intro con el nombre bien escrito lo baja", JSON.stringify(ventana.ultimaAccion()));
+            ventana.comprobar(ventana.estadoDe("syncthing") === "down…" && ventana.estadoDe("syncthing-relay") === "down…", "  y mientras, todos sus contenedores dicen en qué paso va", ventana.estadoDe("syncthing") + " | " + ventana.estadoDe("syncthing-relay"));
+        }]],
+        [[800, () => ventana.clic(ventana.uno("accion-immich_server-restart"))]],
+        [[400, () => {
+            ventana.comprobar(ventana.uno("tituloConfirmar") !== null && ventana.uno("tituloConfirmar").text === "Reiniciar · immich_server" && ventana.uno("textoConfirmar").text.indexOf("immich está protegido") === 0 && ventana.uno("campoConfirmar").pista === "immich", "lo de Immich (protegido) pide escribir «immich»");
+            ventana.clic(ventana.uno("cancelarConfirmar"));
+        }]],
+        [[400, () => ventana.clic(ventana.uno("logs-caddy"))]],
+        [[500, () => {
+            ventana.comprobar(ventana.uno("logsServidor") !== null && ventana.uno("tituloLogs").text === "Logs · caddy", "«Logs» abre los del contenedor");
+            ventana.comprobar(ventana.tiene("08:00:01  línea de prueba del contenedor"), "  con sus líneas y su hora");
+            apiFalsa.lineaLog("una línea nueva");
+        }]],
+        [[300, () => {
+            ventana.comprobar(ventana.tiene("08:00:09  una línea nueva") && ventana.uno("listaLogs").count === 4, "las líneas nuevas se añaden al final, en vivo", String(ventana.uno("listaLogs").count));
+            ventana.captura("23-servidor-logs");
+        }]],
+        [[300, () => ventana.tecla(Qt.Key_Escape)]],
+        [[400, () => {
+            ventana.comprobar(apiFalsa.logs === null && ventana.uno("logsServidor") === null && envoltura.escapes === ventana.escapes0 && falso.abierto, "Escape cierra los logs (y deja de leerlos), no el cajón");
+            ventana.clic(ventana.uno("logs-syncthing"));
+        }]],
+        [[400, () => {
+            ventana.comprobar(apiFalsa.logs !== null && apiFalsa.logs.contenedor === "syncthing", "(los logs de otro, abiertos)");
+            ventana.seccion("inicio");
+        }]],
+        [[400, () => {
+            ventana.comprobar(apiFalsa.verConsumo === false && apiFalsa.logs === null, "fuera de Servidor no se lee el consumo, y los logs se cierran");
+            ventana.seccion("servidor");
+        }]],
+        [[400, () => {
+            ventana.comprobar(apiFalsa.verConsumo === true, "al volver a Servidor, otra vez");
+            falso.abierto = false;
+        }]],
+        [[800, () => {
+            ventana.comprobar(apiFalsa.verConsumo === false, "con el cajón cerrado, tampoco");
+            falso.abierto = true;
+        }]],
+        [[800, () => {
+            ventana.comprobar(apiFalsa.verConsumo === true, "  y al abrirlo con Servidor a la vista, sí");
+            apiFalsa.permisos = { acciones_docker: false, login_traderepublic: false };
+        }]],
+        [[300, () => {
+            ventana.comprobar(ventana.tiene("Solo para ver: con el usuario portatil no hay acciones de Docker."), "sin acciones de Docker (el usuario movil): lo dice");
+            const b = ventana.nombresCon("accion").concat(ventana.nombresCon("menuStack"));
+            ventana.comprobar(b.length === 0 && ventana.uno("logs-caddy") !== null, "  y no hay ningún botón de acción, pero sí los logs", JSON.stringify(b));
+            ventana.captura("24-servidor-solo-ver");
+        }]],
+        [[300, () => apiFalsa.permisos = { acciones_docker: true, login_traderepublic: true }]],
+        // =====================================================================
+        // Fase 4: Registro
+        // =====================================================================
+        [[50, () => ventana.seccion("registro")]],
+        [[600, () => {
+            ventana.comprobar(ventana.uno("seccionRegistro") !== null && ventana.igual(apiFalsa.lecturasRegistro, [""]), "la tira lleva al Registro, que se lee (sin filtro) la primera vez que se mira", JSON.stringify(apiFalsa.lecturasRegistro));
+            ventana.comprobar(ventana.tiene("Contenedor caído · vaultwarden") && ventana.tiene("Paquetes actualizados") && ventana.tiene("Disco casi lleno · /"), "las líneas, con su título");
+            ventana.comprobar(ventana.tiene("Reiniciar contenedor · syncthing") && ventana.tiene("Parar contenedor · caddy") && ventana.tiene("Bajar stack · sync"), "  también las de las acciones de antes");
+            ventana.comprobar(ventana.porNombre("diaRegistro").length >= 1 && ventana.tiene("Hoy") && ventana.tiene("contenedor") && ventana.tiene("paquetes"), "  partidas por días y con su fuente");
+            ventana.comprobar(!ventana.tiene("Viejo · parar contenedor · relay") && ventana.uno("masRegistro") !== null, "lo más viejo no viene en la primera página, y sale «Cargar más»");
+            ventana.comprobar(ventana.tiene("Sin permiso para leer el journal del sistema"), "  y las notas de lo que el NUC no puede ver");
+            ventana.captura("25-registro");
+            ventana.clic(ventana.uno("entrada-9"));
+        }]],
+        [[400, () => {
+            const d = ventana.uno("detalleRegistro");
+            ventana.comprobar(ventana.igual(apiFalsa.detallesPedidos, [9]) && d !== null && d.text === "Por: portatil\nDuración: 1.2s\n<b>no es html</b>" && d.textFormat === Text.PlainText, "un clic en una línea pide su detalle y lo enseña tal cual (texto, no HTML)", d ? JSON.stringify(d.text) : "");
+            ventana.captura("26-registro-detalle");
+        }]],
+        [[300, () => ventana.clic(ventana.uno("entrada-9"))]],
+        [[400, () => {
+            ventana.comprobar(ventana.uno("detalleRegistro") === null, "otro clic lo pliega");
+            ventana.clic(ventana.uno("entrada-9"));
+        }]],
+        [[300, () => {
+            ventana.comprobar(apiFalsa.detallesPedidos.length === 1 && ventana.uno("detalleRegistro") !== null, "el detalle se pide una sola vez");
+            ventana.detallesAntes = apiFalsa.detallesPedidos.length;
+            ventana.clic(ventana.uno("entrada-6"));
+        }]],
+        [[300, () => {
+            ventana.comprobar(apiFalsa.detallesPedidos.length === ventana.detallesAntes, "una línea sin detalle no se despliega");
+            ventana.clic(ventana.uno("masRegistro"));
+        }]],
+        [[400, () => {
+            ventana.comprobar(apiFalsa.masPedidas === 1 && ventana.tiene("Viejo · parar contenedor · relay") && ventana.uno("masRegistro") === null, "«Cargar más» trae lo de antes");
+            ventana.clic(ventana.uno("filtroRegistro-level:warn"));
+        }]],
+        [[400, () => {
+            ventana.comprobar(apiFalsa.lecturasRegistro[apiFalsa.lecturasRegistro.length - 1] === "level:warn" && ventana.uno("filtroRegistro-level:warn").activo, "el filtro «Avisos y errores» vuelve a leer con level:warn");
+            ventana.comprobar(ventana.tiene("Contenedor caído · vaultwarden") && ventana.tiene("Disco casi lleno · /") && !ventana.tiene("Paquetes actualizados"), "  y solo quedan los avisos y los errores");
+            apiFalsa.nuevaEntrada({ fuente: "apt", nivel: "info", titulo: "Línea nueva de info", conDetalle: false });
+            apiFalsa.nuevaEntrada({ fuente: "container", nivel: "error", titulo: "Línea nueva de error", conDetalle: false });
+        }]],
+        [[300, () => {
+            ventana.comprobar(ventana.tiene("Línea nueva de error") && !ventana.tiene("Línea nueva de info"), "una línea nueva llega sola si pasa el filtro");
+            ventana.clic(ventana.uno("filtroRegistro-todo"));
+        }]],
+        [[400, () => {
+            ventana.comprobar(ventana.tiene("Línea nueva de info") && ventana.tiene("Paquetes actualizados") && ventana.uno("filtroRegistro-todo").activo, "«Todo» lo enseña todo otra vez");
+            ventana.comprobar(ventana.textos().indexOf("€") < 0, "(sin euros en Proyectos, Servidor ni Registro)");
+            // «Detalles» de una alerta: con otro filtro puesto, para ver que lo
+            // quita, y con más líneas de las que caben, para ver que la lleva a
+            // la vista.
+            ventana.clic(ventana.uno("filtroRegistro-panel"));
+            for (let k = 0; k < 30; k++)
+                apiFalsa.nuevaEntrada({ fuente: "system", nivel: "info", titulo: "Relleno " + k, conDetalle: false });
+        }]],
+        [[400, () => ventana.seccion("inicio")]],
+        [[400, () => {
+            const b = ventana.porNombre("botonDetalles");
+            ventana.comprobar(b.length === 2, "«Detalles» en las alertas que tienen su línea en el Registro", String(b.length));
+            ventana.masAntes = apiFalsa.masPedidas;
+            ventana.lecturasAntes = apiFalsa.lecturasRegistro.length;
+            ventana.clic(b[0]);
+        }]],
+        [[900, () => {
+            const e = ventana.uno("entrada-1");
+            ventana.comprobar(ventana.uno("seccionRegistro") !== null && apiFalsa.lecturasRegistro.length === ventana.lecturasAntes + 1 && apiFalsa.registro.filtro === "" && ventana.uno("filtroRegistro-todo").activo, "«Detalles» lleva al Registro, sin filtro", JSON.stringify(apiFalsa.lecturasRegistro.slice(ventana.lecturasAntes)));
+            ventana.comprobar(apiFalsa.masPedidas === ventana.masAntes + 1 && e !== null && e.resaltada, "  trae páginas más viejas hasta dar con la línea de la alerta, y la resalta", String(apiFalsa.masPedidas - ventana.masAntes));
+            ventana.comprobar(apiFalsa.detallesPedidos[apiFalsa.detallesPedidos.length - 1] === 1 && ventana.hijo(e, "detalleRegistro") !== null, "  con su detalle desplegado");
+            const f = ventana.uno("desplazableRegistro");
+            const y = e ? e.mapToItem(f.contentItem, 0, 0).y : -1;
+            ventana.comprobar(e !== null && f.contentY > 0 && y >= f.contentY && y + 20 <= f.contentY + f.height, "  y la lleva a la vista", "y " + y + ", contentY " + f.contentY + ", alto " + f.height);
+            ventana.captura("27-registro-desde-alerta");
+        }]],
+        // Una alerta cuya línea ya no está.
+        [[300, () => {
+            apiFalsa.alertas = apiFalsa.alertas.map(a => a.id === "a2" ? Object.assign({}, a, { entrada: 999 }) : a);
+            ventana.seccion("inicio");
+        }]],
+        [[400, () => ventana.clic(ventana.porNombre("botonDetalles")[1])]],
+        [[600, () => {
+            ventana.comprobar(ventana.textoAviso() === "Esa línea ya no está en el Registro" && ventana.porNombre("detalleRegistro").length === 0, "si la línea ya no está, lo dice", ventana.textoAviso());
+            apiFalsa.alertas = apiFalsa.alertas.map(a => a.id === "a2" ? Object.assign({}, a, { entrada: 7 }) : a);
         }]],
         [[50, () => ventana.comprobar(ventana.textos().indexOf("€") < 0, "no aparece ningún € en todo el texto del cajón")]],
         [[300, () => {
