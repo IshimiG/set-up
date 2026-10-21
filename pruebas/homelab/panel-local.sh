@@ -7,7 +7,9 @@
 # arranca en otro contenedor con:
 #
 #   - un vault falso: un «00 Inicio.md» con tareas vencidas, de hoy, futuras,
-#     hechas y en pausa, y una nota de proyecto con otra tarea vencida;
+#     hechas y en pausa (una con detalles y subtareas, otra fijada), una nota
+#     de proyecto con otra tarea vencida y la plantilla de la semana, para los
+#     hábitos (la nota de esta semana no existe: se crea al anotar el primero);
 #   - un Docker falso (api/falsos/docker-falso.go) dentro del contenedor: el
 #     socket de verdad nunca se le da, porque sus acciones son root;
 #   - una alerta de disco desde el principio (diskAlertPercent 1 con «/»), y
@@ -87,7 +89,12 @@ compilar() {
 # El vault falso, con fechas relativas a hoy.
 vault() {
 	d() { date -d "$1 days" +%F; }
-	mkdir -p "$dir/vault/10 Proyectos"
+	mkdir -p "$dir/vault/10 Proyectos" "$dir/vault/99 Sistema/Plantillas" "$dir/vault/30 Áreas/Revisiones/Semanas"
+	# La plantilla de la semana del vault, como es (habitos_test.go).
+	printf '%s\n' '---' 'tipo: semana' 'gym: 0' 'lectura: 0' 'programar: 0' 'energia: 5' '---' \
+		'# 📅 Semana {{date:W}} · {{date:D MMM}} – {{date+6d:D MMM YYYY}}' '' \
+		'## 💪 Hábitos' '| Hábito | Días (de 7) |' '|---|---|' '| 🏋️ Gym | `INPUT[number:gym]` |' \
+		>"$dir/vault/99 Sistema/Plantillas/Semana.md"
 	cat >"$dir/vault/00 Inicio.md" <<-EOF
 		---
 		tipo: inicio
@@ -100,12 +107,15 @@ vault() {
 
 		- [ ] **Casa** · Cambiar el filtro del agua 📅 $(d 0)
 		- [ ] Mirar los discos 🔼 📅 $(d 5)
+		  - Comprobar el estado SMART
+		  - [ ] Hacer la copia antes
+		  - [x] Mirar el aviso
 		- [x] Una tarea ya hecha 📅 $(d -2) ✅ $(d -1)
 
 		### 🎓 Clase
 
 		- [ ] Entrega de [[prueba]] 🔺 📅 $(d -1)
-		- [ ] Una sin fecha 🔽
+		- [ ] Una sin fecha 🔽 📌
 
 		### General
 
