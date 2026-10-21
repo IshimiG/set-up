@@ -1,8 +1,10 @@
+pragma ComponentBehavior: Bound
+
 import QtQuick
 import QtQuick.Controls.Basic
 import QtQuick.Layouts
-import Quickshell
 import "shared"
+import "shared/AgendaFormato.js" as Formato
 
 // El calendario, que es lo que el reloj enseña al crecer.
 //
@@ -14,6 +16,11 @@ import "shared"
 // Aquí la rejilla la da MonthGrid de QtQuick.Controls.Basic, que aporta el
 // modelo de días —qué día cae en qué casilla, qué días son del mes de al lado—
 // y deja el aspecto entero por pintar, que es justo lo que hacía falta.
+//
+// Con la agenda del panel del homelab (shell.agenda: las tareas con fecha de
+// 00 Inicio y las entregas de Aules, lo mismo que va a Google Calendar), cada
+// día con algo lleva puntos de colores, y debajo de la rejilla está la lista
+// de hoy o del día que se pulse. Sin agenda, la rejilla sola.
 Item {
     id: root
 
@@ -37,14 +44,35 @@ Item {
 
     readonly property bool onToday: root.monthOffset === 0
 
+    // --- La agenda ----------------------------------------------------------
+    // La lee bar/Agenda.qml de un fichero que deja el cajón del homelab; el
+    // formato está en shared/AgendaFormato.js. null sin ella.
+    readonly property var agenda: root.shell.agenda ?? null
+
+    readonly property string hoy: Formato.claveDe(root.shell.now)
+
+    // El día pulsado ("2026-10-23"), o "" para hoy.
+    property string elegido: ""
+
+    readonly property string diaVisto: root.elegido !== "" ? root.elegido : root.hoy
+
+    // Lo de ese día, ordenado; el de hoy lleva delante lo vencido que sigue
+    // sin hacer.
+    readonly property var lista: Formato.delDia(root.agenda, root.diaVisto, root.hoy)
+
+    // Las filas que caben; el resto se cuenta.
+    readonly property int maxFilas: 6
+
     // Al cerrar la isla se vuelve al mes de hoy: si no, abrir el calendario
     // después de haber estado mirando marzo lo abre otra vez en marzo, que nunca
-    // es lo que se quiere.
+    // es lo que se quiere. Lo mismo con el día pulsado.
     Connections {
         target: root.shell
         function onModeChanged() {
-            if (root.shell.mode !== "calendar")
+            if (root.shell.mode !== "calendar") {
                 root.monthOffset = 0;
+                root.elegido = "";
+            }
         }
     }
 
@@ -68,8 +96,65 @@ Item {
         return 1 + Math.round((jueves - primero) / (7 * 24 * 3600 * 1000));
     }
 
+    // Pulsar un día enseña lo suyo; pulsar otra vez el mismo, o hoy, vuelve a
+    // hoy.
+    function elegir(dia) {
+        root.elegido = dia === root.hoy || dia === root.elegido ? "" : dia;
+    }
+
+    function volverAHoy() {
+        root.monthOffset = 0;
+        root.elegido = "";
+    }
+
+    // El día a `n` días de hoy, como clave.
+    function desdeHoy(n) {
+        const d = new Date(root.shell.now);
+        d.setDate(d.getDate() + n);
+        return Formato.claveDe(d);
+    }
+
+    // «Hoy», «Mañana», «Ayer» o «Jueves 22 de octubre» (con el año si no es
+    // este).
+    function tituloDia(dia) {
+        if (dia === root.hoy)
+            return "Hoy";
+        if (dia === root.desdeHoy(1))
+            return "Mañana";
+        if (dia === root.desdeHoy(-1))
+            return "Ayer";
+        const f = Formato.fechaDe(dia);
+        if (!f)
+            return "";
+        const t = f.toLocaleDateString(root.loc, f.getFullYear() === root.shell.now.getFullYear() ? "dddd d 'de' MMMM" : "dddd d 'de' MMMM 'de' yyyy");
+        return t.charAt(0).toUpperCase() + t.slice(1);
+    }
+
+    // El color de un punto o de una fila: lo vencido en el rojo de «máxima»,
+    // como en el cajón; lo hecho, apagado; el resto, el de su prioridad.
+    function colorTipo(tipo) {
+        if (tipo === "vencida")
+            return Theme.prioMaxima;
+        if (tipo === "hecha")
+            return Theme.faint;
+        return Theme.colorPrioridad(tipo);
+    }
+
+    // Lo que va a la derecha de una fila: cuándo venció si es de otro día, la
+    // hora si la tiene, y si no, su área o su sección («Clase» en las entregas
+    // de Aules).
+    function etiqueta(e) {
+        if (e.deAntes)
+            return "venció " + Formato.diaCorto(e.dia);
+        if (Formato.tipo(e, root.hoy) === "vencida")
+            return "vencida";
+        if (!e.todoElDia && e.hora !== "")
+            return e.hora;
+        return e.area !== "" ? e.area : e.seccion;
+    }
+
     // La rueda mueve el mes. Va en un WheelHandler y no en un MouseArea para no
-    // interceptar los clics, que aquí no significan nada.
+    // quitarles los clics a los días, que con la agenda eligen qué día se ve.
     WheelHandler {
         acceptedDevices: PointerDevice.Mouse | PointerDevice.TouchPad
         onWheel: event => {
@@ -106,10 +191,11 @@ Item {
                 Layout.fillWidth: true
             }
 
-            // Volver a hoy. Sólo aparece cuando se ha movido de mes, porque
-            // pulsarlo estando en el mes actual no haría nada.
+            // Volver a hoy. Sólo aparece cuando se ha movido de mes o se ha
+            // pulsado otro día, porque si no, pulsarlo no haría nada.
             Text {
-                visible: !root.onToday
+                objectName: "botonHoy"
+                visible: !root.onToday || root.elegido !== ""
                 text: "󰄉  hoy"
                 color: todayHover.hovered ? Theme.strong : Theme.faint
                 font.family: Theme.font
@@ -121,7 +207,7 @@ Item {
                 }
 
                 TapHandler {
-                    onTapped: root.monthOffset = 0
+                    onTapped: root.volverAHoy()
                 }
             }
         }
@@ -173,6 +259,7 @@ Item {
 
                 required property var model
 
+                objectName: "dia-" + cell.clave
                 implicitWidth: 34
                 implicitHeight: 28
 
@@ -180,6 +267,24 @@ Item {
                 // Los días que MonthGrid pone para cuadrar la rejilla pero
                 // pertenecen al mes de al lado.
                 readonly property bool esDeFuera: cell.model.month !== grid.month
+                readonly property string clave: Formato.claveDe(cell.model.date)
+                // Lo que tiene el día en la agenda: un punto por cosa, tres
+                // como mucho, en el orden de la lista.
+                readonly property var puntos: Formato.puntos(root.agenda, cell.clave, root.hoy, 3)
+                readonly property bool esElegido: root.elegido !== "" && cell.clave === root.elegido
+
+                // El día pulsado, y el que está bajo el ratón, llevan una
+                // lámina más tenue que la de hoy.
+                Rectangle {
+                    anchors.centerIn: parent
+                    width: 26
+                    height: 24
+                    radius: 8
+                    visible: !cell.esHoy && (cell.esElegido || hover.hovered)
+                    color: Qt.rgba(Theme.accent.r, Theme.accent.g, Theme.accent.b, cell.esElegido ? 0.10 : 0.05)
+                    border.width: cell.esElegido ? 1 : 0
+                    border.color: Qt.rgba(1, 1, 1, 0.18)
+                }
 
                 // Hoy va marcado con una lámina de cristal, la misma que resalta
                 // la fila del menú de sesión, en vez de con un color de marca.
@@ -196,11 +301,165 @@ Item {
 
                 Text {
                     anchors.centerIn: parent
+                    // Con agenda, sube un poco para dejar sitio a los puntos;
+                    // en todos los días, para que la fila no baile.
+                    anchors.verticalCenterOffset: root.agenda !== null ? -2 : 0
                     text: cell.model.day
                     font.family: Theme.font
                     font.pixelSize: 11
                     font.bold: cell.esHoy
                     color: cell.esHoy ? Theme.strong : (cell.esDeFuera ? Qt.rgba(1, 1, 1, 0.18) : Theme.text)
+                }
+
+                Row {
+                    anchors.horizontalCenter: parent.horizontalCenter
+                    anchors.bottom: parent.bottom
+                    anchors.bottomMargin: 3
+                    spacing: 2
+                    opacity: cell.esDeFuera ? 0.45 : 1
+
+                    Repeater {
+                        model: cell.puntos
+
+                        Rectangle {
+                            required property string modelData
+
+                            objectName: "punto"
+                            width: 4
+                            height: 4
+                            radius: 2
+                            color: root.colorTipo(modelData)
+                        }
+                    }
+                }
+
+                // Sin agenda los días no hacen nada al pulsarlos.
+                HoverHandler {
+                    id: hover
+                    enabled: root.agenda !== null
+                    cursorShape: Qt.PointingHandCursor
+                }
+
+                TapHandler {
+                    enabled: root.agenda !== null
+                    onTapped: root.elegir(cell.clave)
+                }
+            }
+        }
+
+        // --- Lo del día -----------------------------------------------------
+        ColumnLayout {
+            objectName: "agendaDia"
+            Layout.fillWidth: true
+            visible: root.agenda !== null
+            spacing: 6
+
+            Rectangle {
+                Layout.fillWidth: true
+                implicitHeight: 1
+                color: Theme.rule
+            }
+
+            RowLayout {
+                Layout.fillWidth: true
+                spacing: 10
+
+                Text {
+                    objectName: "tituloDia"
+                    text: root.tituloDia(root.diaVisto)
+                    color: Theme.strong
+                    font.family: Theme.font
+                    font.pixelSize: 12
+                    font.bold: true
+                }
+
+                Item {
+                    Layout.fillWidth: true
+                }
+
+                // El cajón la dejó sin conexión con el panel: puede no estar al
+                // día.
+                Text {
+                    objectName: "sinConexion"
+                    visible: root.agenda !== null && !root.agenda.conectado
+                    text: "sin conexión con el panel"
+                    color: Theme.faint
+                    font.family: Theme.font
+                    font.pixelSize: 10
+                }
+            }
+
+            // Las filas, con sitio para tres aunque haya menos: así pulsar un
+            // día u otro casi nunca cambia el alto de la isla.
+            ColumnLayout {
+                Layout.fillWidth: true
+                Layout.minimumHeight: 3 * 16 + 2 * 4
+                spacing: 4
+
+                Repeater {
+                    model: root.lista.slice(0, root.maxFilas)
+
+                    RowLayout {
+                        id: fila
+
+                        required property var modelData
+
+                        readonly property string tipo: Formato.tipo(fila.modelData, root.hoy)
+
+                        objectName: "filaAgenda"
+                        Layout.fillWidth: true
+                        Layout.preferredHeight: 16
+                        spacing: 8
+
+                        Rectangle {
+                            Layout.alignment: Qt.AlignVCenter
+                            implicitWidth: 6
+                            implicitHeight: 6
+                            radius: 3
+                            color: root.colorTipo(fila.tipo)
+                        }
+
+                        Text {
+                            objectName: "tituloFila"
+                            Layout.fillWidth: true
+                            text: fila.modelData.titulo
+                            elide: Text.ElideRight
+                            textFormat: Text.PlainText
+                            color: fila.modelData.hecha ? Theme.faint : Theme.text
+                            font.family: Theme.font
+                            font.pixelSize: 11
+                            font.strikeout: fila.modelData.hecha
+                        }
+
+                        Text {
+                            objectName: "etiquetaFila"
+                            Layout.maximumWidth: 110
+                            text: root.etiqueta(fila.modelData)
+                            elide: Text.ElideRight
+                            textFormat: Text.PlainText
+                            color: fila.tipo === "vencida" ? Theme.prioMaxima : Theme.faint
+                            font.family: Theme.font
+                            font.pixelSize: 10
+                        }
+                    }
+                }
+
+                Text {
+                    objectName: "masFilas"
+                    visible: root.lista.length > root.maxFilas
+                    text: "y " + (root.lista.length - root.maxFilas) + " más"
+                    color: Theme.faint
+                    font.family: Theme.font
+                    font.pixelSize: 10
+                }
+
+                Text {
+                    objectName: "diaVacio"
+                    visible: root.lista.length === 0
+                    text: root.diaVisto === root.hoy ? "Nada para hoy" : "Nada para este día"
+                    color: Theme.faint
+                    font.family: Theme.font
+                    font.pixelSize: 11
                 }
             }
         }
