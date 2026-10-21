@@ -162,9 +162,13 @@ ShellRoot {
         return "Semana " + Math.ceil(((t - Date.UTC(t.getUTCFullYear(), 0, 1)) / 86400000 + 1) / 7);
     }
 
-    // El vault falso de panel-local.sh: 6 vencidas o de hoy, se enseñan 5.
+    // El vault falso de panel-local.sh: 6 vencidas o de hoy, se enseñan 5. Las
+    // de 00 Inicio llevan su id de /api/tareas (que cambia con cada
+    // escritura: aquí basta con saber que lo llevan); la de otra nota, "".
     readonly property var tareasEsperadas: [
         {
+            id: "id",
+            hecha: false,
             texto: "Otra vencida",
             seccion: "General",
             color: "",
@@ -173,6 +177,8 @@ ShellRoot {
             vencida: true
         },
         {
+            id: "",
+            hecha: false,
             texto: "Tarea en otra nota",
             seccion: "Proyecto de prueba",
             color: "",
@@ -181,6 +187,8 @@ ShellRoot {
             vencida: true
         },
         {
+            id: "id",
+            hecha: false,
             texto: "Entrega de prueba",
             seccion: "Clase",
             color: "#b48cff",
@@ -189,6 +197,8 @@ ShellRoot {
             vencida: true
         },
         {
+            id: "id",
+            hecha: false,
             texto: "Cambiar el filtro del agua",
             seccion: "Homelab · Casa",
             color: "#6aa8ff",
@@ -197,6 +207,8 @@ ShellRoot {
             vencida: false
         },
         {
+            id: "id",
+            hecha: false,
             texto: "Pausada que venció",
             seccion: "En pausa",
             color: "",
@@ -205,6 +217,12 @@ ShellRoot {
             vencida: true
         }
     ]
+
+    function conIdONo(l) {
+        return (l || []).map(t => Object.assign({}, t, {
+                    id: t.id === "" ? "" : "id"
+                }));
+    }
 
     // --- La prueba, paso a paso ---------------------------------------------
 
@@ -258,7 +276,7 @@ ShellRoot {
         prueba.comprobar(i.hoy === prueba.hoyEsperado(), "inicio.hoy", i.hoy);
         prueba.comprobar(i.semana === prueba.semanaEsperada(), "inicio.semana", i.semana);
         prueba.comprobar(i.metaPorcentaje === null, "inicio.metaPorcentaje null sin la base de datos de finanzas", i.metaPorcentaje);
-        prueba.comprobar(prueba.igual(i.tareas, prueba.tareasEsperadas), "inicio.tareas: vencidas y de hoy, 5, por urgencia, la de pausa al final", JSON.stringify(i.tareas));
+        prueba.comprobar(prueba.igual(prueba.conIdONo(i.tareas), prueba.tareasEsperadas), "inicio.tareas: vencidas y de hoy, 5, por urgencia, la de pausa al final; las de la nota con id", JSON.stringify(i.tareas));
         prueba.comprobar(a.inicioCargado instanceof Date && Date.now() - a.inicioCargado < 30000, "inicioCargado", String(a.inicioCargado));
         prueba.comprobar(a.urlWeb("#/servidor") === a.baseUrl + "/#/servidor", "urlWeb(\"#/servidor\")", a.urlWeb("#/servidor"));
         prueba.comprobar(a.error === "", "error vacío", a.error);
@@ -512,6 +530,44 @@ ShellRoot {
                     prueba.comprobar(e && e.plano === "Entrega de prueba" && e.prioridad === "maxima" && t.areas.indexOf("Casa") >= 0, "  el texto con enlaces (texto) y sin marcas (plano), y las áreas", e ? e.texto + " / " + e.plano : "no está");
                     sig();
                 }),
+            // --- Inicio: marcar y desmarcar con el id de su tarjeta ---
+            sig => {
+                const l = a.inicio ? a.inicio.tareas : [];
+                const pos = l.findIndex(t => t.texto === "Cambiar el filtro del agua");
+                const f = l[pos];
+                const enTareas = prueba.tarea("Cambiar el filtro del agua");
+                prueba.comprobar(!!f && !!enTareas && f.id === enTareas.id && f.hecha === false, "inicio.tareas lleva el id de /api/tareas, el que pide marcarTarea", f ? f.id + " / " + (enTareas ? enTareas.id : "") : "no está");
+                const otra = l.find(t => t.texto === "Tarea en otra nota");
+                prueba.comprobar(!!otra && otra.id === "", "  y la de otra nota, sin id (no se marca desde el cajón)", otra ? JSON.stringify(otra) : "no está");
+                const antes = l.map(t => t.texto);
+                let alAcabar = null;
+                // Lo que hay en Inicio en cuanto acaba la escritura, sin esperar
+                // a nada más.
+                prueba.escribe(fin => a.marcarTarea(f ? f.id : "", true, ok => {
+                        alAcabar = a.inicio.tareas.slice();
+                        fin(ok);
+                    }), ok => {
+                    const g = alAcabar ? alAcabar[pos] : null;
+                    const nueva = prueba.tarea("Cambiar el filtro del agua");
+                    prueba.comprobar(ok === true && !!g && g.texto === "Cambiar el filtro del agua" && g.hecha === true && g.cuando === "hecha hoy" && g.vencida === false && !!nueva && g.id === nueva.id, "marcarTarea con el id de Inicio: al acabar, la tarjeta ya está hecha, en su sitio y con el id nuevo", g ? JSON.stringify(g) : JSON.stringify(alAcabar));
+                    const textos = (alAcabar || []).map(t => t.texto);
+                    prueba.comprobar(prueba.igual(textos.slice(0, antes.length), antes) && textos.length === antes.length + 1, "  las demás siguen igual, y entra la siguiente abierta para que sigan siendo 5", JSON.stringify(textos));
+                    prueba.enNota("- [x] **Casa** · Cambiar el filtro del agua", e => {
+                        prueba.comprobar(e, "  y 00 Inicio.md la tiene con [x]");
+                        prueba.escribe(fin => a.marcarTarea(g ? g.id : "", false, ok2 => {
+                                alAcabar = a.inicio.tareas.slice();
+                                fin(ok2);
+                            }), ok2 => {
+                            const h = alAcabar[pos];
+                            prueba.comprobar(ok2 === true && !!h && h.texto === "Cambiar el filtro del agua" && h.hecha === false && h.cuando === "hoy" && prueba.igual(alAcabar.map(t => t.texto), antes), "desmarcarla desde Inicio (con el id nuevo): vuelve a estar abierta, y la lista como antes", JSON.stringify(alAcabar.map(t => t.texto + (t.hecha ? " (hecha)" : ""))));
+                            prueba.enNota("- [ ] **Casa** · Cambiar el filtro del agua", e2 => {
+                                prueba.comprobar(e2, "  y la nota ya no tiene la marca");
+                                sig();
+                            });
+                        });
+                    });
+                });
+            },
             // --- Escribir: hecha y deshecha ---
             sig => {
                 const f = prueba.tarea("Cambiar el filtro del agua");
@@ -532,6 +588,28 @@ ShellRoot {
                     prueba.enNota("- [ ] **Casa** · Cambiar el filtro del agua", e => {
                         prueba.comprobar(e, "  y la nota ya no tiene la marca");
                         sig();
+                    });
+                });
+            },
+            // --- Un 409 desde Inicio: la tarjeta tenía un id viejo ---
+            sig => {
+                const f = (a.inicio ? a.inicio.tareas : []).find(t => t.texto === "Cambiar el filtro del agua");
+                const id = f && typeof f.id === "string" ? f.id : "";
+                prueba.avisos = [];
+                prueba.sh("sed -i 's/Cambiar el filtro del agua/Cambiar el filtro del agua (cambiada)/' \"$PANEL_LOCAL_DIR/vault/00 Inicio.md\"", () => {
+                    let alAcabar = null;
+                    prueba.escribe(fin => a.marcarTarea(id, true, ok => {
+                            alAcabar = a.inicio.tareas.slice();
+                            fin(ok);
+                        }), ok => {
+                        const l = alAcabar || [];
+                        const g = l.find(t => t.texto === "Cambiar el filtro del agua (cambiada)");
+                        prueba.comprobar(id !== "" && ok === false && prueba.avisos.length === 1 && prueba.avisos[0].texto.indexOf("La nota cambió") === 0, "un id viejo en Inicio (la nota cambió fuera) da 409 y avisa", JSON.stringify(prueba.avisos));
+                        prueba.comprobar(!!g && !g.hecha && !l.some(t => t.texto === "Cambiar el filtro del agua"), "  e Inicio se pone al día con lo de fuera, sin marcar nada", JSON.stringify(l.map(t => t.texto)));
+                        prueba.enNota("- [ ] **Casa** · Cambiar el filtro del agua (cambiada)", e => {
+                            prueba.comprobar(e, "  y la nota se queda como estaba");
+                            sig();
+                        });
                     });
                 });
             },
