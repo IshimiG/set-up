@@ -318,6 +318,15 @@ ShellRoot {
         shell: root
     }
 
+    // La agenda del calendario: las tareas con fecha y las entregas de Aules
+    // del panel del homelab, que deja el cajón en un fichero (Agenda.qml).
+    // null sin ella.
+    readonly property var agenda: lectorAgenda.datos
+
+    Agenda {
+        id: lectorAgenda
+    }
+
     // --- Lo de cada equipo -------------------------------------------------
     // Lo que sólo tiene una máquina (la wifi y la batería del portátil; la GPU,
     // el ratón y el loopback de la torre) vive en equipo/Equipo.qml, que sólo

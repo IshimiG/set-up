@@ -47,7 +47,9 @@ choca.
   las abreviaturas de git, el saludo y `ms` (SSH al homelab).
 - `.config/nvim/`: Neovim con LazyVim, el tema Horizon con el fondo transparente
   y los lenguajes que se usan (TypeScript, SQL, Docker, Java, Angular…).
-- `.config/quickshell/`: `bar` (barra, isla, notificaciones), `launcher`
+- `.config/quickshell/`: `bar` (barra, isla, notificaciones y el calendario,
+  que marca las tareas con fecha y las entregas de Aules: se las deja el cajón
+  del homelab en `$XDG_RUNTIME_DIR/escritorio-agenda.json`), `launcher`
   (SUPER+SPACE), `reminder` (SUPER+R), `updates`, `homelab` (el panel del
   homelab: el cajón que sale del centro del borde derecho, o con SUPER+H, con
   los datos del panel del NUC; cada equipo entra con su usuario, y la contraseña
@@ -67,6 +69,11 @@ choca.
   local (`panel-local.sh`, el panel del repo `homelab` con un Docker y un Caddy
   falsos, en Docker, y un vault falso), con un llavero de usar y tirar. Ninguna
   toca el NUC ni el llavero de verdad.
+- `pruebas/calendario/prueba.sh`: prueba sin pantalla de la agenda del
+  calendario: el formato (`shared/AgendaFormato.js`), el fichero que escribe el
+  cajón y lee la barra (en un `$XDG_RUNTIME_DIR` de prueba) y el
+  `CalendarPanel.qml` con sus puntos, la lista del día y los clics
+  (`--guardar` deja las capturas).
 
 ## Instalación
 
