@@ -280,7 +280,22 @@ ShellRoot {
         prueba.comprobar(a.inicioCargado instanceof Date && Date.now() - a.inicioCargado < 30000, "inicioCargado", String(a.inicioCargado));
         prueba.comprobar(a.urlWeb("#/servidor") === a.baseUrl + "/#/servidor", "urlWeb(\"#/servidor\")", a.urlWeb("#/servidor"));
         prueba.comprobar(a.error === "", "error vacío", a.error);
-        prueba.alertaNueva();
+        prueba.finanzas();
+    }
+
+    // Fase 5: sin FINANZAS_DSN el panel dice {"enabled": false}; el cajón lo
+    // lee sin error y sin datos, y lo de Trade Republic llega normalizado.
+    function finanzas() {
+        a.cargarFinanzas(ok => {
+            const f = a.finanzas;
+            prueba.comprobar(ok && f !== null && f.habilitado === false && f.listo === false && f.error === "" && f.movimientos.length === 0 && !f.cargando, "finanzas: sin la base de datos, habilitado false, sin error ni movimientos", JSON.stringify(f));
+            a.cargarTradeRepublic();
+            prueba.esperar(5000, () => a.traderepublic !== null, ok2 => {
+                const t = a.traderepublic;
+                prueba.comprobar(ok2 && typeof t.configurado === "boolean" && typeof t.caducada === "boolean" && t.caducada === false, "traderepublic: el estado llega normalizado, sin sesión caducada", JSON.stringify(t));
+                prueba.alertaNueva();
+            });
+        });
     }
 
     function alertaNueva() {

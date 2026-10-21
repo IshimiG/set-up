@@ -1061,6 +1061,163 @@ QtObject {
         api.repos = r;
     }
 
+    // --- Fase 5: finanzas -----------------------------------------------------
+    // Un «NUC» de mentira con estado: octubre con 7 movimientos (3 en la
+    // primera página), el resumen del mes y Trade Republic. apuntarEfectivo
+    // añade un movimiento; con conflictoEfectivo contesta como un 409 y con
+    // errorEfectivo como una validación (sin cambiar nada).
+    property var finanzas: null
+    property var traderepublic: null
+    property int paginaFinanzas: 3
+    property int lecturasFinanzas: 0
+    property int masFinanzasPedidas: 0
+    property int lecturasTR: 0
+    property var efectivos: []
+    property bool conflictoEfectivo: false
+    property string errorEfectivo: ""
+    property bool trCaducada: true
+    property var movsFinanzas: []
+
+    function finanzasViejas() {
+        return api.finanzas === null;
+    }
+
+    function arrancarFinanzas() {
+        if (api.movsFinanzas.length > 0)
+            return;
+        const m = (id, fecha, concepto, importe, categoria) => ({
+                id: id,
+                fecha: fecha,
+                concepto: concepto,
+                importe: importe,
+                categoria: categoria,
+                cuenta: "CaixaBank"
+            });
+        api.movsFinanzas = [m(7, "2026-10-20", "Mercadona", -4523, "Supermercado"), m(6, "2026-10-19", "Nómina octubre", 185000, "Nómina"), m(5, "2026-10-18", "Cine", -1200, "Ocio"), m(4, "2026-10-12", "Gasolina", -6010, ""), m(3, "2026-10-10", "Panadería", -310, "Supermercado"), m(2, "2026-10-05", "Alquiler", -55000, "Vivienda"), m(1, "2026-10-01", "Seguro", -9999, "Vivienda")];
+    }
+
+    function resumenFinanzas() {
+        const gasto = api.movsFinanzas.filter(x => x.importe < 0);
+        return {
+            total: -gasto.reduce((a, x) => a + x.importe, 0),
+            anterior: 100000,
+            mesAnterior: "2026-09",
+            sinCategoria: 1,
+            porCategoria: [
+                {
+                    id: 3,
+                    nombre: "Vivienda",
+                    total: 64999,
+                    n: 2
+                },
+                {
+                    id: 1,
+                    nombre: "Supermercado",
+                    total: 4833,
+                    n: 2
+                }
+            ]
+        };
+    }
+
+    function ponerFinanzas(conservar) {
+        const p = conservar ? api.finanzas.movimientos.length : api.paginaFinanzas;
+        const movs = api.movsFinanzas.slice(0, Math.max(p, api.paginaFinanzas));
+        api.finanzas = {
+            cargando: false,
+            cargandoMas: false,
+            error: "",
+            cargado: new Date(),
+            habilitado: true,
+            listo: true,
+            motivo: "",
+            mes: "2026-10",
+            hoy: "2026-10-21",
+            categorias: [
+                {
+                    id: 1,
+                    nombre: "Supermercado"
+                },
+                {
+                    id: 2,
+                    nombre: "Ocio"
+                }
+            ],
+            gastos: api.resumenFinanzas(),
+            ingresos: 185000,
+            patrimonio: 1234567,
+            meta: 3000000,
+            porcentaje: 41.2,
+            sinCategoria: 1,
+            movimientos: movs,
+            mas: movs.length < api.movsFinanzas.length,
+            siguiente: "cursor",
+            ocupado: false
+        };
+    }
+
+    function cargarFinanzas(alAcabar) {
+        api.arrancarFinanzas();
+        api.lecturasFinanzas++;
+        api.ponerFinanzas(false);
+        if (alAcabar)
+            alAcabar(true);
+    }
+
+    function masFinanzas() {
+        api.masFinanzasPedidas++;
+        api.finanzas = Object.assign({}, api.finanzas, {
+            movimientos: api.movsFinanzas,
+            mas: false,
+            siguiente: ""
+        });
+    }
+
+    function apuntarEfectivo(importe, concepto, categoria, fecha, alAcabar) {
+        api.efectivos = api.efectivos.concat([
+            {
+                importe: importe,
+                concepto: concepto,
+                categoria: categoria,
+                fecha: fecha
+            }
+        ]);
+        if (api.conflictoEfectivo) {
+            api.conflictoEfectivo = false;
+            api.aviso("Finanzas no pudo apuntarlo: No hay ninguna cuenta de efectivo.; la he recargado.", true);
+            alAcabar(false, "No hay ninguna cuenta de efectivo.");
+            return;
+        }
+        if (api.errorEfectivo !== "") {
+            alAcabar(false, api.errorEfectivo);
+            return;
+        }
+        api.movsFinanzas = [
+            {
+                id: 100 + api.efectivos.length,
+                fecha: "2026-10-21",
+                concepto: concepto,
+                importe: -importe,
+                categoria: categoria === 1 ? "Supermercado" : "Ocio",
+                cuenta: "Efectivo"
+            }
+        ].concat(api.movsFinanzas);
+        api.aviso("Gasto en efectivo apuntado", false);
+        api.ponerFinanzas(false);
+        alAcabar(true, "");
+    }
+
+    function cargarTradeRepublic() {
+        api.lecturasTR++;
+        api.traderepublic = {
+            configurado: true,
+            caducada: api.trCaducada,
+            iniciando: false,
+            comprobando: false,
+            ultimoOk: null
+        };
+    }
+
     // --- Fase 5: Revisiones -----------------------------------------------------
     // Un «servidor» de revisiones con estado: la semana 43 es la de hoy (la 42
     // y la 44 existen, vacías). Cada escritura comprueba «antes» como el NUC:
