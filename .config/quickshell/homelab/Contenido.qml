@@ -2,6 +2,7 @@ import QtQuick
 import QtQuick.Layouts
 import Quickshell
 import "shared"
+import "TareasLogica.js" as TareasLogica
 
 // Lo de dentro del cajón.
 //
@@ -828,8 +829,46 @@ Item {
                         visible: contenido.api && contenido.api.inicio
                         spacing: 8
 
-                        Etiqueta {
-                            text: "AHORA"
+                        RowLayout {
+                            Layout.fillWidth: true
+                            spacing: 8
+
+                            Etiqueta {
+                                text: "AHORA"
+                            }
+
+                            Item {
+                                Layout.fillWidth: true
+                            }
+
+                            // Lo vencido y lo de hoy, como el chip de la web: en rojo si hay
+                            // vencidas, en ámbar si solo hay de hoy y en verde si no hay nada.
+                            Rectangle {
+                                id: chipPlazos
+
+                                readonly property var resumen: TareasLogica.resumenPlazos(TareasLogica.entradas(contenido.api ? contenido.api.tareas : null))
+                                readonly property color tinte: chipPlazos.resumen.vencidas ? Theme.prioMaxima : (chipPlazos.resumen.hoy ? Theme.warn : Theme.ok)
+
+                                objectName: "chipPlazos"
+                                visible: contenido.api && contenido.api.tareas !== null && contenido.api.tareas.habilitado
+                                implicitWidth: textoPlazos.implicitWidth + 16
+                                implicitHeight: 20
+                                radius: 10
+                                color: Qt.rgba(chipPlazos.tinte.r, chipPlazos.tinte.g, chipPlazos.tinte.b, 0.18)
+                                border.width: 1
+                                border.color: Qt.rgba(chipPlazos.tinte.r, chipPlazos.tinte.g, chipPlazos.tinte.b, 0.5)
+
+                                Text {
+                                    id: textoPlazos
+
+                                    objectName: "textoPlazos"
+                                    anchors.centerIn: parent
+                                    text: TareasLogica.textoPlazos(chipPlazos.resumen)
+                                    color: Theme.strong
+                                    font.family: Theme.font
+                                    font.pixelSize: 10
+                                }
+                            }
                         }
 
                         Text {
