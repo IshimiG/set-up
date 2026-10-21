@@ -49,11 +49,20 @@ choca.
   y los lenguajes que se usan (TypeScript, SQL, Docker, Java, Angular…).
 - `.config/quickshell/`: `bar` (barra, isla, notificaciones), `launcher`
   (SUPER+SPACE), `reminder` (SUPER+R), `updates`, `homelab` (el panel del
-  homelab: el cajón que sale del centro del borde derecho, o con SUPER+H) y
-  `shared` (la paleta).
+  homelab: el cajón que sale del centro del borde derecho, o con SUPER+H, con
+  los datos del panel del NUC; cada equipo entra con su usuario, y la contraseña
+  va en el llavero: `secret-tool store --label="Panel del homelab" servicio
+  homelab-panel usuario <equipo>`) y `shared` (la paleta).
 - `.config/systemd/user/notificaciones.*`: el latido de los recordatorios.
 - `.local/bin/launch-or-focus`: enfoca una ventana o lanza la app.
+- `.local/bin/actualizar-equipo` (sólo en la rama de un equipo, si lo quiere):
+  lo que el botón «Actualizar ahora» del aviso hace después de `paru -Syu`.
 - `sddm/`: el tema "cristal" de la pantalla de login (`sudo sddm/install.sh`).
+- `pruebas/homelab/`: pruebas sin pantalla del cajón del homelab. `prueba.sh`
+  prueba la interfaz con una API falsa, y `api/prueba-api.sh`, la conexión
+  (`Api.qml`) contra un panel local (`panel-local.sh`, el panel del repo
+  `homelab` con un Docker y un Caddy falsos, en Docker), con un llavero de usar
+  y tirar. Ninguna toca el NUC ni el llavero de verdad.
 
 ## Instalación
 
