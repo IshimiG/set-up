@@ -79,7 +79,7 @@ Rectangle {
         width: Math.min(parent.width - 24, 330)
         height: lista.implicitHeight + 36
         radius: 14
-        color: Theme.glassTop
+        color: Theme.glassDense
         border.width: 1
         border.color: Theme.edgeTop
         scale: ayuda.visibleAyuda ? 1 : 0.94

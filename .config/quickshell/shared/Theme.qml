@@ -34,6 +34,10 @@ Singleton {
     // liso y se pierde el frosted.
     readonly property color glassTop: Qt.rgba(0, 0, 0, 0.76)
     readonly property color glassBottom: Qt.rgba(0, 0, 0, 0.64)
+    // Lo que flota sobre el propio contenido de una superficie (la ayuda de
+    // atajos o un aviso del cajón) va casi opaco: debajo no hay un fondo
+    // desenfocado sino texto, y se leería a través.
+    readonly property color glassDense: Qt.rgba(0, 0, 0, 0.92)
 
     // Canto: blanco puro, igual que el borde de ventana de Hyprland. Sólo
     // varía el alfa, y va muy contenido porque un filo brillante sobre negro se

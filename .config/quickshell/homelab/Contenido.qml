@@ -439,7 +439,7 @@ Item {
         width: Math.min(parent.width - 2 * Theme.pad, textoAviso.implicitWidth + 28)
         height: textoAviso.implicitHeight + 18
         radius: 10
-        color: Theme.glassTop
+        color: Theme.glassDense
         border.width: 1
         border.color: contenido.avisoError ? Theme.prioMaxima : Theme.edgeTop
         visible: opacity > 0.01
