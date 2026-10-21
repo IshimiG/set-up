@@ -12,11 +12,14 @@ import "shared"
 // escribir) siguen en el NUC.
 //
 // Este fichero solo reparte: la tira de secciones, la cabecera y el aviso de
-// abajo. Cada sección vive en el suyo: Inicio (aquí, con Habitos.qml), Tareas.qml
-// y Clase.qml. Tareas y Clase se crean una vez y solo se esconden al cambiar de
-// sección, para que no pierdan lo que tenían abierto.
+// abajo. Cada sección vive en el suyo: Inicio (aquí, con Habitos.qml), Tareas.qml,
+// Clase.qml y, en la fase 4, Proyectos.qml, Servidor.qml y Registro.qml. Se crean
+// una vez y solo se esconden al cambiar de sección, para que no pierdan lo que
+// tenían abierto.
 Item {
     id: contenido
+
+    objectName: "contenido"
 
     required property var shell
     // El cajón entero fuera y quieto. Los euros de Finanzas sólo se enseñan así
@@ -79,6 +82,13 @@ Item {
             id: "servidor",
             icono: "",
             nombre: "Servidor",
+            fase: 4,
+            web: "#/servidor"
+        },
+        {
+            id: "registro",
+            icono: "",
+            nombre: "Registro",
             fase: 4,
             web: "#/servidor"
         },
@@ -223,12 +233,33 @@ Item {
         return (c || "sin API") + u;
     }
 
+    // Las secciones que ya están hechas; las demás dicen en qué fase llegan.
+    readonly property var hechas: ["inicio", "tareas", "clase", "proyectos", "servidor", "registro"]
+
+    // Cómo se abre un enlace en el navegador. La prueba lo sustituye por otra
+    // cosa, para no abrir nada de verdad.
+    property var lanzar: args => Quickshell.execDetached(args)
+
+    // Un enlace (una PR, una issue), en el navegador. El cajón se aparta, salvo
+    // que esté fijado.
+    function abrirEnlace(url) {
+        contenido.lanzar(["xdg-open", url]);
+        if (!contenido.shell.fijado)
+            contenido.shell.abierto = false;
+    }
+
     // Lo que el cajón aún no tiene, en la web, que ya pide la contraseña en el
     // navegador.
     function abrirEnLaWeb() {
-        Quickshell.execDetached(["xdg-open", contenido.api.urlWeb(contenido.actual.web)]);
-        if (!contenido.shell.fijado)
-            contenido.shell.abierto = false;
+        contenido.abrirEnlace(contenido.api.urlWeb(contenido.actual.web));
+    }
+
+    // «Detalles» de una alerta: su línea del Registro, con toda la historia.
+    // Primero se pide (así el Registro no se lee dos veces al aparecer) y
+    // después se cambia de sección.
+    function verEnRegistro(entrada) {
+        seccionRegistro.enfocar(entrada);
+        contenido.seccion = "registro";
     }
 
     // --- Piezas -------------------------------------------------------------
@@ -416,9 +447,38 @@ Item {
                     lineaConexion: contenido.conectado ? "" : contenido.textoConexion()
                 }
 
+                Proyectos {
+                    objectName: "seccionProyectos"
+                    anchors.fill: parent
+                    visible: contenido.seccion === "proyectos"
+                    shell: contenido.shell
+                    lineaConexion: contenido.conectado ? "" : contenido.textoConexion()
+                    onAbrirWeb: contenido.abrirEnLaWeb()
+                    onAbrirEnlace: url => contenido.abrirEnlace(url)
+                }
+
+                Servidor {
+                    objectName: "seccionServidor"
+                    anchors.fill: parent
+                    visible: contenido.seccion === "servidor"
+                    shell: contenido.shell
+                    lineaConexion: contenido.conectado ? "" : contenido.textoConexion()
+                    onAbrirWeb: contenido.abrirEnLaWeb()
+                }
+
+                Registro {
+                    id: seccionRegistro
+
+                    objectName: "seccionRegistro"
+                    anchors.fill: parent
+                    visible: contenido.seccion === "registro"
+                    shell: contenido.shell
+                    lineaConexion: contenido.conectado ? "" : contenido.textoConexion()
+                }
+
                 Loader {
                     anchors.fill: parent
-                    active: contenido.seccion !== "inicio" && contenido.seccion !== "tareas" && contenido.seccion !== "clase"
+                    active: contenido.hechas.indexOf(contenido.seccion) < 0
                     visible: active
                     sourceComponent: pronto
                 }
@@ -660,7 +720,7 @@ Item {
                                 ColumnLayout {
                                     anchors.left: nivel.right
                                     anchors.leftMargin: 10
-                                    anchors.right: vista.left
+                                    anchors.right: detalles.visible ? detalles.left : vista.left
                                     anchors.rightMargin: 8
                                     anchors.verticalCenter: parent.verticalCenter
                                     spacing: 3
@@ -681,6 +741,42 @@ Item {
                                         font.family: Theme.font
                                         font.pixelSize: 10
                                         elide: Text.ElideRight
+                                    }
+                                }
+
+                                // Su línea del Registro (fase 4), como «Detalles» en la web.
+                                Rectangle {
+                                    id: detalles
+
+                                    objectName: "botonDetalles"
+                                    anchors.right: vista.visible ? vista.left : parent.right
+                                    anchors.rightMargin: vista.visible ? 6 : 10
+                                    anchors.verticalCenter: parent.verticalCenter
+                                    visible: (fila.modelData.entrada || 0) > 0
+                                    implicitWidth: textoDetalles.implicitWidth + 18
+                                    implicitHeight: 24
+                                    radius: 8
+                                    color: sobreDetalles.hovered ? Qt.rgba(1, 1, 1, 0.08) : "transparent"
+                                    border.width: 1
+                                    border.color: Theme.rule
+
+                                    Text {
+                                        id: textoDetalles
+
+                                        anchors.centerIn: parent
+                                        text: "Detalles"
+                                        color: Theme.text
+                                        font.family: Theme.font
+                                        font.pixelSize: 11
+                                    }
+
+                                    HoverHandler {
+                                        id: sobreDetalles
+                                        cursorShape: Qt.PointingHandCursor
+                                    }
+
+                                    TapHandler {
+                                        onTapped: contenido.verEnRegistro(fila.modelData.entrada)
                                     }
                                 }
 
