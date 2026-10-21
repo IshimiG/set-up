@@ -24,14 +24,14 @@ repo=$(readlink -f "$aqui/../..")
 qs_dir=$repo/.config/quickshell
 tmp=$(mktemp -d "${TMPDIR:-/tmp}/prueba-cajon.XXXXXX")
 
-mkdir -p "$tmp/homelab" "$tmp/capturas"
+mkdir -p "$tmp/homelab" "$tmp/capturas" "$tmp/estado"
 cp "$aqui/"*.qml "$tmp/"
 cp -r "$qs_dir/shared" "$tmp/shared"
 cp "$qs_dir/homelab/"*.qml "$qs_dir/homelab/"*.js "$tmp/homelab/"
 ln -s ../shared "$tmp/homelab/shared"
 
 cd "$tmp"
-PRUEBA_DIR=$tmp QT_QPA_PLATFORM=offscreen timeout 300 qs -p ./shell.qml 2>&1 |
+PRUEBA_DIR=$tmp PANEL_ESTADO_DIR=$tmp/estado QT_QPA_PLATFORM=offscreen timeout 300 qs -p ./shell.qml 2>&1 |
 	sed -E 's/\x1b\[[0-9;]*m//g' |
 	grep -E "qml: " | sed -E 's/^.*qml: //'
 

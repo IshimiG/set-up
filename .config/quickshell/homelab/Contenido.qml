@@ -2,6 +2,7 @@ import QtQuick
 import QtQuick.Layouts
 import Quickshell
 import "shared"
+import "TareasLogica.js" as TareasLogica
 
 // Lo de dentro del cajón.
 //
@@ -13,9 +14,10 @@ import "shared"
 //
 // Este fichero solo reparte: la tira de secciones, la cabecera y el aviso de
 // abajo. Cada sección vive en el suyo: Inicio (aquí, con Habitos.qml), Tareas.qml,
-// Clase.qml; en la fase 4, Proyectos.qml, Servidor.qml y Registro.qml, y en la 5,
-// Notas.qml. Se crean una vez y solo se esconden al cambiar de sección, para que
-// no pierdan lo que tenían abierto.
+// Clase.qml, Proyectos.qml, Servidor.qml, Registro.qml, Revisiones.qml, Finanzas.qml
+// y Notas.qml. Se crean
+// una vez y solo se esconden al cambiar de sección, para que no pierdan lo que
+// tenían abierto.
 Item {
     id: contenido
 
@@ -241,7 +243,7 @@ Item {
     }
 
     // Las secciones que ya están hechas; las demás dicen en qué fase llegan.
-    readonly property var hechas: ["inicio", "tareas", "clase", "proyectos", "servidor", "registro", "notas"]
+    readonly property var hechas: ["inicio", "tareas", "clase", "proyectos", "servidor", "registro", "revisiones", "finanzas", "notas"]
 
     // Cómo se abre un enlace en el navegador. La prueba lo sustituye por otra
     // cosa, para no abrir nada de verdad.
@@ -500,6 +502,26 @@ Item {
                     desplegado: contenido.desplegado
                     lineaConexion: contenido.conectado ? "" : contenido.textoConexion()
                     onAbrirEnlace: url => contenido.abrirEnlace(url)
+                }
+
+                Finanzas {
+                    objectName: "seccionFinanzas"
+                    anchors.fill: parent
+                    visible: contenido.seccion === "finanzas"
+                    shell: contenido.shell
+                    desplegado: contenido.desplegado
+                    lineaConexion: contenido.conectado ? "" : contenido.textoConexion()
+                    onAbrirWeb: contenido.abrirEnLaWeb()
+                }
+
+                Revisiones {
+                    objectName: "seccionRevisiones"
+                    anchors.fill: parent
+                    visible: contenido.seccion === "revisiones"
+                    shell: contenido.shell
+                    lineaConexion: contenido.conectado ? "" : contenido.textoConexion()
+                    onAbrirWeb: contenido.abrirEnLaWeb()
+                    onIrATareas: contenido.seccion = "tareas"
                 }
 
                 Loader {
@@ -854,8 +876,46 @@ Item {
                         visible: contenido.api && contenido.api.inicio
                         spacing: 8
 
-                        Etiqueta {
-                            text: "AHORA"
+                        RowLayout {
+                            Layout.fillWidth: true
+                            spacing: 8
+
+                            Etiqueta {
+                                text: "AHORA"
+                            }
+
+                            Item {
+                                Layout.fillWidth: true
+                            }
+
+                            // Lo vencido y lo de hoy, como el chip de la web: en rojo si hay
+                            // vencidas, en ámbar si solo hay de hoy y en verde si no hay nada.
+                            Rectangle {
+                                id: chipPlazos
+
+                                readonly property var resumen: TareasLogica.resumenPlazos(TareasLogica.entradas(contenido.api ? contenido.api.tareas : null))
+                                readonly property color tinte: chipPlazos.resumen.vencidas ? Theme.prioMaxima : (chipPlazos.resumen.hoy ? Theme.warn : Theme.ok)
+
+                                objectName: "chipPlazos"
+                                visible: contenido.api && contenido.api.tareas !== null && contenido.api.tareas.habilitado
+                                implicitWidth: textoPlazos.implicitWidth + 16
+                                implicitHeight: 20
+                                radius: 10
+                                color: Qt.rgba(chipPlazos.tinte.r, chipPlazos.tinte.g, chipPlazos.tinte.b, 0.18)
+                                border.width: 1
+                                border.color: Qt.rgba(chipPlazos.tinte.r, chipPlazos.tinte.g, chipPlazos.tinte.b, 0.5)
+
+                                Text {
+                                    id: textoPlazos
+
+                                    objectName: "textoPlazos"
+                                    anchors.centerIn: parent
+                                    text: TareasLogica.textoPlazos(chipPlazos.resumen)
+                                    color: Theme.strong
+                                    font.family: Theme.font
+                                    font.pixelSize: 10
+                                }
+                            }
                         }
 
                         Text {
