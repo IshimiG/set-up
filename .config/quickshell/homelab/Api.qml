@@ -2492,6 +2492,75 @@ Scope {
         o.running = true;
     }
 
+    // --- Fase 5: notas como página -------------------------------------------------
+    // Una nota del vault para leer en el cajón (Notas.qml), con GET
+    // /api/nota?ruta=…, como la página de nota de la web (#/nota/<ruta>). El
+    // NUC sólo abre las de las carpetas que enseña el Inicio personal
+    // (personal.allowed): fuera de ellas, 403. Sólo se lee, nunca se escribe.
+    // Las carpetas y las notas recientes llegan con /api/personal, que ya se
+    // lee para Inicio (juntarInicio).
+
+    // Las carpetas (y notas sueltas) de las que se puede abrir una nota, de
+    // personal.allowed: ["00 Inicio.md", "10 Proyectos", …]. [] hasta leer
+    // Inicio; sin ellas, ningún [[enlace]] se puede abrir (como en la web).
+    readonly property var notasPermitidas: p.personalInicio && Array.isArray(p.personalInicio.allowed) ? p.personalInicio.allowed.map(String) : []
+    // Las notas cambiadas en los últimos 7 días, de la más nueva a la más
+    // vieja (personal.recent): [{ ruta, titulo, modificada (Date o null) }].
+    // null hasta leer Inicio.
+    readonly property var notasRecientes: {
+        const per = p.personalInicio;
+        if (!per)
+            return null;
+        if (per.vault === false)
+            return [];
+        return (Array.isArray(per.recent) ? per.recent : []).map(n => ({
+                    ruta: String(n.path || ""),
+                    titulo: String(n.title || ""),
+                    modificada: api.fecha(n.modified)
+                })).filter(n => n.ruta !== "");
+    }
+
+    // alAcabar(nota, error), siempre una vez: nota es { ruta, titulo,
+    // modificada (Date o null), texto (el Markdown sin el frontmatter) } y
+    // error "", o nota null y error lo que pasa, en una línea.
+    function leerNota(ruta, alAcabar) {
+        if (p.clave === "") {
+            alAcabar(null, "No hay conexión con el NUC.");
+            return;
+        }
+        const gen = p.generacion;
+        api.pedir("GET", "/api/nota?ruta=" + encodeURIComponent(String(ruta)), undefined, (estado, texto) => {
+            if (gen !== p.generacion) {
+                alAcabar(null, "La conexión ha cambiado mientras se leía la nota.");
+                return;
+            }
+            if (estado === 401) {
+                api.noAutorizado();
+                alAcabar(null, "El NUC no acepta la contraseña de este equipo.");
+                return;
+            }
+            const d = estado === 200 ? api.leerJSON({
+                estado: estado,
+                texto: texto
+            }) : null;
+            if (!d || typeof d.texto !== "string") {
+                // El NUC contesta los errores de /api/nota en texto, no en JSON:
+                // «esa nota no está en las carpetas que muestra el panel», «no
+                // encuentro esa nota»…
+                const motivo = estado === 0 ? "el NUC no contesta" : (estado !== 200 && api.primeraLinea(texto) ? api.primeraLinea(texto) : "HTTP " + estado);
+                alAcabar(null, "No se puede abrir la nota: " + motivo);
+                return;
+            }
+            api.bien();
+            alAcabar({
+                ruta: String(d.ruta || ruta),
+                titulo: String(d.titulo || String(ruta).split("/").pop().replace(/\.md$/i, "")),
+                modificada: api.fecha(d.modificada),
+                texto: d.texto
+            }, "");
+        });
+    }
+
     // --- Fase 5: finanzas -----------------------------------------------------------------
     // GET /api/finanzas (el resumen del mes y los primeros movimientos),
     // GET /api/finanzas/movimientos (las páginas de antes), POST

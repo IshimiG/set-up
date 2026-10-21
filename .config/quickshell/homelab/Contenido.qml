@@ -14,7 +14,8 @@ import "TareasLogica.js" as TareasLogica
 //
 // Este fichero solo reparte: la tira de secciones, la cabecera y el aviso de
 // abajo. Cada sección vive en el suyo: Inicio (aquí, con Habitos.qml), Tareas.qml,
-// Clase.qml, Proyectos.qml, Servidor.qml, Registro.qml y Revisiones.qml. Se crean
+// Clase.qml, Proyectos.qml, Servidor.qml, Registro.qml, Revisiones.qml, Finanzas.qml
+// y Notas.qml. Se crean
 // una vez y solo se esconden al cambiar de sección, para que no pierdan lo que
 // tenían abierto.
 Item {
@@ -99,6 +100,13 @@ Item {
             nombre: "Revisiones",
             fase: 5,
             web: "#/revisiones"
+        },
+        {
+            id: "notas",
+            icono: "",
+            nombre: "Notas",
+            fase: 5,
+            web: "#/"
         },
         {
             id: "finanzas",
@@ -235,7 +243,7 @@ Item {
     }
 
     // Las secciones que ya están hechas; las demás dicen en qué fase llegan.
-    readonly property var hechas: ["inicio", "tareas", "clase", "proyectos", "servidor", "registro", "revisiones", "finanzas"]
+    readonly property var hechas: ["inicio", "tareas", "clase", "proyectos", "servidor", "registro", "revisiones", "finanzas", "notas"]
 
     // Cómo se abre un enlace en el navegador. La prueba lo sustituye por otra
     // cosa, para no abrir nada de verdad.
@@ -261,6 +269,13 @@ Item {
     function verEnRegistro(entrada) {
         seccionRegistro.enfocar(entrada);
         contenido.seccion = "registro";
+    }
+
+    // Una nota del vault como página (Notas.qml), desde Inicio o desde
+    // cualquier sección que tenga un [[enlace]]: abrirNota(ruta, cabecera).
+    function abrirNota(ruta, cabecera) {
+        seccionNotas.abrir(ruta, cabecera || "");
+        contenido.seccion = "notas";
     }
 
     // --- Piezas -------------------------------------------------------------
@@ -475,6 +490,18 @@ Item {
                     visible: contenido.seccion === "registro"
                     shell: contenido.shell
                     lineaConexion: contenido.conectado ? "" : contenido.textoConexion()
+                }
+
+                Notas {
+                    id: seccionNotas
+
+                    objectName: "seccionNotas"
+                    anchors.fill: parent
+                    visible: contenido.seccion === "notas"
+                    shell: contenido.shell
+                    desplegado: contenido.desplegado
+                    lineaConexion: contenido.conectado ? "" : contenido.textoConexion()
+                    onAbrirEnlace: url => contenido.abrirEnlace(url)
                 }
 
                 Finanzas {
@@ -1021,6 +1048,20 @@ Item {
                                 }
                             }
                         }
+                    }
+
+                    // Las notas cambiadas esta semana (fase 5), al final, como en la
+                    // web; un clic la abre en Notas.
+                    NotasRecientes {
+                        id: recientesInicio
+
+                        objectName: "recientesInicio"
+                        Layout.fillWidth: true
+                        visible: recientesInicio.vistas.length > 0
+                        lista: contenido.api ? contenido.api.notasRecientes : null
+                        maximo: 5
+                        decirVacio: false
+                        onAbrir: ruta => contenido.abrirNota(ruta, "")
                     }
                 }
             }

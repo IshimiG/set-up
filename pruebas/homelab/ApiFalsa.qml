@@ -1061,6 +1061,87 @@ QtObject {
         api.repos = r;
     }
 
+    // --- Fase 5: notas como página -------------------------------------------------
+    // Un vault de mentira para leerNota (GET /api/nota): las notas de
+    // notasFalsas, con todo lo que pinta el renderizador, HTML que no se tiene
+    // que interpretar y euros, que se tapan con el cajón a medio sacar. Con
+    // lectorReal (lo pone PasosNotas.qml cuando se pide una nota de verdad con
+    // PRUEBA_NOTA_REAL), las demás salen del vault de verdad, sólo de las
+    // carpetas que abre el NUC. Con retenerNotas, las respuestas esperan a
+    // soltarNotas().
+
+    property var notasPermitidas: ["00 Inicio.md", "10 Proyectos", "20 Trabajo", "30 Áreas", "40 Aprendizaje/Libros", "40 Aprendizaje/Clase"]
+    property var notasRecientes: [
+        {
+            ruta: "30 Áreas/Servidor/Prueba.md",
+            titulo: "Prueba",
+            modificada: new Date(Date.now() - 2 * 3600000)
+        },
+        {
+            ruta: "30 Áreas/Servidor/Otra nota.md",
+            titulo: "Otra nota",
+            modificada: new Date(Date.now() - 3 * 86400000)
+        }
+    ]
+    property var notasPedidas: []
+    property bool retenerNotas: false
+    property var notasPendientes: []
+    // (ruta) => { titulo, texto } o null: una nota del vault de verdad.
+    property var lectorReal: null
+
+    readonly property string relleno: "Un párrafo de relleno para que la página tenga que desplazarse: el cajón es alto, pero no tanto. Lleva bastantes palabras para ocupar varias líneas en una columna estrecha como la del cajón.\n\n"
+
+    readonly property var notasFalsas: ({
+            "30 Áreas/Servidor/Prueba.md": {
+                titulo: "Prueba",
+                texto: "# Una nota de prueba\n\n" + "Un párrafo con **negrita**, *cursiva*, ~~tachado~~ y `código <b>`.\n" + "Segunda línea, con [la web](https://example.org/web) y https://example.org/suelta.\n\n" + "<b>no es html</b> <img src=\"http://127.0.0.1:9/x.png\"> &amp; <a href=\"https://example.org/mal\">tampoco</a>\n\n" + "Enlaces: [[30 Áreas/Servidor/Otra nota|la otra nota]], [[30 Áreas/Servidor/Otra nota#Segunda parte]], [[Sin carpeta]], [[MentalHealth/Diario]], [[30 Áreas/../MentalHealth/Diario|escapada]] y [[#Tabla]].\n\n" + "%% un comentario que no sale %%\n\n" + "Gasto del mes: 1.234,56 € y 300€.\n\n" + "## Listas\n\n" + "- Uno\n  - Dos, dentro\n- [ ] Una tarea\n- [x] Una hecha\n\n" + "1. Primero\n2. Segundo\n\n" + api.relleno + api.relleno + api.relleno + "## Tabla\n\n" + "| Qué | Enlace | Nota |\n|---|:---:|---|\n" + "| Fila uno | [[30 Áreas/Servidor/Otra nota\\|otra]] | corta |\n" + "| Fila dos, con un texto bastante más largo que no cabe en una columna estrecha del cajón | — | 12 € |\n\n" + "> Una cita\n> con dos líneas\n\n" + "> [!warning] Cuidado\n> Dentro del aviso, una lista:\n> - a\n> - b\n\n" + "---\n\n" + "```sh\necho \"<script>alert(1)</script>\"\n```\n\n" + "### Relleno\n\n" + api.relleno + api.relleno + api.relleno + api.relleno
+            },
+            "30 Áreas/Servidor/Otra nota.md": {
+                titulo: "Otra nota",
+                texto: "Texto de la otra nota. Vuelve a [[30 Áreas/Servidor/Prueba|la de prueba]].\n\n" + api.relleno + api.relleno + api.relleno + api.relleno + api.relleno + "## Segunda parte\n\n" + api.relleno + api.relleno + api.relleno + api.relleno + api.relleno
+            }
+        })
+
+    // Como AllowedNote del NUC: un .md de las carpetas permitidas, sin «..» ni
+    // partes ocultas.
+    function notaPermitida(ruta) {
+        if (!/\.md$/i.test(ruta) || ruta.split("/").some(x => x === "" || x === "." || x === ".." || x[0] === "."))
+            return false;
+        return api.notasPermitidas.some(e => ruta === e || ruta.indexOf(e + "/") === 0);
+    }
+
+    function leerNota(ruta, alAcabar) {
+        api.notasPedidas = api.notasPedidas.concat([ruta]);
+        const responder = () => {
+            if (!api.notaPermitida(ruta)) {
+                alAcabar(null, "No se puede abrir la nota: esa nota no está en las carpetas que muestra el panel");
+                return;
+            }
+            const n = api.notasFalsas[ruta] || (api.lectorReal ? api.lectorReal(ruta) : null);
+            if (!n) {
+                alAcabar(null, "No se puede abrir la nota: no encuentro esa nota");
+                return;
+            }
+            alAcabar({
+                ruta: ruta,
+                titulo: n.titulo,
+                modificada: new Date(Date.now() - 2 * 3600000),
+                texto: n.texto
+            }, "");
+        };
+        if (api.retenerNotas)
+            api.notasPendientes = api.notasPendientes.concat([responder]);
+        else
+            Qt.callLater(responder);
+    }
+
+    function soltarNotas() {
+        const l = api.notasPendientes;
+        api.notasPendientes = [];
+        for (const f of l)
+            f();
+    }
+
     // --- Fase 5: finanzas -----------------------------------------------------
     // Un «NUC» de mentira con estado: octubre con 7 movimientos (3 en la
     // primera página), el resumen del mes y Trade Republic. apuntarEfectivo
