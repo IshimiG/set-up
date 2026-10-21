@@ -215,6 +215,9 @@ hl.animation({ leaf = "zoomFactor", enabled = true, speed = 7, bezier = "quick" 
 hl.config({
 	dwindle = {
 		preserve_split = true, -- You probably want this
+		-- La ventana nueva se abre siempre a la derecha o debajo de la activa
+		-- (0 = según el lado del ratón). Ajuste heredado del mosaico de Omarchy.
+		force_split = 2,
 	},
 })
 
@@ -292,6 +295,45 @@ hl.bind(mainMod .. " + E", hl.dsp.exec_cmd(fileManager))
 hl.bind(mainMod .. " + SPACE", hl.dsp.exec_cmd(menu))
 hl.bind(mainMod .. " + P", hl.dsp.window.pseudo())
 hl.bind(mainMod .. " + J", hl.dsp.layout("togglesplit")) -- dwindle only
+
+-- Mosaico: lo que ya se usaba en Omarchy. Ojo con las combinaciones: SUPER+O,
+-- SUPER+L, SUPER+TAB y SUPER+CTRL+ALT+... no se tocan (ver atajos-de-teclado).
+-- Pantalla completa: SUPER+F la completa, SUPER+CTRL+F la pone "en mosaico"
+-- (la ventana cree que está a pantalla completa pero sigue en su hueco) y
+-- SUPER+ALT+F sólo la ensancha hasta ocupar todo el área útil.
+hl.bind(mainMod .. " + F", hl.dsp.window.fullscreen())
+hl.bind(mainMod .. " + CTRL + F", hl.dsp.window.fullscreen_state({ internal = 0, client = 2, action = "toggle" }))
+hl.bind(mainMod .. " + ALT + F", hl.dsp.window.fullscreen({ mode = "maximized" }))
+
+-- Intercambiar la ventana activa con la de al lado: SUPER+SHIFT+flechas.
+hl.bind(mainMod .. " + SHIFT + left", hl.dsp.window.swap({ direction = "left" }))
+hl.bind(mainMod .. " + SHIFT + right", hl.dsp.window.swap({ direction = "right" }))
+hl.bind(mainMod .. " + SHIFT + up", hl.dsp.window.swap({ direction = "up" }))
+hl.bind(mainMod .. " + SHIFT + down", hl.dsp.window.swap({ direction = "down" }))
+
+-- Pasar por las ventanas del escritorio con ALT+TAB (next = false es "anterior").
+hl.bind("ALT + TAB", hl.dsp.window.cycle_next())
+hl.bind("ALT + SHIFT + TAB", hl.dsp.window.cycle_next({ next = false }))
+
+-- Grupos (pestañas): SUPER+G agrupa o desagrupa la ventana, SUPER+ALT+G la saca
+-- del grupo y SUPER+ALT+flechas la mete en el grupo del lado. Dentro de un
+-- grupo: SUPER+CTRL+izquierda/derecha cambia de pestaña, SUPER+ALT+TAB (con
+-- SHIFT, hacia atrás) y SUPER+ALT+rueda también, y SUPER+ALT+1..5 va a la
+-- pestaña de ese número.
+hl.bind(mainMod .. " + G", hl.dsp.group.toggle())
+hl.bind(mainMod .. " + ALT + G", hl.dsp.window.move({ out_of_group = true }))
+for _, dir in ipairs({ "left", "right", "up", "down" }) do
+	hl.bind(mainMod .. " + ALT + " .. dir, hl.dsp.window.move({ into_group = dir }))
+end
+hl.bind(mainMod .. " + CTRL + left", hl.dsp.group.prev())
+hl.bind(mainMod .. " + CTRL + right", hl.dsp.group.next())
+hl.bind(mainMod .. " + ALT + TAB", hl.dsp.group.next())
+hl.bind(mainMod .. " + ALT + SHIFT + TAB", hl.dsp.group.prev())
+hl.bind(mainMod .. " + ALT + mouse_down", hl.dsp.group.next())
+hl.bind(mainMod .. " + ALT + mouse_up", hl.dsp.group.prev())
+for i = 1, 5 do
+	hl.bind(mainMod .. " + ALT + " .. i, hl.dsp.group.active({ index = i }))
+end
 
 -- Notificaciones. SUPER+N abre el centro con lo que ya se ha ido de la
 -- pantalla; SUPER+ALT+N pone y quita el silencio. No se usa SUPER+SHIFT+N
