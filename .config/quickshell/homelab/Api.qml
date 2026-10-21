@@ -1174,6 +1174,7 @@ Scope {
             vence: vence,
             dias: d !== null && hoy !== null ? d - hoy : null,
             empieza: empieza,
+            programada: String(t.scheduled || ""),
             noEmpezada: ed !== null && hoy !== null && ed > hoy,
             hechaEl: String(t.doneDate || ""),
             vencida: !!t.overdue,
@@ -2768,6 +2769,182 @@ Scope {
                     if (d2)
                         poner(d2);
                 });
+        });
+    }
+
+    // --- Fase 5: Revisiones ------------------------------------------------------
+    // Los reminders de la semana y su retro y su planning, de /api/revisiones.
+    // El cajón no genera nada: enseña las notas del usuario y guarda lo que
+    // escribe, un apartado cada vez. Se lee al entrar en la sección y al cambiar
+    // de semana; los eventos no lo empujan. Estado propio («rv») para no tocar «p».
+
+    // La semana que se está viendo, o null sin cargar:
+    //   { habilitado, error, semana ("2026-S43"), etiqueta, lunes, domingo, hoy
+    //     (AAAA-MM-DD), actual (es esta semana), semanaActual, anterior,
+    //     siguiente, semanas, reminders: [{ fecha, existe, editable, texto }],
+    //     planning y retro: { existe, ruta, secciones: [{ i, nivel, titulo,
+    //     cuerpo }] } }
+    readonly property var revisiones: rv.semana
+    readonly property var revisionesCargadas: rv.cargada
+    // Por qué no se pudo leer la semana; "" si bien.
+    readonly property string revisionesError: rv.error
+    // true mientras se guarda algo.
+    readonly property bool revisionesOcupado: rv.escribiendo
+    // La semana pedida ("" es esta semana), para releerla donde estaba.
+    readonly property string revisionesPedida: rv.pedida
+
+    QtObject {
+        id: rv
+
+        property var semana: null
+        property var cargada: null
+        property string error: ""
+        property bool escribiendo: false
+        property string pedida: ""
+        property int sec: 0
+    }
+
+    function revisionesDe(w) {
+        const nota = n => ({
+                existe: !!(n && n.existe),
+                ruta: String(n && n.path || ""),
+                secciones: ((n && n.secciones) || []).map(s => ({
+                            i: +s.i,
+                            nivel: +s.nivel,
+                            titulo: String(s.titulo || ""),
+                            cuerpo: String(s.cuerpo || "")
+                        }))
+            });
+        return {
+            habilitado: w.enabled !== false,
+            error: String(w.error || ""),
+            semana: String(w.semana || ""),
+            etiqueta: String(w.etiqueta || ""),
+            lunes: String(w.lunes || ""),
+            domingo: String(w.domingo || ""),
+            hoy: String(w.hoy || ""),
+            actual: !!w.actual,
+            semanaActual: String(w.semanaActual || ""),
+            anterior: String(w.anterior || ""),
+            siguiente: String(w.siguiente || ""),
+            semanas: (w.semanas || []).map(String),
+            reminders: (w.reminders || []).map(r => ({
+                        fecha: String(r.fecha),
+                        existe: !!r.existe,
+                        editable: r.editable === true,
+                        texto: String(r.texto || "")
+                    })),
+            planning: nota(w.planning),
+            retro: nota(w.retro)
+        };
+    }
+
+    // GET /api/revisiones?semana=…; "" es esta semana. Una respuesta de una
+    // petición vieja (se cambió de semana mientras tanto) se tira.
+    function cargarRevisiones(semana) {
+        if (p.clave === "")
+            return;
+        const gen = p.generacion;
+        const sec = ++rv.sec;
+        const pedida = semana === undefined ? rv.pedida : String(semana);
+        rv.pedida = pedida;
+        api.pedir("GET", "/api/revisiones" + (pedida !== "" ? "?semana=" + encodeURIComponent(pedida) : ""), undefined, (estado, texto) => {
+            if (gen !== p.generacion || sec !== rv.sec)
+                return;
+            if (estado === 401) {
+                api.noAutorizado();
+                return;
+            }
+            const d = api.leerJSON({
+                estado: estado,
+                texto: texto
+            });
+            if (!d) {
+                rv.error = "No se pudieron leer las revisiones" + api.porQue(estado, texto);
+                return;
+            }
+            rv.semana = api.revisionesDe(d);
+            rv.cargada = new Date();
+            rv.error = "";
+        });
+    }
+
+    // Guarda el reminder de un día (se crea desde la plantilla si no existe).
+    // «antes» es el texto del que se partió: si cambió en las notas, el NUC
+    // contesta 409 y no escribe. alAcabar("ok" | "obsoleta" | "error").
+    function guardarRecordatorio(fecha, antes, texto, alAcabar) {
+        api.escribirRevision("/api/revisiones/reminder", {
+            fecha: fecha,
+            antes: antes,
+            texto: texto
+        }, alAcabar);
+    }
+
+    // Guarda el cuerpo de un apartado de la retro o del planning (tipo:
+    // "retro" o "planning"); i y titulo dicen cuál, y «antes» como arriba.
+    function guardarApartado(tipo, semana, i, titulo, antes, cuerpo, alAcabar) {
+        api.escribirRevision("/api/revisiones/nota", {
+            tipo: tipo,
+            semana: semana,
+            i: i,
+            titulo: titulo,
+            antes: antes,
+            cuerpo: cuerpo
+        }, alAcabar);
+    }
+
+    // Crea la retro o el planning de la semana desde la plantilla.
+    function crearNotaRevision(tipo, semana, alAcabar) {
+        api.escribirRevision("/api/revisiones/nota", {
+            tipo: tipo,
+            semana: semana,
+            crear: true
+        }, alAcabar);
+    }
+
+    // Una escritura. 200: la semana nueva. 409: alguien cambió la nota por
+    // otro lado; el NUC manda la semana como está y no escribe nada, se
+    // recarga y se avisa. Otro fallo (403, 422…): se avisa con lo que diga el
+    // NUC y lo que se veía se queda como estaba.
+    function escribirRevision(ruta, cuerpo, alAcabar) {
+        if (p.conexion !== "conectado" || rv.escribiendo) {
+            if (alAcabar)
+                alAcabar("error");
+            return;
+        }
+        rv.escribiendo = true;
+        const gen = p.generacion;
+        api.pedir("POST", ruta, cuerpo, (estado, texto) => {
+            rv.escribiendo = false;
+            if (gen !== p.generacion)
+                return;
+            const d = api.leerJSON({
+                estado: estado === 409 ? 200 : estado,
+                texto: texto
+            });
+            let res = "error";
+            if (estado === 200 && d) {
+                rv.semana = api.revisionesDe(d);
+                rv.cargada = new Date();
+                rv.error = "";
+                res = "ok";
+                api.bien();
+            } else if (estado === 409 && d && d.revisiones) {
+                rv.semana = api.revisionesDe(d.revisiones);
+                rv.cargada = new Date();
+                res = "obsoleta";
+                api.aviso("Tus notas han cambiado; las he recargado. Revisa lo que escribías.", true);
+            } else if (estado === 409) {
+                res = "obsoleta";
+                api.cargarRevisiones();
+                api.aviso("Tus notas han cambiado; las he recargado. Revisa lo que escribías.", true);
+            } else if (estado === 401) {
+                api.noAutorizado();
+            } else {
+                api.aviso("No se pudo guardar" + api.porQue(estado, texto), true);
+            }
+            if (alAcabar)
+                alAcabar(res);
         });
     }
 }

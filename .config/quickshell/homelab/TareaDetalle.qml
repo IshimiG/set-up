@@ -296,19 +296,8 @@ ColumnLayout {
     // La línea de abajo: lo que no se ve en la fila.
     Text {
         Layout.fillWidth: true
-        text: {
-            const k = detalle.t.efectiva;
-            const partes = [k ? "Prioridad " + Logica.NOMBRES[k].toLowerCase() : "Sin prioridad"];
-            if (detalle.t.subida)
-                partes.push("subida: " + detalle.t.subida);
-            if (detalle.t.vence)
-                partes.push("vence el " + Logica.fechaCorta(detalle.t.vence));
-            if (detalle.t.empieza)
-                partes.push("no antes del " + Logica.fechaCorta(detalle.t.empieza));
-            if (detalle.t.area)
-                partes.push(detalle.t.area);
-            return partes.join(" · ");
-        }
+        objectName: "pieDetalle"
+        text: Logica.pieDetalle(detalle.t)
         color: Theme.faint
         font.family: Theme.font
         font.pixelSize: 10

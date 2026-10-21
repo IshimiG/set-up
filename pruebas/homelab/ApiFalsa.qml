@@ -129,6 +129,7 @@ QtObject {
             hecha: false,
             hechaEl: "",
             empieza: "",
+            programada: "",
             noEmpezada: false,
             subida: "",
             detalles: [],
@@ -184,7 +185,9 @@ QtObject {
                     pausa: false,
                     tareas: [
                         api.nueva("Entrega de prueba con fecha", "alta", -2),
-                        api.nueva("Leer el tema 4", "baja", 12)
+                        api.nueva("Leer el tema 4", "baja", 12, {
+                            programada: api.fecha(3)
+                        })
                     ]
                 },
                 {
@@ -281,6 +284,7 @@ QtObject {
                             vence: t.dias === null ? "" : api.fecha(t.dias),
                             dias: t.dias,
                             empieza: t.empieza,
+                            programada: t.programada,
                             noEmpezada: t.noEmpezada,
                             hechaEl: t.hechaEl,
                             vencida: t.dias !== null && t.dias < 0 && !t.hecha,
@@ -1212,5 +1216,166 @@ QtObject {
             comprobando: false,
             ultimoOk: null
         };
+    }
+
+    // --- Fase 5: Revisiones -----------------------------------------------------
+    // Un «servidor» de revisiones con estado: la semana 43 es la de hoy (la 42
+    // y la 44 existen, vacías). Cada escritura comprueba «antes» como el NUC:
+    // si no coincide (o con revConflicto, que cambia algo «desde fuera»), no
+    // escribe y recarga. Lo que ha pasado queda en escriturasRev y
+    // lecturasRevisiones.
+
+    property var revisiones: null
+    property var revisionesCargadas: null
+    property string revisionesError: ""
+    property bool revisionesOcupado: false
+    property string revisionesPedida: ""
+    property var lecturasRevisiones: []
+    property var escriturasRev: []
+    property bool revConflicto: false
+    property bool revEditables: true
+    // Lo que hay en las «notas»: texto por día, y por semana las secciones de
+    // la retro y del planning (null si no existe la nota).
+    property var notasRev: ({
+            dias: {
+                "2026-10-19": "Lunes tranquilo.\n\n- gym\n- leído",
+                "2026-10-20": ""
+            },
+            retro: {
+                "2026-S43": [
+                    {
+                        i: 0,
+                        nivel: 2,
+                        titulo: "Qué ha ido bien",
+                        cuerpo: "Acabé el cajón."
+                    },
+                    {
+                        i: 1,
+                        nivel: 2,
+                        titulo: "Qué mejorar",
+                        cuerpo: ""
+                    }
+                ]
+            },
+            planning: {}
+        })
+
+    readonly property var plantillaRev: ["Prioridades", "Riesgos"]
+
+    function lunesRev(id) {
+        return api.fecha(7 * (+id.slice(6) - 43) - 1);
+    }
+
+    function semanaRev(id) {
+        const lunes = api.lunesRev(id);
+        const dias = [];
+        for (let k = 0; k < 7; k++) {
+            const d = new Date(Date.UTC(+lunes.slice(0, 4), +lunes.slice(5, 7) - 1, +lunes.slice(8, 10) + k)).toISOString().slice(0, 10);
+            const t = api.notasRev.dias[d];
+            dias.push({
+                fecha: d,
+                existe: t !== undefined,
+                editable: api.revEditables,
+                texto: t || ""
+            });
+        }
+        const nota = tipo => {
+            const s = api.notasRev[tipo][id];
+            return {
+                existe: !!s,
+                ruta: "30 Áreas/Revisiones/" + tipo + "/" + id + ".md",
+                secciones: s || []
+            };
+        };
+        const num = +id.slice(6);
+        return {
+            habilitado: true,
+            error: "",
+            semana: id,
+            etiqueta: "S" + num,
+            lunes: lunes,
+            domingo: api.fecha(7 * (num - 43) + 5),
+            hoy: api.hoy,
+            actual: id === "2026-S43",
+            semanaActual: "2026-S43",
+            anterior: "2026-S" + (num - 1),
+            siguiente: "2026-S" + (num + 1),
+            semanas: ["2026-S42", "2026-S43"],
+            reminders: dias,
+            planning: nota("planning"),
+            retro: nota("retro")
+        };
+    }
+
+    function cargarRevisiones(semana) {
+        const pedida = semana === undefined ? api.revisionesPedida : semana;
+        api.revisionesPedida = pedida;
+        api.lecturasRevisiones = api.lecturasRevisiones.concat([pedida]);
+        api.revisiones = api.semanaRev(pedida === "" ? "2026-S43" : pedida);
+        api.revisionesCargadas = new Date();
+    }
+
+    // La escritura: cambiar(semanaId) devuelve false si «antes» no coincide.
+    function escribirRev(op, cuerpo, semanaId, textoActual, cambiar, alAcabar) {
+        api.escriturasRev = api.escriturasRev.concat([
+            {
+                op: op,
+                cuerpo: cuerpo
+            }
+        ]);
+        if (api.revConflicto) {
+            api.revConflicto = false;
+            api.notasRev.dias[api.hoy] = "Escrito desde Obsidian";
+        }
+        if (cuerpo.antes !== undefined && cuerpo.antes !== textoActual()) {
+            api.revisiones = api.semanaRev(semanaId);
+            api.revisionesCargadas = new Date();
+            api.aviso("Tus notas han cambiado; las he recargado. Revisa lo que escribías.", true);
+            alAcabar("obsoleta");
+            return;
+        }
+        cambiar();
+        api.revisiones = api.semanaRev(semanaId);
+        api.revisionesCargadas = new Date();
+        alAcabar("ok");
+    }
+
+    function guardarRecordatorio(fecha, antes, texto, alAcabar) {
+        const semanaId = api.revisiones.semana;
+        api.escribirRev("reminder", {
+            fecha: fecha,
+            antes: antes,
+            texto: texto
+        }, semanaId, () => api.notasRev.dias[fecha] || "", () => {
+            api.notasRev.dias[fecha] = texto;
+        }, alAcabar);
+    }
+
+    function guardarApartado(tipo, semana, i, titulo, antes, cuerpo, alAcabar) {
+        api.escribirRev("nota", {
+            tipo: tipo,
+            semana: semana,
+            i: i,
+            titulo: titulo,
+            antes: antes,
+            cuerpo: cuerpo
+        }, semana, () => api.notasRev[tipo][semana][i].cuerpo, () => {
+            api.notasRev[tipo][semana][i].cuerpo = cuerpo;
+        }, alAcabar);
+    }
+
+    function crearNotaRevision(tipo, semana, alAcabar) {
+        api.escribirRev("nota", {
+            tipo: tipo,
+            semana: semana,
+            crear: true
+        }, semana, () => "", () => {
+            api.notasRev[tipo][semana] = api.plantillaRev.map((t, i) => ({
+                        i: i,
+                        nivel: 2,
+                        titulo: t,
+                        cuerpo: ""
+                    }));
+        }, alAcabar);
     }
 }

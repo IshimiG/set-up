@@ -279,3 +279,59 @@ function hace(fecha) {
     var d = Math.floor(s / 86400);
     return "hace " + d + (d === 1 ? " día" : " días");
 }
+
+// Lo que pide atención, para el chip de Inicio y la cabecera de Tareas, como el
+// de la web: de las abiertas, cuántas están vencidas y cuántas vencen hoy
+// (cada una cuenta una sola vez), y cuántas hay abiertas.
+function resumenPlazos(todas) {
+    var r = { abiertas: 0, vencidas: 0, hoy: 0 };
+    for (var i = 0; i < todas.length; i++) {
+        var t = todas[i];
+        if (t.hecha)
+            continue;
+        r.abiertas++;
+        if (t.vencida || (t.dias !== null && t.dias !== undefined && t.dias < 0))
+            r.vencidas++;
+        else if (t.venceHoy || t.dias === 0)
+            r.hoy++;
+    }
+    return r;
+}
+
+// «2 vencidas · 1 para hoy»; sin ninguna, «Nada vencido».
+function textoPlazos(r) {
+    var partes = [];
+    if (r.vencidas)
+        partes.push(r.vencidas + (r.vencidas === 1 ? " vencida" : " vencidas"));
+    if (r.hoy)
+        partes.push(r.hoy + " para hoy");
+    return partes.length ? partes.join(" · ") : "Nada vencido";
+}
+
+// «3 abiertas · 1 vencida», la cuenta de la cabecera de Tareas.
+function textoCuenta(r) {
+    var partes = [r.abiertas + (r.abiertas === 1 ? " abierta" : " abiertas")];
+    if (r.vencidas)
+        partes.push(r.vencidas + (r.vencidas === 1 ? " vencida" : " vencidas"));
+    return partes.join(" · ");
+}
+
+// La línea de abajo del detalle de una tarea, como el pie de la web: lo que
+// no se ve en la fila.
+function pieDetalle(t) {
+    var k = t.efectiva;
+    var partes = [k ? "Prioridad " + NOMBRES[k].toLowerCase() : "Sin prioridad"];
+    if (t.subida)
+        partes.push("subida: " + t.subida);
+    if (t.vence)
+        partes.push("vence el " + fechaCorta(t.vence));
+    if (t.empieza)
+        partes.push("no antes del " + fechaCorta(t.empieza));
+    if (t.programada)
+        partes.push("\u23f3 " + fechaCorta(t.programada));
+    if (t.area)
+        partes.push(t.area);
+    if (t.fijada)
+        partes.push("fijada en \u00abAhora\u00bb");
+    return partes.join(" \u00b7 ");
+}
