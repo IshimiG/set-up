@@ -13,6 +13,10 @@
 #
 #   pruebas/homelab/prueba.sh            la prueba, y la carpeta se borra
 #   pruebas/homelab/prueba.sh --guardar  la deja, para mirar las capturas
+#
+# Con PRUEBA_NOTA_REAL, Notas abre además esa nota del vault de verdad (sólo
+# leer, y sólo de las carpetas que abre el NUC; PRUEBA_VAULT, ~/Notes si no):
+#   PRUEBA_NOTA_REAL="30 Áreas/Servidor/26-panel-escritorio.md" pruebas/homelab/prueba.sh --guardar
 set -e
 
 aqui=$(dirname "$(readlink -f "$0")")
@@ -21,7 +25,7 @@ qs_dir=$repo/.config/quickshell
 tmp=$(mktemp -d "${TMPDIR:-/tmp}/prueba-cajon.XXXXXX")
 
 mkdir -p "$tmp/homelab" "$tmp/capturas"
-cp "$aqui/shell.qml" "$aqui/ApiFalsa.qml" "$tmp/"
+cp "$aqui/"*.qml "$tmp/"
 cp -r "$qs_dir/shared" "$tmp/shared"
 cp "$qs_dir/homelab/"*.qml "$qs_dir/homelab/"*.js "$tmp/homelab/"
 ln -s ../shared "$tmp/homelab/shared"

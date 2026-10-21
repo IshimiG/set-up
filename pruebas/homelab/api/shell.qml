@@ -1202,6 +1202,22 @@ ShellRoot {
                         });
                     });
                 }),
+            // --- Fase 5: una nota como página (GET /api/nota, sólo leer) ---
+            sig => {
+                prueba.comprobar(a.notasPermitidas.indexOf("00 Inicio.md") >= 0 && a.notasPermitidas.indexOf("10 Proyectos") >= 0 && a.notasPermitidas.every(e => e.indexOf("MentalHealth") < 0), "notasPermitidas: las carpetas de personal.allowed", JSON.stringify(a.notasPermitidas));
+                prueba.comprobar(Array.isArray(a.notasRecientes) && a.notasRecientes.some(n => n.ruta === "10 Proyectos/Proyecto de prueba.md" && n.titulo === "Proyecto de prueba" && n.modificada instanceof Date), "notasRecientes: las de los últimos 7 días, con su título y su fecha", JSON.stringify(a.notasRecientes));
+                const r = {};
+                a.leerNota("10 Proyectos/Proyecto de prueba.md", (n, e) => r.bien = [n, e]);
+                a.leerNota("MentalHealth/Diario.md", (n, e) => r.fuera = [n, e]);
+                a.leerNota("10 Proyectos/No existe.md", (n, e) => r.falta = [n, e]);
+                prueba.esperar(8000, () => r.bien && r.fuera && r.falta, ok => {
+                    const n = ok ? r.bien[0] : null;
+                    prueba.comprobar(ok && r.bien[1] === "" && n.ruta === "10 Proyectos/Proyecto de prueba.md" && n.titulo === "Proyecto de prueba" && n.modificada instanceof Date && n.texto.indexOf("# Proyecto de prueba") === 0 && n.texto.indexOf("tipo: proyecto") < 0, "leerNota: la nota, sin el frontmatter", n ? JSON.stringify(n.texto.slice(0, 40)) : JSON.stringify(r.bien));
+                    prueba.comprobar(ok && r.fuera[0] === null && r.fuera[1] === "No se puede abrir la nota: esa nota no está en las carpetas que muestra el panel", "  una de fuera de las carpetas: lo que dice el NUC (403)", ok ? r.fuera[1] : "");
+                    prueba.comprobar(ok && r.falta[0] === null && r.falta[1] === "No se puede abrir la nota: no encuentro esa nota", "  una que no está (404)", ok ? r.falta[1] : "");
+                    sig();
+                });
+            },
             sig => {
                 const todo = JSON.stringify(a.registro) + JSON.stringify(a.stacks) + JSON.stringify(a.proyectos) + JSON.stringify(a.logs) + JSON.stringify(prueba.avisos) + JSON.stringify(prueba.movilAvisos);
                 prueba.comprobar(todo.indexOf("Pr0ba-") < 0, "ni el Registro, ni los stacks, ni los proyectos, ni los avisos llevan las contraseñas");

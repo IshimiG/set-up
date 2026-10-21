@@ -78,6 +78,15 @@ FloatingWindow {
 
     TestEvent { id: ev }
 
+    // Los pasos de Notas (fase 5), en su fichero (PasosNotas.qml, al lado).
+    PasosNotas {
+        id: pasosNotas
+        v: ventana
+        api: apiFalsa
+        zona: envoltura
+        shell: falso
+    }
+
     property var fallos: []
     property int hechas: 0
 
@@ -1454,6 +1463,7 @@ FloatingWindow {
             ventana.comprobar(ventana.textoAviso() === "Esa línea ya no está en el Registro" && ventana.porNombre("detalleRegistro").length === 0, "si la línea ya no está, lo dice", ventana.textoAviso());
             apiFalsa.alertas = apiFalsa.alertas.map(a => a.id === "a2" ? Object.assign({}, a, { entrada: 7 }) : a);
         }]],
+        pasosNotas.pasos,
         [[50, () => ventana.comprobar(ventana.textos().indexOf("€") < 0, "no aparece ningún € en todo el texto del cajón")]],
         [[300, () => {
             console.log("Resultado: " + (ventana.hechas - ventana.fallos.length) + " de " + ventana.hechas + " bien" + (ventana.fallos.length ? "; fallan: " + ventana.fallos.join(" | ") : ""));
