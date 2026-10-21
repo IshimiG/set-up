@@ -137,7 +137,7 @@ FloatingWindow {
     }
 
     // Las listas que se desplazan y recortan.
-    readonly property var desplazables: ["desplazableTareas", "desplazableInicio", "desplazableProyectos", "detalleProyecto", "desplazableServidor", "desplazableRegistro"]
+    readonly property var desplazables: ["desplazableTareas", "desplazableInicio", "desplazableProyectos", "detalleProyecto", "desplazableServidor", "desplazableRegistro", "desplazableFinanzas"]
 
     // Si el item está en una lista que se desplaza (y recorta), la mueve hasta
     // que se vea entero: un clic fuera de lo que enseña no llega.
@@ -1454,6 +1454,94 @@ FloatingWindow {
             ventana.comprobar(ventana.textoAviso() === "Esa línea ya no está en el Registro" && ventana.porNombre("detalleRegistro").length === 0, "si la línea ya no está, lo dice", ventana.textoAviso());
             apiFalsa.alertas = apiFalsa.alertas.map(a => a.id === "a2" ? Object.assign({}, a, { entrada: 7 }) : a);
         }]],
+        // =====================================================================
+        // Fase 5: Finanzas
+        // =====================================================================
+        [[50, () => falso.abierto = true]],
+        [[600, () => ventana.seccion("finanzas")]],
+        [[700, () => {
+            ventana.comprobar(ventana.uno("seccionFinanzas") !== null && apiFalsa.lecturasFinanzas === 1, "la tira lleva a Finanzas, que se lee la primera vez que se mira", String(apiFalsa.lecturasFinanzas));
+            ventana.comprobar(ventana.tiene("OCTUBRE 2026") && ventana.tiene("Gastos") && ventana.tiene("Ingresos"), "el resumen del mes, con su nombre");
+            ventana.comprobar(ventana.uno("gastosMes").text === "770,42 €" && ventana.uno("ingresosMes").text === "1.850,00 €" && ventana.uno("patrimonio").text === "12.345,67 €", "con el cajón desplegado salen los euros, con formato de aquí", ventana.uno("gastosMes").text + " | " + ventana.uno("ingresosMes").text + " | " + ventana.uno("patrimonio").text);
+            ventana.comprobar(ventana.tiene("41 % de la meta") && ventana.tiene("un 23 % menos que septiembre"), "  el % de la meta y la comparación con el mes anterior");
+            ventana.comprobar(ventana.tiene("Mercadona") && ventana.tiene("-45,23 €") && ventana.tiene("20 oct") && !ventana.tiene("Gasolina"), "los movimientos del mes, los de la primera página");
+            ventana.comprobar(ventana.uno("masFinanzas") !== null && ventana.uno("finanzasWeb") !== null, "  con «Cargar más» y «Abrir en la web»");
+            ventana.comprobar(ventana.uno("avisoTradeRepublic") !== null && ventana.uno("iniciarTradeRepublic") !== null && apiFalsa.lecturasTR >= 1, "la sesión caducada de Trade Republic avisa, y con el permiso hay botón");
+            ventana.captura("28-finanzas");
+            // Con el cajón a medio plegar (no del todo fuera) no sale ninguna cantidad.
+            falso.abierto = false;
+        }]],
+        [[900, () => {
+            const t = ventana.textos();
+            ventana.comprobar(t.indexOf("€") < 0 && !/\d,\d\d/.test(t) && ventana.cualquiera("seccionFinanzas") !== null, "con el cajón replegado no sale ninguna cantidad", t.slice(0, 80));
+            falso.abierto = true;
+        }]],
+        [[700, () => {
+            ventana.comprobar(ventana.uno("gastosMes").text === "770,42 €", "al volver a desplegar, otra vez los euros");
+            ventana.clic(ventana.uno("masFinanzas"));
+        }]],
+        [[300, () => {
+            ventana.comprobar(apiFalsa.masFinanzasPedidas === 1 && ventana.tiene("Gasolina") && ventana.tiene("Seguro") && ventana.uno("masFinanzas") === null, "«Cargar más» trae los de antes y se quita");
+            // El formulario: validaciones del cajón, sin llamar al NUC.
+            ventana.clic(ventana.uno("apuntarEfectivo"));
+        }]],
+        [[200, () => {
+            ventana.comprobar(apiFalsa.efectivos.length === 0 && ventana.uno("errorForm") !== null && ventana.uno("errorForm").text.indexOf("importe") >= 0, "un importe vacío no sale hacia el NUC y lo dice", ventana.uno("errorForm") ? ventana.uno("errorForm").text : "");
+            ventana.uno("campoImporte").texto = "12,50";
+            ventana.uno("campoConcepto").texto = "Cafetería";
+            ventana.clic(ventana.uno("apuntarEfectivo"));
+        }]],
+        [[200, () => {
+            ventana.comprobar(apiFalsa.efectivos.length === 0 && ventana.uno("errorForm").text.indexOf("categoría") >= 0, "sin categoría tampoco", ventana.uno("errorForm").text);
+            ventana.clic(ventana.uno("catEfectivo-2"));
+        }]],
+        [[200, () => {
+            ventana.comprobar(ventana.uno("catEfectivo-2").activo, "elegir una categoría la marca");
+            apiFalsa.errorEfectivo = "Escribe un concepto de hasta 200 caracteres.";
+            ventana.clic(ventana.uno("apuntarEfectivo"));
+        }]],
+        [[200, () => {
+            ventana.comprobar(apiFalsa.efectivos.length === 1 && ventana.igual(apiFalsa.efectivos[0], { importe: 1250, concepto: "Cafetería", categoria: 2, fecha: "" }), "se manda en céntimos, con concepto y categoría", JSON.stringify(apiFalsa.efectivos));
+            ventana.comprobar(ventana.uno("errorForm") !== null && ventana.uno("errorForm").text === "Escribe un concepto de hasta 200 caracteres." && ventana.uno("campoImporte").texto === "12,50", "un rechazo del servidor se enseña junto al formulario y no borra lo escrito");
+            apiFalsa.errorEfectivo = "";
+            apiFalsa.conflictoEfectivo = true;
+            ventana.clic(ventana.uno("apuntarEfectivo"));
+        }]],
+        [[300, () => {
+            ventana.comprobar(ventana.textoAviso().indexOf("Finanzas no pudo apuntarlo") === 0 && ventana.uno("campoConcepto").texto === "Cafetería", "un 409 avisa y deja el formulario como estaba", ventana.textoAviso());
+            ventana.clic(ventana.uno("apuntarEfectivo"));
+        }]],
+        [[400, () => {
+            ventana.comprobar(apiFalsa.efectivos.length === 3 && ventana.textoAviso() === "Gasto en efectivo apuntado" && !/\d/.test(ventana.textoAviso()), "apuntado: el aviso no lleva ninguna cantidad", ventana.textoAviso());
+            ventana.comprobar(ventana.tiene("Cafetería") && ventana.tiene("-12,50 €") && ventana.uno("campoImporte").texto === "" && ventana.uno("errorForm") === null && ventana.uno("gastosMes").text === "782,92 €", "  el movimiento sale, el formulario se vacía y el resumen se pone al día", ventana.uno("gastosMes").text);
+            ventana.captura("29-finanzas-efectivo");
+            // Sin el permiso de Trade Republic: el aviso se queda, el botón no.
+            apiFalsa.permisos = { acciones_docker: true, login_traderepublic: false };
+        }]],
+        [[300, () => {
+            ventana.comprobar(ventana.uno("avisoTradeRepublic") !== null && ventana.uno("iniciarTradeRepublic") === null, "sin login_traderepublic no hay botón de iniciar sesión (el aviso se queda)");
+            apiFalsa.permisos = { acciones_docker: true, login_traderepublic: true };
+            apiFalsa.trCaducada = false;
+            apiFalsa.cargarTradeRepublic();
+        }]],
+        [[300, () => {
+            ventana.comprobar(ventana.uno("avisoTradeRepublic") === null, "con la sesión buena no hay aviso");
+            ventana.enlaces = [];
+        }]],
+        [[50, () => ventana.clic(ventana.uno("finanzasWeb"))]],
+        [[300, () => {
+            ventana.comprobar(ventana.igual(ventana.enlaces[ventana.enlaces.length - 1], ["xdg-open", apiFalsa.urlWeb("#/finanzas")]), "«Abrir en la web» abre la sección de Finanzas de la web", JSON.stringify(ventana.enlaces));
+            // El enlace aparta el cajón: se vuelve a sacar, y Finanzas sin datos.
+            falso.abierto = true;
+        }]],
+        [[700, () => {
+            apiFalsa.finanzas = Object.assign({}, apiFalsa.finanzas, { habilitado: false, listo: false });
+        }]],
+        [[300, () => {
+            ventana.comprobar(ventana.uno("finanzasApagado") !== null && ventana.uno("resumenFinanzas") === null && ventana.uno("formEfectivo") === null, "con Finanzas apagado en el NUC lo dice y no enseña nada más");
+            ventana.seccion("inicio");
+        }]],
+        [[500, () => ventana.comprobar(ventana.tiene("34 %") && ventana.textos().indexOf("€") < 0, "Inicio sigue con el % de la meta y sin euros")]],
         [[50, () => ventana.comprobar(ventana.textos().indexOf("€") < 0, "no aparece ningún € en todo el texto del cajón")]],
         [[300, () => {
             console.log("Resultado: " + (ventana.hechas - ventana.fallos.length) + " de " + ventana.hechas + " bien" + (ventana.fallos.length ? "; fallan: " + ventana.fallos.join(" | ") : ""));

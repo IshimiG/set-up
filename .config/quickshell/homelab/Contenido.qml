@@ -234,7 +234,7 @@ Item {
     }
 
     // Las secciones que ya están hechas; las demás dicen en qué fase llegan.
-    readonly property var hechas: ["inicio", "tareas", "clase", "proyectos", "servidor", "registro"]
+    readonly property var hechas: ["inicio", "tareas", "clase", "proyectos", "servidor", "registro", "finanzas"]
 
     // Cómo se abre un enlace en el navegador. La prueba lo sustituye por otra
     // cosa, para no abrir nada de verdad.
@@ -474,6 +474,16 @@ Item {
                     visible: contenido.seccion === "registro"
                     shell: contenido.shell
                     lineaConexion: contenido.conectado ? "" : contenido.textoConexion()
+                }
+
+                Finanzas {
+                    objectName: "seccionFinanzas"
+                    anchors.fill: parent
+                    visible: contenido.seccion === "finanzas"
+                    shell: contenido.shell
+                    desplegado: contenido.desplegado
+                    lineaConexion: contenido.conectado ? "" : contenido.textoConexion()
+                    onAbrirWeb: contenido.abrirEnLaWeb()
                 }
 
                 Loader {
