@@ -13,7 +13,7 @@ import "shared"
 //
 // Este fichero solo reparte: la tira de secciones, la cabecera y el aviso de
 // abajo. Cada sección vive en el suyo: Inicio (aquí, con Habitos.qml), Tareas.qml,
-// Clase.qml y, en la fase 4, Proyectos.qml, Servidor.qml y Registro.qml. Se crean
+// Clase.qml, Proyectos.qml, Servidor.qml, Registro.qml y Revisiones.qml. Se crean
 // una vez y solo se esconden al cambiar de sección, para que no pierdan lo que
 // tenían abierto.
 Item {
@@ -234,7 +234,7 @@ Item {
     }
 
     // Las secciones que ya están hechas; las demás dicen en qué fase llegan.
-    readonly property var hechas: ["inicio", "tareas", "clase", "proyectos", "servidor", "registro"]
+    readonly property var hechas: ["inicio", "tareas", "clase", "proyectos", "servidor", "registro", "revisiones"]
 
     // Cómo se abre un enlace en el navegador. La prueba lo sustituye por otra
     // cosa, para no abrir nada de verdad.
@@ -474,6 +474,16 @@ Item {
                     visible: contenido.seccion === "registro"
                     shell: contenido.shell
                     lineaConexion: contenido.conectado ? "" : contenido.textoConexion()
+                }
+
+                Revisiones {
+                    objectName: "seccionRevisiones"
+                    anchors.fill: parent
+                    visible: contenido.seccion === "revisiones"
+                    shell: contenido.shell
+                    lineaConexion: contenido.conectado ? "" : contenido.textoConexion()
+                    onAbrirWeb: contenido.abrirEnLaWeb()
+                    onIrATareas: contenido.seccion = "tareas"
                 }
 
                 Loader {

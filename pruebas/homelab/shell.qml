@@ -137,7 +137,7 @@ FloatingWindow {
     }
 
     // Las listas que se desplazan y recortan.
-    readonly property var desplazables: ["desplazableTareas", "desplazableInicio", "desplazableProyectos", "detalleProyecto", "desplazableServidor", "desplazableRegistro"]
+    readonly property var desplazables: ["desplazableTareas", "desplazableInicio", "desplazableProyectos", "detalleProyecto", "desplazableServidor", "desplazableRegistro", "desplazableRevisiones"]
 
     // Si el item está en una lista que se desplaza (y recorta), la mueve hasta
     // que se vea entero: un clic fuera de lo que enseña no llega.
@@ -1453,6 +1453,117 @@ FloatingWindow {
         [[600, () => {
             ventana.comprobar(ventana.textoAviso() === "Esa línea ya no está en el Registro" && ventana.porNombre("detalleRegistro").length === 0, "si la línea ya no está, lo dice", ventana.textoAviso());
             apiFalsa.alertas = apiFalsa.alertas.map(a => a.id === "a2" ? Object.assign({}, a, { entrada: 7 }) : a);
+        }]],
+        // --- Fase 5: Revisiones ---
+        [[400, () => {
+            ventana.lecturas0 = apiFalsa.lecturasRevisiones.length;
+            ventana.seccion("revisiones");
+        }]],
+        [[700, () => {
+            ventana.comprobar(ventana.uno("seccionRevisiones") !== null, "la tira lleva a Revisiones");
+            ventana.comprobar(apiFalsa.lecturasRevisiones.length === ventana.lecturas0 + 1 && apiFalsa.revisionesPedida === "", "al entrar se lee esta semana (una vez)", JSON.stringify(apiFalsa.lecturasRevisiones));
+            ventana.comprobar(ventana.uno("revisionSemana").text === "Semana 43 · 19–25 oct", "el selector dice la semana y su rango", ventana.uno("revisionSemana").text);
+            const dias = ventana.nombresCon("reminder-");
+            ventana.comprobar(dias.length === 7, "salen los siete reminders de la semana", String(dias.length));
+            ventana.comprobar(ventana.tiene("Lunes tranquilo.") && ventana.tiene("Todavía no"), "  con su texto y, los que no han llegado, «Todavía no»");
+            ventana.comprobar(ventana.uno("campoRevision") !== null && ventana.porNombre("campoRevision").length === 1, "el reminder de hoy, vacío, se abre para escribir (y sólo ése)");
+            
+            ventana.comprobar(ventana.uno("crear-planning") !== null && ventana.uno("plegar-retro") !== null && ventana.uno("crear-retro") === null, "el planning dice «crear desde la plantilla» y la retro, que existe, se pliega y despliega");
+            ventana.comprobar(ventana.uno("tarjetaDomingo") !== null, "la tarjeta del domingo sale en la semana de hoy");
+            ventana.comprobar(ventana.textos().indexOf("€") < 0, "(sin euros en Revisiones)");
+            ventana.captura("28-revisiones");
+            // Escribir con el teclado y guardar con Ctrl+Intro.
+            ventana.escrituras0 = apiFalsa.escriturasRev.length;
+            ventana.tecla("H");
+            ventana.tecla("o");
+            ventana.tecla("y");
+            ventana.tecla(Qt.Key_Return, Qt.ControlModifier);
+        }]],
+        [[500, () => {
+            const u = apiFalsa.escriturasRev[apiFalsa.escriturasRev.length - 1];
+            ventana.comprobar(apiFalsa.escriturasRev.length === ventana.escrituras0 + 1 && u.op === "reminder" && ventana.igual(u.cuerpo, { fecha: "2026-10-20", antes: "", texto: "Hoy" }), "Ctrl+Intro guarda el reminder de hoy con el texto del que se partió", u ? JSON.stringify(u.cuerpo) : "(nada)");
+            ventana.comprobar(ventana.uno("campoRevision") === null && ventana.tiene("Hoy"), "  y el campo se cierra y el texto sale");
+            // Escape cancela sin escribir.
+            ventana.escrituras0 = apiFalsa.escriturasRev.length;
+            ventana.clic(ventana.uno("escribir-2026-10-19"));
+        }]],
+        [[300, () => {
+            ventana.comprobar(ventana.uno("campoRevision") !== null && ventana.uno("campoRevision").texto === "Lunes tranquilo.\n\n- gym\n- leído", "«Editar» abre el campo con el texto que hay");
+            ventana.tecla("x");
+            ventana.tecla(Qt.Key_Escape);
+        }]],
+        [[300, () => {
+            ventana.comprobar(ventana.uno("campoRevision") === null && apiFalsa.escriturasRev.length === ventana.escrituras0 && apiFalsa.notasRev.dias["2026-10-19"].indexOf("x") < 0, "Escape cancela: no se escribe nada");
+            // Conflicto: la nota cambia por otro lado mientras se escribe.
+            ventana.clic(ventana.uno("escribir-2026-10-20"));
+        }]],
+        [[300, () => {
+            ventana.tecla("!");
+            apiFalsa.revConflicto = true;
+            ventana.tecla(Qt.Key_Return, Qt.ControlModifier);
+        }]],
+        [[500, () => {
+            ventana.comprobar(apiFalsa.notasRev.dias["2026-10-20"] === "Escrito desde Obsidian", "con un 409 el NUC no escribe encima", apiFalsa.notasRev.dias["2026-10-20"]);
+            ventana.comprobar(ventana.textoAviso().indexOf("Tus notas han cambiado") === 0, "  y se avisa", ventana.textoAviso());
+            ventana.comprobar(ventana.uno("campoRevision") !== null && ventana.uno("campoRevision").texto === "Hoy!" && ventana.uno("avisoConflicto") !== null, "  y lo escrito se queda en el campo, con su aviso", ventana.uno("campoRevision") ? ventana.uno("campoRevision").texto : "(sin campo)");
+            ventana.tecla(Qt.Key_Escape);
+        }]],
+        [[300, () => {
+            ventana.comprobar(ventana.uno("campoRevision") === null && ventana.tiene("Escrito desde Obsidian"), "  cancelar deja lo que había en las notas");
+            // Crear el planning desde la plantilla y escribir un apartado.
+            ventana.escrituras0 = apiFalsa.escriturasRev.length;
+            ventana.clic(ventana.uno("crear-planning"));
+        }]],
+        [[500, () => {
+            const u = apiFalsa.escriturasRev[apiFalsa.escriturasRev.length - 1];
+            ventana.comprobar(apiFalsa.escriturasRev.length === ventana.escrituras0 + 1 && ventana.igual(u.cuerpo, { tipo: "planning", semana: "2026-S43", crear: true }), "«Crear desde la plantilla» pide crear el planning de la semana", u ? JSON.stringify(u.cuerpo) : "");
+            ventana.comprobar(ventana.uno("apartado-planning:0") !== null && ventana.uno("apartado-planning:1") !== null && ventana.tiene("Prioridades") && ventana.uno("crear-planning") === null, "  y salen sus apartados");
+            ventana.clic(ventana.uno("escribir-planning:1"));
+        }]],
+        [[300, () => {
+            ventana.comprobar(ventana.uno("campoRevision") !== null, "«Escribir» en un apartado abre el campo");
+            ventana.tecla("R");
+            ventana.tecla(Qt.Key_Return, Qt.ControlModifier);
+        }]],
+        [[500, () => {
+            const u = apiFalsa.escriturasRev[apiFalsa.escriturasRev.length - 1];
+            ventana.comprobar(ventana.igual(u.cuerpo, { tipo: "planning", semana: "2026-S43", i: 1, titulo: "Riesgos", antes: "", cuerpo: "R" }), "guardar un apartado manda su semana, su número, su título y el texto del que se partió", JSON.stringify(u.cuerpo));
+            ventana.comprobar(ventana.uno("campoRevision") === null, "  y el campo se cierra");
+            // La retro, plegada, se abre y se escribe por apartados.
+            ventana.clic(ventana.uno("plegar-retro"));
+        }]],
+        [[400, () => {
+            ventana.comprobar(ventana.tiene("Acabé el cajón.") && ventana.uno("apartado-retro:1") !== null, "«Ver y escribir» despliega la retro por apartados");
+            // Sin permiso de escribir (el NUC lo dice por reminder).
+            apiFalsa.revEditables = false;
+            ventana.clic(ventana.uno("revisionAnterior"));
+        }]],
+        [[500, () => {
+            ventana.comprobar(apiFalsa.revisionesPedida === "2026-S42" && ventana.uno("revisionSemana").text.indexOf("Semana 42") === 0, "‹ lee la semana anterior", apiFalsa.revisionesPedida);
+            ventana.comprobar(ventana.uno("tarjetaDomingo") === null, "  y sin la tarjeta del domingo (no es la semana de hoy)");
+            ventana.comprobar(ventana.porNombre("escribir-2026-10-12").length === 0, "un reminder que el NUC marca como no editable no ofrece escribir");
+            ventana.comprobar(ventana.uno("revisionEstaSemana") !== null, "  y «Esta semana» vuelve");
+            apiFalsa.revEditables = true;
+            ventana.clic(ventana.uno("revisionEstaSemana"));
+        }]],
+        [[500, () => {
+            ventana.comprobar(apiFalsa.revisionesPedida === "" && ventana.uno("revisionSemana").text.indexOf("Semana 43") === 0, "«Esta semana» vuelve a la de hoy");
+            ventana.comprobar(!ventana.uno("revisionSiguiente").encendido === false, "› está a mano en la semana de hoy");
+            // La tarjeta del domingo: el planning de la semana que viene.
+            ventana.escrituras0 = apiFalsa.escriturasRev.length;
+            ventana.clic(ventana.uno("pasoPlanning"));
+        }]],
+        [[700, () => {
+            const u = apiFalsa.escriturasRev[apiFalsa.escriturasRev.length - 1];
+            ventana.comprobar(apiFalsa.revisionesPedida === "2026-S44", "el paso «Planning de S44» lee la semana que viene", apiFalsa.revisionesPedida);
+            ventana.comprobar(u && ventana.igual(u.cuerpo, { tipo: "planning", semana: "2026-S44", crear: true }) && ventana.uno("apartado-planning:0") !== null, "  y, como no existe, lo crea desde la plantilla y lo abre");
+            ventana.comprobar(!ventana.uno("revisionSiguiente").encendido, "› no pasa de una semana por delante");
+            ventana.clic(ventana.uno("revisionEstaSemana"));
+        }]],
+        [[500, () => ventana.clic(ventana.uno("pasoTareas"))]],
+        [[500, () => {
+            ventana.comprobar(ventana.uno("seccionRevisiones") === null && ventana.uno("seccionTareas") !== null, "el paso «Ir a Tareas» cambia de sección");
+            ventana.seccion("inicio");
         }]],
         [[50, () => ventana.comprobar(ventana.textos().indexOf("€") < 0, "no aparece ningún € en todo el texto del cajón")]],
         [[300, () => {
