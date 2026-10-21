@@ -15,8 +15,13 @@ import Quickshell.Io
 //     esperando 2 s, 4, 8… hasta 5 min; con refrescar(), al momento. Volver a
 //     conectar no es sondear: mientras la conexión está viva no se pide nada.
 //   - Lo demás, con XMLHttpRequest y la cabecera X-Panel-Request: 1 (la guarda
-//     del panel contra las peticiones de otras webs): /api/yo, lo de Inicio y
-//     marcar una alerta como vista.
+//     del panel contra las peticiones de otras webs): /api/yo, lo de Inicio,
+//     marcar una alerta como vista y, en la fase 3, las tareas, los hábitos y
+//     lo de Aules.
+//   - Los eventos «tareas» y «clase» (fase 3) son opcionales: si el servidor los
+//     manda, el cajón se pone al día solo; si no, lo hace al abrirse (si lo que
+//     tiene es de hace más de 60 s) y después de cada cosa que escribe, porque
+//     las escrituras ya contestan con el estado nuevo.
 //
 // Las credenciales (E9): el usuario de Caddy de cada equipo y su contraseña
 // están en el llavero, guardados por el usuario con
@@ -78,6 +83,49 @@ Scope {
     readonly property var inicioCargado: p.inicioCargado
     // El último error, en una línea; "" si no hay.
     readonly property string error: p.error
+
+    // --- Fase 3: tareas, hábitos y Aules --------------------------------------
+    // Las tareas de 00 Inicio.md, o null sin cargar:
+    //   { habilitado, error, version, hoy ("2026-10-20"), areas: [texto],
+    //     secciones: [{ id, titulo, color ("#rrggbb" o ""), pausa,
+    //                   tareas: [tarea] }] }
+    // con cada tarea { id, linea, hecha, area, texto (Markdown), plano (sin
+    // marcas), prioridad y efectiva ("maxima", "alta", "media", "baja",
+    // "minima" o ""; efectiva es la de hoy, que el servidor sube cerca de la
+    // fecha), subida (por qué sube, o ""), vence ("2026-10-22" o ""), dias
+    // (hasta que vence, negativo si venció, o null), empieza, noEmpezada,
+    // hechaEl, vencida, venceHoy, detalles: [línea], subtareas: [{ texto,
+    // hecha }], fijada }.
+    readonly property var tareas: p.tareas
+    // Cuándo se leyeron o se escribieron por última vez (Date), o null.
+    readonly property var tareasCargadas: p.tareasCargadas
+    // El último fallo al leerlas, en una línea; "" si no hay.
+    readonly property string tareasError: p.tareasError
+    // Hay una escritura de tareas en camino: otra no sale hasta que acabe
+    // (los id llevan el número de línea, y una escritura lo cambia).
+    readonly property bool tareasOcupado: p.escribiendoTarea
+    // La interfaz lo pone a true mientras se edita una tarea. Un evento
+    // «tareas» que llega entonces no recarga: marca las tareas como obsoletas y
+    // se recargan al volver a false, sin pisar lo que se estaba escribiendo.
+    property bool editandoTarea: false
+    readonly property bool tareasObsoletas: p.tareasObsoletas
+
+    // La semana de hábitos de hoy, o null sin cargar:
+    //   { habilitado, error, semana, existe, ruta, hoy: { fecha, gym, lectura,
+    //     programar (true, false o null), energia (1–10 o null) } o null,
+    //     totales: { gym, lectura, programar ("3/7"), energia ("6,5") } }
+    readonly property var habitos: p.habitos
+    // «Actualizar Aules», o null sin cargar:
+    //   { estado ("ejecutando", "ok", "error", "nunca" o "sin-unidad"),
+    //     ejecutando, terminado (Date o null), error, tareas ({ anadidas,
+    //     fechas, completadas, error } o null), calendario ({ creados,
+    //     cambiados, borrados, error } o null), calendarioConectado,
+    //     calendarioPersonalError }
+    readonly property var clase: p.clase
+
+    // Algo que decirle al usuario en una línea (un conflicto, un fallo de
+    // escritura); la interfaz lo enseña un rato. error es true si es un fallo.
+    signal aviso(string texto, bool error)
     readonly property string baseUrl: (Quickshell.env("HOMELAB_PANEL_URL") || "https://panel.lab.ishimi.es").replace(/\/+$/, "")
 
     // --- Para las pruebas y para mirar desde fuera (no son del contrato) -----
@@ -117,8 +165,24 @@ Scope {
             api.conectar();
             return;
         }
-        if (p.conexion === "conectado" && api.inicioViejo())
-            api.cargarInicio();
+        if (p.conexion === "conectado") {
+            if (api.inicioViejo())
+                api.cargarInicio();
+            api.refrescarFase3();
+        }
+    }
+
+    // Tareas, hábitos y Aules, los que tengan más de inicioVale. Aules, además,
+    // si había una actualización en marcha: sin el evento «clase» es la única
+    // forma de enterarse de que ha acabado (una lectura, no un bucle).
+    function refrescarFase3() {
+        const viejo = f => !f || Date.now() - f.getTime() > api.inicioVale;
+        if (viejo(p.tareasCargadas))
+            api.cargarTareas();
+        if (viejo(p.habitosCargados))
+            api.cargarHabitos();
+        if (viejo(p.claseCargada) || (p.clase && p.clase.ejecutando))
+            api.cargarClase();
     }
 
     // POST /api/alerts/seen. La alerta queda vista en «alertas» en cuanto el
@@ -213,6 +277,24 @@ Scope {
         property bool primeraLista: true
 
         property bool cargandoInicio: false
+
+        // Fase 3. Cada lectura y cada escritura de tareas lleva un número de
+        // secuencia: una lectura que contesta después de una escritura más
+        // nueva no la pisa.
+        property var tareas: null
+        property var tareasCargadas: null
+        property string tareasVersion: ""
+        property string tareasError: ""
+        property bool tareasObsoletas: false
+        property bool escribiendoTarea: false
+        property int secTareas: 0
+        property var habitos: null
+        property var habitosCargados: null
+        property var habitoOcupado: ({})
+        property int secHabitos: 0
+        property var clase: null
+        property var claseCargada: null
+        property string calendarioPersonalError: ""
     }
 
     Component.onCompleted: api.leerCredenciales()
@@ -376,7 +458,7 @@ Scope {
             else if (campo === "data")
                 datos.push(valor);
         }
-        if (datos.length === 0 || (evento !== "state" && evento !== "alerts"))
+        if (datos.length === 0 || (evento !== "state" && evento !== "alerts" && evento !== "tareas" && evento !== "clase"))
             return;
         let d;
         try {
@@ -386,6 +468,14 @@ Scope {
         }
         if (evento === "state") {
             p.servidor = api.servidorDe(d);
+            return;
+        }
+        if (evento === "tareas") {
+            api.eventoTareas(d);
+            return;
+        }
+        if (evento === "clase") {
+            api.eventoClase(d);
             return;
         }
         // Al conectar, el panel manda el estado y enseguida las alertas: con
@@ -400,6 +490,7 @@ Scope {
             api.pedirYo();
             if (api.inicioViejo())
                 api.cargarInicio();
+            api.refrescarFase3();
         }
         for (const a of nuevas)
             api.alertaNueva(a);
@@ -844,6 +935,432 @@ Scope {
             return 0;
         });
         return lista.slice(0, 5).map(x => x.tarea);
+    }
+
+    // --- Fase 3: tareas -------------------------------------------------------
+    // Lo mismo que la tarjeta de tareas de la web: /api/tareas se lee entero, y
+    // cada escritura contesta con la lista entera, que sustituye a la anterior.
+    // Un 409 quiere decir que 00 Inicio.md cambió por otro lado (Obsidian, la
+    // web): trae la lista como está ahora, y aquí se recarga y se avisa, sin
+    // volver a mandar nada.
+
+    readonly property var prioServidor: ({
+            maxima: "highest",
+            alta: "high",
+            media: "medium",
+            baja: "low",
+            minima: "lowest"
+        })
+
+    function tareaDe(t, hoy) {
+        const vence = String(t.due || "");
+        const d = api.diaNum(vence);
+        const empieza = String(t.start || "");
+        const ed = api.diaNum(empieza);
+        const prio = x => api.nombrePrio[x] || "";
+        const texto = String(t.text || "");
+        return {
+            id: String(t.id),
+            linea: t.line || 0,
+            hecha: !!t.done,
+            area: String(t.area || ""),
+            texto: texto,
+            plano: api.plano(texto),
+            prioridad: prio(t.priority),
+            efectiva: prio(t.effective || t.priority),
+            subida: String(t.raised || ""),
+            vence: vence,
+            dias: d !== null && hoy !== null ? d - hoy : null,
+            empieza: empieza,
+            noEmpezada: ed !== null && hoy !== null && ed > hoy,
+            hechaEl: String(t.doneDate || ""),
+            vencida: !!t.overdue,
+            venceHoy: !!t.dueToday,
+            detalles: (t.details || []).map(String),
+            subtareas: (t.subtasks || []).map(x => ({
+                        texto: String(x.text || ""),
+                        hecha: !!x.done
+                    })),
+            fijada: !!t.pinned
+        };
+    }
+
+    function tareasDe(d) {
+        const hoy = api.diaNum(d.today) ?? api.hoyLocal();
+        return {
+            habilitado: d.enabled !== false,
+            error: String(d.error || ""),
+            version: String(d.version || ""),
+            hoy: String(d.today || ""),
+            areas: (d.areas || []).map(String),
+            secciones: (d.sections || []).map(s => ({
+                        id: String(s.id),
+                        titulo: String(s.title || ""),
+                        color: /^#[0-9a-fA-F]{6}$/.test(s.color || "") ? s.color : "",
+                        pausa: s.id === "en-pausa",
+                        tareas: (s.tasks || []).map(t => api.tareaDe(t, hoy))
+                    }))
+        };
+    }
+
+    // Pone la lista que ha llegado (de una lectura o de una escritura).
+    function aplicarTareas(d) {
+        p.secTareas++;
+        p.tareas = api.tareasDe(d);
+        p.tareasVersion = p.tareas.version;
+        p.tareasCargadas = new Date();
+        p.tareasError = "";
+        p.tareasObsoletas = false;
+    }
+
+    function cargarTareas() {
+        if (p.clave === "")
+            return;
+        const gen = p.generacion;
+        const sec = ++p.secTareas;
+        api.pedir("GET", "/api/tareas", undefined, (estado, texto) => {
+            if (gen !== p.generacion)
+                return;
+            if (estado === 401) {
+                api.noAutorizado();
+                return;
+            }
+            const d = api.leerJSON({
+                estado: estado,
+                texto: texto
+            });
+            if (!d) {
+                p.tareasError = "No se pudieron leer las tareas" + api.porQue(estado, texto);
+                return;
+            }
+            // Una escritura o una lectura más nueva ya ha puesto otra cosa.
+            if (sec !== p.secTareas)
+                return;
+            api.aplicarTareas(d);
+            api.bien();
+        });
+    }
+
+    // Un evento «tareas» con { version }. Si es la que ya se tiene (una
+    // escritura propia, que contestó antes que el evento), no hace nada; si
+    // no, se relee, salvo que se esté editando una tarea: entonces se marca y
+    // se relee al soltar el editor.
+    function eventoTareas(d) {
+        if (!d || typeof d.version !== "string" || d.version === p.tareasVersion)
+            return;
+        if (api.editandoTarea)
+            p.tareasObsoletas = true;
+        else
+            api.cargarTareas();
+    }
+
+    onEditandoTareaChanged: if (!api.editandoTarea && p.tareasObsoletas) {
+        p.tareasObsoletas = false;
+        api.cargarTareas();
+    }
+
+    // POST /api/tareas: datos { seccion, texto, area, fecha ("2026-10-22"),
+    // prioridad ("maxima".."minima") }; area, fecha y prioridad son opcionales.
+    function anadirTarea(datos, alAcabar) {
+        const cuerpo = {
+            seccion: String(datos.seccion || ""),
+            texto: String(datos.texto || "")
+        };
+        if (datos.area)
+            cuerpo.area = String(datos.area);
+        if (datos.fecha)
+            cuerpo.fecha = String(datos.fecha);
+        if (datos.prioridad)
+            cuerpo.prioridad = api.prioServidor[datos.prioridad] || "";
+        api.escribirTarea("POST", "/api/tareas", cuerpo, "No se pudo añadir la tarea", alAcabar);
+    }
+
+    // POST /api/tareas/{id}/hecha.
+    function marcarTarea(id, hecha, alAcabar) {
+        api.escribirTarea("POST", "/api/tareas/" + encodeURIComponent(id) + "/hecha", {
+            hecha: !!hecha
+        }, hecha ? "No se pudo marcar como hecha" : "No se pudo desmarcar", alAcabar);
+    }
+
+    // POST /api/tareas/{id}: solo lo que se manda cambia. cambios puede llevar
+    // texto, area, fecha ("" la quita), prioridad ("" la quita), seccion (id),
+    // detalles (las líneas de detalle, que sustituyen a las de ahora),
+    // subtareas ([{ texto, hecha }], que sustituyen a las de ahora) y fijada.
+    function editarTarea(id, cambios, alAcabar) {
+        const cuerpo = Object.assign({}, cambios);
+        if ("prioridad" in cuerpo)
+            cuerpo.prioridad = api.prioServidor[cuerpo.prioridad] || "";
+        api.escribirTarea("POST", "/api/tareas/" + encodeURIComponent(id), cuerpo, "No se pudo guardar la tarea", alAcabar);
+    }
+
+    // Una escritura a la vez. alAcabar(ok) al terminar, o al momento con false
+    // si no ha salido porque hay otra en camino o no hay conexión.
+    function escribirTarea(metodo, ruta, cuerpo, queHacia, alAcabar) {
+        const fin = ok => {
+            if (alAcabar)
+                alAcabar(ok);
+        };
+        if (p.clave === "" || p.conexion !== "conectado" || p.escribiendoTarea) {
+            if (p.conexion !== "conectado")
+                api.aviso(queHacia + ": no hay conexión con el NUC", true);
+            fin(false);
+            return;
+        }
+        p.escribiendoTarea = true;
+        const gen = p.generacion;
+        api.pedir(metodo, ruta, cuerpo, (estado, texto) => {
+            p.escribiendoTarea = false;
+            if (gen !== p.generacion) {
+                fin(false);
+                return;
+            }
+            const d = api.leerJSON({
+                estado: estado === 409 ? 200 : estado,
+                texto: texto
+            });
+            if (estado === 200 && d) {
+                api.aplicarTareas(d);
+                api.bien();
+                // Inicio sale de las mismas tareas: que no se quede atrás.
+                p.inicioCargado = null;
+                api.cargarInicio();
+                fin(true);
+            } else if (estado === 409) {
+                if (d && d.tareas)
+                    api.aplicarTareas(d.tareas);
+                else
+                    api.cargarTareas();
+                p.inicioCargado = null;
+                api.aviso("La nota cambió en tus notas; he recargado las tareas y no he cambiado nada.", true);
+                fin(false);
+            } else if (estado === 401) {
+                api.noAutorizado();
+                fin(false);
+            } else {
+                api.aviso(queHacia + api.porQue(estado, texto), true);
+                fin(false);
+            }
+        });
+    }
+
+    // --- Fase 3: hábitos ------------------------------------------------------
+    // La semana de hábitos de hoy, de /api/habitos. Para el cajón basta el día
+    // de hoy; la web sigue teniendo la semana entera y el cambio de semana.
+
+    function habitosDe(w) {
+        const dia = (w.dias || []).find(x => x.hoy) || null;
+        const t = w.totales || {};
+        const total = v => v === null || v === undefined ? "–" : v + "/7";
+        const energia = v => v === null || v === undefined ? "–" : String(Math.round(v * 10) / 10).replace(".", ",");
+        const bool = v => v === null || v === undefined ? null : !!v;
+        return {
+            habilitado: w.enabled !== false,
+            error: String(w.error || ""),
+            semana: String(w.semana || ""),
+            existe: !!w.existe,
+            ruta: String(w.path || ""),
+            hoy: dia ? {
+                fecha: String(dia.fecha),
+                gym: bool(dia.gym),
+                lectura: bool(dia.lectura),
+                programar: bool(dia.programar),
+                energia: dia.energia === null || dia.energia === undefined ? null : +dia.energia
+            } : null,
+            totales: {
+                gym: total(t.gym),
+                lectura: total(t.lectura),
+                programar: total(t.programar),
+                energia: energia(t.energia)
+            }
+        };
+    }
+
+    function cargarHabitos() {
+        if (p.clave === "")
+            return;
+        const gen = p.generacion;
+        const sec = ++p.secHabitos;
+        api.pedir("GET", "/api/habitos", undefined, (estado, texto) => {
+            if (gen !== p.generacion)
+                return;
+            if (estado === 401) {
+                api.noAutorizado();
+                return;
+            }
+            const d = api.leerJSON({
+                estado: estado,
+                texto: texto
+            });
+            if (!d) {
+                p.error = "No se pudieron leer los hábitos" + api.porQue(estado, texto);
+                return;
+            }
+            if (sec !== p.secHabitos)
+                return;
+            p.habitos = api.habitosDe(d);
+            p.habitosCargados = new Date();
+        });
+    }
+
+    // Anota un hábito de hoy. campo: "gym", "lectura", "programar" o "energia";
+    // valor: "si", "no" o "" (sin marcar) y, para la energía, "1" a "10" o "".
+    // El cambio se ve al momento y se deshace si el servidor lo rechaza.
+    function anotarHabito(campo, valor) {
+        const h = p.habitos;
+        if (!h || !h.hoy || p.conexion !== "conectado" || p.habitoOcupado[campo])
+            return;
+        const dia = h.hoy;
+        const actual = dia[campo];
+        const antes = actual === null ? "" : campo === "energia" ? String(actual) : actual ? "si" : "no";
+        const nuevo = valor === "" ? null : campo === "energia" ? +valor : valor === "si";
+        const poner = v => {
+            const copia = Object.assign({}, p.habitos);
+            copia.hoy = Object.assign({}, p.habitos.hoy);
+            copia.hoy[campo] = v;
+            p.habitos = copia;
+        };
+        const ocupado = v => {
+            const o = Object.assign({}, p.habitoOcupado);
+            o[campo] = v;
+            p.habitoOcupado = o;
+        };
+        poner(nuevo);
+        ocupado(true);
+        const gen = p.generacion;
+        api.pedir("POST", "/api/habitos", {
+            semana: h.semana,
+            fecha: dia.fecha,
+            campo: campo,
+            antes: antes,
+            valor: valor
+        }, (estado, texto) => {
+            ocupado(false);
+            if (gen !== p.generacion)
+                return;
+            const d = api.leerJSON({
+                estado: estado === 409 ? 200 : estado,
+                texto: texto
+            });
+            if (estado === 200 && d) {
+                p.habitos = api.habitosDe(d);
+                p.habitosCargados = new Date();
+                api.bien();
+            } else if (estado === 409 && d && d.semana) {
+                p.habitos = api.habitosDe(d.semana);
+                p.habitosCargados = new Date();
+                api.aviso("La semana cambió en tus notas; la he recargado.", true);
+            } else if (estado === 401) {
+                api.noAutorizado();
+            } else {
+                poner(actual);
+                api.aviso("No se pudo guardar el hábito" + api.porQue(estado, texto), true);
+            }
+        });
+    }
+
+    // --- Fase 3: Aules ----------------------------------------------------------
+    // GET /api/clase/sync dice cómo va la actualización; POST la lanza. Sin el
+    // evento «clase» no se sondea: se lee una vez al conectar, al abrir el cajón
+    // si había una en marcha y justo después de lanzarla.
+
+    function claseDe(d) {
+        const tar = d.tareas;
+        const cal = d.calendario;
+        const per = d.calendarioPersonal;
+        return {
+            estado: String(d.estado || ""),
+            ejecutando: !!d.ejecutando,
+            terminado: d.terminado ? api.fecha(d.terminado) : null,
+            error: String(d.error || ""),
+            tareas: tar ? {
+                anadidas: tar.anadidas || 0,
+                fechas: tar.fechas || 0,
+                completadas: tar.completadas || 0,
+                error: String(tar.error || "")
+            } : null,
+            calendario: cal ? {
+                creados: cal.creados || 0,
+                cambiados: cal.cambiados || 0,
+                borrados: cal.borrados || 0,
+                error: String(cal.error || "")
+            } : null,
+            calendarioConectado: !!d.calendarioConectado,
+            calendarioPersonalError: per && per.error ? String(per.error) : ""
+        };
+    }
+
+    // Una lectura o un evento «clase». Si una actualización que estaba en
+    // marcha acaba, el cruce con 00 Inicio.md pudo cambiar las tareas.
+    function aplicarClase(d) {
+        const estaba = p.clase && p.clase.ejecutando;
+        p.clase = api.claseDe(d);
+        p.claseCargada = new Date();
+        if (estaba && !p.clase.ejecutando) {
+            api.cargarTareas();
+            api.aviso(p.clase.estado === "error" ? "Aules: " + (p.clase.error || "falló la actualización") : "Aules actualizado", p.clase.estado === "error");
+        }
+    }
+
+    function cargarClase() {
+        if (p.clave === "")
+            return;
+        const gen = p.generacion;
+        api.pedir("GET", "/api/clase/sync", undefined, (estado, texto) => {
+            if (gen !== p.generacion)
+                return;
+            if (estado === 401) {
+                api.noAutorizado();
+                return;
+            }
+            const d = api.leerJSON({
+                estado: estado,
+                texto: texto
+            });
+            if (!d) {
+                p.error = "No se pudo leer lo de Aules" + api.porQue(estado, texto);
+                return;
+            }
+            api.aplicarClase(d);
+        });
+    }
+
+    // Los eventos «clase» traen lo mismo que GET /api/clase/sync.
+    function eventoClase(d) {
+        if (d && typeof d === "object")
+            api.aplicarClase(d);
+    }
+
+    // POST /api/clase/sync: lanza la actualización y contesta 202 con el estado
+    // (ejecutando). Un 409 es que ya había una: se lee cómo va.
+    function actualizarAules() {
+        if (p.clave === "" || p.conexion !== "conectado" || (p.clase && p.clase.ejecutando))
+            return;
+        const gen = p.generacion;
+        const antes = p.clase;
+        // Se ve ya como en marcha, sin esperar al servidor.
+        p.clase = Object.assign({}, p.clase || api.claseDe({}), {
+            estado: "ejecutando",
+            ejecutando: true
+        });
+        api.pedir("POST", "/api/clase/sync", undefined, (estado, texto) => {
+            if (gen !== p.generacion)
+                return;
+            const d = api.leerJSON({
+                estado: estado === 202 ? 200 : estado,
+                texto: texto
+            });
+            if (estado === 202 && d) {
+                api.aplicarClase(d);
+            } else if (estado === 401) {
+                api.noAutorizado();
+            } else if (estado === 409) {
+                // Ya había una en marcha: se mira cómo va.
+                api.cargarClase();
+            } else {
+                p.clase = antes;
+                api.aviso("Aules: no se pudo lanzar" + api.porQue(estado, texto), true);
+            }
+        });
     }
 
     // --- Órdenes de una vez (secret-tool) -----------------------------------------
