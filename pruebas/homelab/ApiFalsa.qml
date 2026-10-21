@@ -129,6 +129,7 @@ QtObject {
             hecha: false,
             hechaEl: "",
             empieza: "",
+            programada: "",
             noEmpezada: false,
             subida: "",
             detalles: [],
@@ -184,7 +185,9 @@ QtObject {
                     pausa: false,
                     tareas: [
                         api.nueva("Entrega de prueba con fecha", "alta", -2),
-                        api.nueva("Leer el tema 4", "baja", 12)
+                        api.nueva("Leer el tema 4", "baja", 12, {
+                            programada: api.fecha(3)
+                        })
                     ]
                 },
                 {
@@ -281,6 +284,7 @@ QtObject {
                             vence: t.dias === null ? "" : api.fecha(t.dias),
                             dias: t.dias,
                             empieza: t.empieza,
+                            programada: t.programada,
                             noEmpezada: t.noEmpezada,
                             hechaEl: t.hechaEl,
                             vencida: t.dias !== null && t.dias < 0 && !t.hecha,
