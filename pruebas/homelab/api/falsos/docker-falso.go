@@ -6,6 +6,8 @@
 //   - GET /_ping, para la negociación de versión;
 //   - GET /containers/json y /containers/{id}/json, con la lista fija de abajo;
 //   - GET /containers/{id}/logs, unas líneas;
+//   - GET /containers/{id}/stats, un consumo fijo (40 % de CPU, 190 MiB de
+//     memoria de 2 GiB), para el consumo de Servidor;
 //   - GET /events, que se queda abierto sin mandar nada;
 //   - cualquier POST, 204 sin hacer nada.
 //
@@ -159,6 +161,20 @@ func manejar(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 		escribirJSON(w, http.StatusOK, c.inspect())
+	case strings.HasPrefix(p, "/containers/") && strings.HasSuffix(p, "/stats"):
+		if _, ok := buscar(strings.TrimSuffix(strings.TrimPrefix(p, "/containers/"), "/stats")); !ok {
+			escribirJSON(w, http.StatusNotFound, map[string]string{"message": "No such container"})
+			return
+		}
+		// Con la muestra anterior: 1e9 ns de CPU en 1e10 del sistema, con 4
+		// CPU, es un 40 %; la memoria, sin la caché que se puede soltar.
+		escribirJSON(w, http.StatusOK, map[string]any{
+			"read":         "2026-10-20T09:00:01Z",
+			"preread":      "2026-10-20T09:00:00Z",
+			"cpu_stats":    map[string]any{"cpu_usage": map[string]any{"total_usage": 2000000000}, "system_cpu_usage": 100000000000, "online_cpus": 4},
+			"precpu_stats": map[string]any{"cpu_usage": map[string]any{"total_usage": 1000000000}, "system_cpu_usage": 90000000000, "online_cpus": 4},
+			"memory_stats": map[string]any{"usage": 200 << 20, "limit": 2 << 30, "stats": map[string]any{"inactive_file": 10 << 20}},
+		})
 	case strings.HasPrefix(p, "/containers/") && strings.HasSuffix(p, "/logs"):
 		fmt.Fprint(w, "2026-10-20T08:00:00.000000000Z línea de prueba del contenedor\n")
 	default:

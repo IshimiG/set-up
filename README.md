@@ -47,26 +47,38 @@ choca.
   las abreviaturas de git, el saludo y `ms` (SSH al homelab).
 - `.config/nvim/`: Neovim con LazyVim, el tema Horizon con el fondo transparente
   y los lenguajes que se usan (TypeScript, SQL, Docker, Java, Angular…).
-- `.config/quickshell/`: `bar` (barra, isla, notificaciones), `launcher`
+- `.config/quickshell/`: `bar` (barra, isla, notificaciones y el calendario,
+  que marca las tareas con fecha y las entregas de Aules: se las deja el cajón
+  del homelab en `$XDG_RUNTIME_DIR/escritorio-agenda.json`), `launcher`
   (SUPER+SPACE), `reminder` (SUPER+R), `updates`, `homelab` (el panel del
   homelab: el cajón que sale del centro del borde derecho, o con SUPER+H, con
   los datos del panel del NUC; cada equipo entra con su usuario, y la contraseña
   va en el llavero: `secret-tool store --label="Panel del homelab" servicio
   homelab-panel usuario <equipo>`; secciones: Inicio con los hábitos de hoy,
-  Tareas al estilo Foco, editables y con los atajos de la web, y Clase con el
-  botón «Actualizar Aules») y `shared` (la paleta).
+  Tareas al estilo Foco, editables y con los atajos de la web, Clase con el
+  botón «Actualizar Aules», Proyectos con sus subproyectos (estado, prioridad,
+  progreso y siguiente paso editables; las PR e issues, solo para leer),
+  Servidor con los contenedores en vivo, las acciones de Docker (escribiendo el
+  nombre cuando hace falta), los logs y el consumo, y el Registro) y `shared`
+  (la paleta).
 - `.config/systemd/user/notificaciones.*`: el latido de los recordatorios.
 - `.local/bin/launch-or-focus`: enfoca una ventana o lanza la app.
 - `.local/bin/actualizar-equipo` (sólo en la rama de un equipo, si lo quiere):
   lo que el botón «Actualizar ahora» del aviso hace después de `paru -Syu`.
 - `sddm/`: el tema "cristal" de la pantalla de login (`sudo sddm/install.sh`).
 - `pruebas/homelab/`: pruebas sin pantalla del cajón del homelab. `prueba.sh`
-  prueba la interfaz (el cajón, Inicio, tareas con sus atajos, hábitos y Aules)
-  con una API falsa con estado (`ApiFalsa.qml`; `--guardar` deja las capturas),
+  prueba la interfaz (el cajón, Inicio, tareas con sus atajos, hábitos, Aules,
+  proyectos, servidor y registro) con una API falsa con estado
+  (`ApiFalsa.qml`; `--guardar` deja las capturas),
   y `api/prueba-api.sh`, la conexión y las escrituras (`Api.qml`) contra un panel
   local (`panel-local.sh`, el panel del repo `homelab` con un Docker y un Caddy
   falsos, en Docker, y un vault falso), con un llavero de usar y tirar. Ninguna
   toca el NUC ni el llavero de verdad.
+- `pruebas/calendario/prueba.sh`: prueba sin pantalla de la agenda del
+  calendario: el formato (`shared/AgendaFormato.js`), el fichero que escribe el
+  cajón y lee la barra (en un `$XDG_RUNTIME_DIR` de prueba) y el
+  `CalendarPanel.qml` con sus puntos, la lista del día y los clics
+  (`--guardar` deja las capturas).
 
 ## Instalación
 
