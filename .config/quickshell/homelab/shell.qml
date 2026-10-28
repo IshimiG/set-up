@@ -34,6 +34,10 @@ ShellRoot {
     // leen como shell.api. (Api.qml es de la otra mitad de la fase 2.)
     property var api: apiNuc
 
+    // El cajón de la pantalla de la derecha (lo pone Borde.qml): el IPC del
+    // ancho le habla a él.
+    property var cajon: null
+
     Api {
         id: apiNuc
     }
@@ -96,6 +100,23 @@ ShellRoot {
         function fijar(): string {
             root.fijado = !root.fijado;
             return root.estado();
+        }
+
+        // Ancho del cajón: delta en píxeles (+100, -100, +25, +300...), con los
+        // mismos pasos que SUPER+' / SUPER+¡ en las ventanas. Límites 15 %..100 %.
+        function ancho(delta: int): string {
+            if (!root.cajon)
+                return "sin cajon";
+            root.cajon.cambiarAncho(delta);
+            return root.cajon.anchoMeta + " " + root.cajon.modo;
+        }
+
+        // Ancho absoluto en píxeles.
+        function anchoFijar(px: int): string {
+            if (!root.cajon)
+                return "sin cajon";
+            root.cajon.fijarAncho(px);
+            return root.cajon.anchoMeta + " " + root.cajon.modo;
         }
 
         // Para scripts y para mirar desde fuera cómo se ha quedado.

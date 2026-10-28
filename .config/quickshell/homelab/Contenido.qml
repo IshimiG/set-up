@@ -24,6 +24,10 @@ Item {
     objectName: "contenido"
 
     required property var shell
+
+    // «compacto» (<600 px), «medio» (600-1000) o «amplio» (>=1000), según el
+    // ancho del cajón (Cajon.qml). Las vistas lo leen de aquí.
+    property string modo: "compacto"
     // El cajón entero fuera y quieto. Los euros de Finanzas sólo se enseñan así
     // (decisión E11): con el cajón escondido o a medio sacar, nunca.
     property bool desplegado: false
