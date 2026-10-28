@@ -281,6 +281,17 @@ FloatingWindow {
         return JSON.stringify(a) === JSON.stringify(b);
     }
 
+    property var claseGuardada: null
+
+    function contenidoRaiz() {
+        let r = null;
+        ventana.recorrer(cajon, it => {
+            if (it.objectName === "contenido")
+                r = it;
+        });
+        return r;
+    }
+
     function seccion(id) {
         ventana.clic(ventana.uno("seccion-" + id));
     }
@@ -1896,6 +1907,61 @@ FloatingWindow {
         [[600, () => ventana.ui().modo = "compacto"]],
         [[100, () => ventana.seccion("inicio")]],
         [[50, () => ventana.comprobar(ventana.textos().indexOf("€") < 0, "no aparece ningún € en todo el texto del cajón")]],
+        // =====================================================================
+        // Secciones perezosas (SeccionPerezosa.qml): se crean al mirarlas, se
+        // descargan al rato, y el esqueleto sale sólo con carga lenta
+        // =====================================================================
+        [[50, () => {
+            const c = ventana.contenidoRaiz();
+            c.retardoDescarga = 500;
+            c.retardoEsqueleto = 150;
+            ventana.seccion("clase");
+        }]],
+        [[700, () => {
+            ventana.comprobar(ventana.cualquiera("seccionClase") !== null && ventana.cualquiera("seccionClase").visible, "perezosa: al mirar Clase, existe y se ve");
+            ventana.seccion("inicio");
+        }]],
+        [[200, () => {
+            ventana.comprobar(ventana.cualquiera("seccionClase") !== null && !ventana.cualquiera("seccionClase").visible, "perezosa: al dejarla sigue viva, escondida, un rato");
+        }]],
+        [[1500, () => {
+            ventana.comprobar(ventana.cualquiera("seccionClase") === null, "perezosa: pasado el retardo, Clase se descarga");
+            ventana.comprobar(ventana.cualquiera("seccionTareas") === null && ventana.cualquiera("seccionFinanzas") === null && ventana.cualquiera("seccionRevisiones") === null, "perezosa: las demás secciones también están descargadas, sólo existe Inicio");
+            ventana.comprobar(ventana.uno("desplazableInicio") !== null, "perezosa: Inicio existe y se ve");
+        }]],
+        // Carga lenta (los datos tardan): sale el esqueleto, y desaparece al llegar.
+        [[50, () => {
+            ventana.claseGuardada = apiFalsa.clase;
+            apiFalsa.clase = null;
+            ventana.seccion("clase");
+        }]],
+        [[500, () => {
+            ventana.comprobar(ventana.uno("esqueleto") !== null, "esqueleto: con los datos tardando más de 150 ms, sale");
+            ventana.comprobar(ventana.uno("esqueletoCabecera") !== null && ventana.uno("esqueletoFilas") !== null, "esqueleto: lleva cabecera y tarjetas");
+            apiFalsa.clase = ventana.claseGuardada;
+        }]],
+        [[200, () => {
+            ventana.comprobar(ventana.uno("esqueleto") === null && ventana.uno("seccionClase") !== null, "esqueleto: al llegar los datos se va y se ve la sección");
+            ventana.seccion("inicio");
+        }]],
+        // Carga rápida (los datos llegan antes de 150 ms): no sale nunca.
+        [[1500, () => {
+            ventana.comprobar(ventana.cualquiera("seccionClase") === null, "esqueleto: (Clase descargada otra vez antes de la prueba rápida)");
+            ventana.claseGuardada = apiFalsa.clase;
+            apiFalsa.clase = null;
+            ventana.seccion("clase");
+        }]],
+        [[40, () => {
+            apiFalsa.clase = ventana.claseGuardada;
+        }]],
+        [[60, () => {
+            ventana.comprobar(ventana.uno("esqueleto") === null, "esqueleto: con los datos a los 40 ms, no sale");
+        }]],
+        [[500, () => {
+            ventana.comprobar(ventana.uno("esqueleto") === null && ventana.uno("seccionClase") !== null, "esqueleto: tampoco después, y la sección se ve");
+            ventana.seccion("inicio");
+            ventana.contenidoRaiz().retardoDescarga = 45000;
+        }]],
         [[300, () => {
             console.log("Resultado: " + (ventana.hechas - ventana.fallos.length) + " de " + ventana.hechas + " bien" + (ventana.fallos.length ? "; fallan: " + ventana.fallos.join(" | ") : ""));
             Qt.quit();

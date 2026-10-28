@@ -446,7 +446,13 @@ FocusScope {
             }
         }
     }
-    Component.onCompleted: tareas.ajustarNueva()
+    Component.onCompleted: {
+        tareas.ajustarNueva();
+        // Creada ya con los datos (las secciones se crean al mirarlas): onDatosChanged
+        // no salta, y el calendario se quedaría en enero.
+        if (tareas.calDia === "" && tareas.hoy !== "")
+            tareas.irAHoy();
+    }
 
     TareasEstado {
         id: recuerdo
