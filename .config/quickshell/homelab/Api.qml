@@ -2596,7 +2596,14 @@ Scope {
         property var datos: null
         property int sec: 0
         property var tr: null
+        property var nom: null
+        property int secNom: 0
     }
+
+    // Las nóminas del año, de GET /api/finanzas/nominas, o null sin leer:
+    //   { año, n, neto (suma del año), ultima: { mes, liquido } o null,
+    //     meses: [{ mes ("2026-09"), neto }] }
+    readonly property var nominasFinanzas: pf.nom
 
     function finanzasViejas() {
         return !pf.datos || !pf.datos.cargado || Date.now() - pf.datos.cargado.getTime() > api.inicioVale;
@@ -2609,6 +2616,7 @@ Scope {
             concepto: String(m.concepto || ""),
             importe: Number(m.importe) || 0,
             categoria: String(m.categoria || ""),
+            categoriaId: Number(m.categoria_id) || 0,
             cuenta: String(m.cuenta || "")
         };
     }
@@ -2645,6 +2653,23 @@ Scope {
                         }))
             },
             ingresos: Number(d.ingresos) || 0,
+            cuentas: (d.cuentas || []).map(c => ({
+                        id: Number(c.id) || 0,
+                        nombre: String(c.nombre || ""),
+                        banco: String(c.banco || ""),
+                        tipo: String(c.tipo || ""),
+                        saldo: c.saldo === null || c.saldo === undefined ? null : Number(c.saldo),
+                        cartera: c.cartera === null || c.cartera === undefined ? null : Number(c.cartera),
+                        efectivo: c.efectivo === null || c.efectivo === undefined ? null : Number(c.efectivo)
+                    })),
+            meses: (a.meses || []).map(m => ({
+                        mes: String(m.mes || ""),
+                        ingresos: Number(m.ingresos) || 0,
+                        gastos: Number(m.gastos) || 0,
+                        ahorro: Number(m.ahorro) || 0,
+                        conDatos: m.con_datos === true,
+                        parcial: m.parcial === true
+                    })),
             patrimonio: Number(a.patrimonio) || 0,
             meta: Number(a.meta) || 0,
             porcentaje: isFinite(a.porcentaje) ? Number(a.porcentaje) : 0,
@@ -2797,6 +2822,65 @@ Scope {
         } catch (e) {
             return "";
         }
+    }
+
+    // Cambia la categoría de un movimiento (sin crear regla). alAcabar(ok,
+    // error). Se vuelve a leer el mes para que los totales cuadren.
+    function categorizarMovimiento(id, categoria, alAcabar) {
+        if (p.clave === "" || p.conexion !== "conectado") {
+            alAcabar(false, "No hay conexión con el NUC.");
+            return;
+        }
+        const gen = p.generacion;
+        api.pedir("POST", "/api/finanzas/movimientos/" + id + "/categoria", {
+            categoria_id: categoria
+        }, (estado, texto) => {
+            if (gen !== p.generacion)
+                return;
+            if (estado === 200) {
+                api.cargarFinanzas();
+                alAcabar(true, "");
+            } else if (estado === 401) {
+                api.noAutorizado();
+            } else {
+                alAcabar(false, api.primeraLinea(api.mensajeError(texto)) || "No se pudo cambiar la categoría" + api.porQue(estado, ""));
+            }
+        });
+    }
+
+    // Las nóminas del año (solo lectura). Fallar no molesta: la tarjeta
+    // simplemente no sale.
+    function cargarNominasFinanzas() {
+        if (p.clave === "")
+            return;
+        const gen = p.generacion;
+        const sec = ++pf.secNom;
+        api.pedir("GET", "/api/finanzas/nominas", undefined, (estado, texto) => {
+            if (gen !== p.generacion || sec !== pf.secNom)
+                return;
+            if (estado === 401) {
+                api.noAutorizado();
+                return;
+            }
+            const d = api.leerJSON({
+                estado: estado,
+                texto: texto
+            });
+            if (!d || d.ready !== true)
+                return;
+            const meses = (d.meses || []).map(m => ({
+                        mes: String(m.mes || ""),
+                        neto: (m.nominas || []).reduce((t, n) => t + (Number(n.liquido) || 0), 0)
+                    }));
+            const con = meses.filter(m => m.neto > 0);
+            pf.nom = {
+                año: Number(d["año"]) || 0,
+                n: Number((d.totales || {}).n) || 0,
+                neto: Number((d.totales || {}).neto) || 0,
+                ultima: con.length ? con[con.length - 1] : null,
+                meses: meses
+            };
+        });
     }
 
     // El estado de la sesión de Trade Republic. Si el NUC dice que su prueba
