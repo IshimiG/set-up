@@ -219,6 +219,13 @@ Scope {
     // Algo que decirle al usuario en una línea (un conflicto, un fallo de
     // escritura); la interfaz lo enseña un rato. error es true si es un fallo.
     signal aviso(string texto, bool error)
+
+    // Avisos del móvil (/api/avisos/movil): los que esperan respuesta del
+    // usuario, p. ej. {tipo "confirmar_envio"}. Cada uno es { id, tipo, titulo,
+    // detalle, pendiente, datos } y desaparece al contestarlo.
+    readonly property var avisosMovil: p.avisosMovil
+    // Solo los de tipo confirmar_envio que siguen sin contestar.
+    readonly property var confirmaciones: p.avisosMovil.filter(a => a.tipo === "confirmar_envio" && a.pendiente)
     // Cómo acabó una acción de Docker (evento «result»), de este cajón o de
     // cualquier otro cliente: { tipo ("contenedor" o "stack"), objetivo,
     // accion, ok, error, salida }. También sale como aviso.
@@ -281,6 +288,7 @@ Scope {
             api.cargarHabitos();
         if (viejo(p.claseCargada) || (p.clase && p.clase.ejecutando))
             api.cargarClase();
+        api.cargarAvisosMovil();
     }
 
     // POST /api/alerts/seen. La alerta queda vista en «alertas» en cuanto el
@@ -389,6 +397,7 @@ Scope {
         property string tareasError: ""
         property bool tareasObsoletas: false
         property bool escribiendoTarea: false
+        property var avisosMovil: []
         property int secTareas: 0
         property var habitos: null
         property var habitosCargados: null
@@ -603,7 +612,7 @@ Scope {
         };
     }
 
-    readonly property var eventosConocidos: ["state", "alerts", "tareas", "clase", "result", "journal"]
+    readonly property var eventosConocidos: ["state", "alerts", "tareas", "clase", "result", "journal", "aviso_movil"]
 
     function bloque(texto) {
         if (p.parado)
@@ -629,6 +638,9 @@ Scope {
             return;
         case "tareas":
             api.eventoTareas(d);
+            return;
+        case "aviso_movil":
+            api.eventoAvisoMovil(d);
             return;
         case "clase":
             api.eventoClase(d);
@@ -1184,7 +1196,9 @@ Scope {
                         texto: String(x.text || ""),
                         hecha: !!x.done
                     })),
-            fijada: !!t.pinned
+            fijada: !!t.pinned,
+            // «Claude no la hace»: si el NUC aún no lo devuelve, false.
+            claudeOff: t.claude_off === true
         };
     }
 
@@ -1301,7 +1315,80 @@ Scope {
         const cuerpo = Object.assign({}, cambios);
         if ("prioridad" in cuerpo)
             cuerpo.prioridad = api.prioServidor[cuerpo.prioridad] || "";
+        // claudeOff (bool) viaja como claude_off; ausente, el NUC no la toca.
+        if ("claudeOff" in cuerpo) {
+            cuerpo.claude_off = !!cuerpo.claudeOff;
+            delete cuerpo.claudeOff;
+        }
         api.escribirTarea("POST", "/api/tareas/" + encodeURIComponent(id), cuerpo, "No se pudo guardar la tarea", alAcabar);
+    }
+
+    // --- Avisos del móvil -----------------------------------------------------
+    function avisoMovilDe(a) {
+        if (!a || typeof a !== "object" || a.id === undefined || a.id === null)
+            return null;
+        return {
+            id: String(a.id),
+            tipo: String(a.tipo || a.type || ""),
+            titulo: String(a.titulo || a.title || ""),
+            detalle: String(a.detalle || a.texto || a.mensaje || a.detail || ""),
+            pendiente: a.respondido !== true && a.respuesta === undefined && a.answered !== true,
+            datos: a
+        };
+    }
+
+    // Pone o sustituye un aviso en la lista; uno ya contestado se quita.
+    function ponerAvisoMovil(a) {
+        const x = api.avisoMovilDe(a);
+        if (!x)
+            return;
+        const resto = p.avisosMovil.filter(y => y.id !== x.id);
+        p.avisosMovil = x.pendiente ? resto.concat([x]) : resto;
+    }
+
+    // Evento SSE «aviso_movil»: el aviso entero, o { aviso }.
+    function eventoAvisoMovil(d) {
+        api.ponerAvisoMovil(d && d.aviso ? d.aviso : d);
+    }
+
+    // GET /api/avisos/movil: los pendientes (por si se perdió algún evento).
+    function cargarAvisosMovil() {
+        const gen = p.generacion;
+        api.pedir("GET", "/api/avisos/movil", undefined, (estado, texto) => {
+            if (gen !== p.generacion || estado !== 200)
+                return;
+            const d = api.leerJSON({
+                estado: estado,
+                texto: texto
+            });
+            const lista = Array.isArray(d) ? d : (d && Array.isArray(d.avisos) ? d.avisos : null);
+            if (!lista)
+                return;
+            p.avisosMovil = lista.map(api.avisoMovilDe).filter(x => x !== null && x.pendiente);
+        });
+    }
+
+    // POST /api/avisos/movil/{id}/respuesta { envio }.
+    function responderAvisoMovil(id, envio, alAcabar) {
+        const gen = p.generacion;
+        api.pedir("POST", "/api/avisos/movil/" + encodeURIComponent(id) + "/respuesta", {
+            envio: !!envio
+        }, (estado, texto) => {
+            if (gen !== p.generacion)
+                return;
+            if (estado === 200 || estado === 204 || estado === 404 || estado === 409) {
+                p.avisosMovil = p.avisosMovil.filter(y => y.id !== String(id));
+                if (alAcabar)
+                    alAcabar(true);
+            } else {
+                if (estado === 401)
+                    api.noAutorizado();
+                else
+                    api.aviso("No se pudo contestar el aviso" + api.porQue(estado, texto), true);
+                if (alAcabar)
+                    alAcabar(false);
+            }
+        });
     }
 
     // Una escritura a la vez. alAcabar(ok) al terminar, o al momento con false

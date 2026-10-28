@@ -193,6 +193,7 @@ FloatingWindow {
     }
 
     property string idInicio: ""
+    property var asa: null
 
     // Tareas.qml, esté a la vista o no (con el cajón cerrado no se ve).
     function ui() {
@@ -366,6 +367,7 @@ FloatingWindow {
 
     property real px: 0
     readonly property int py: 450
+    property real qy: 0
 
     // Un arrastre de «dx» píxeles en «n» pasos, uno cada «ms».
     function arrastre(dx, n, ms) {
@@ -707,7 +709,7 @@ FloatingWindow {
         }]],
         // Detalles de una fila, y fijar.
         [[300, () => {
-            ventana.clicFila("Cambiar los discos del NAS", "r");
+            ventana.clicFila("Cambiar los discos del NAS", ventana.filaDe("Cambiar los discos del NAS", "r") ? "r" : "a");
         }]],
         [[700, () => {
             const f = ventana.filaDe("Cambiar los discos del NAS", "r");
@@ -1739,6 +1741,156 @@ FloatingWindow {
             ventana.comprobar(ventana.uno("seccionRevisiones") === null && ventana.uno("seccionTareas") !== null, "el paso «Ir a Tareas» cambia de sección");
             ventana.seccion("inicio");
         }]],
+        // =====================================================================
+        // Tareas: calendario, arrastrar, edición desde el detalle y avisos del móvil
+        // =====================================================================
+        [[50, () => ventana.seccion("tareas")]],
+        [[600, () => ventana.clic(ventana.uno("vista-plazo"))]],
+        [[300, () => {
+            ventana.comprobar(ventana.uno("actualizarTareas") !== null, "Tareas tiene el botón de actualizar");
+            ventana.comprobar(ventana.uno("dia-2026-10-20") === null, "el calendario está plegado de entrada");
+            ventana.clic(ventana.uno("verCalendario"));
+        }]],
+        [[800, () => {
+            ventana.comprobar(ventana.uno("dia-2026-10-20") !== null && ventana.ui().calMes === 10 && ventana.ui().calDia === "2026-10-20", "el chip abre el calendario en el mes de hoy con hoy elegido", String(ventana.ui().calMes));
+            ventana.captura("13-tareas-calendario");
+            ventana.clic(ventana.uno("mesSiguiente"));
+        }]],
+        [[300, () => {
+            ventana.comprobar(ventana.ui().calMes === 11 && ventana.ui().calAnio === 2026, "› pasa al mes siguiente");
+            const z = ventana.uno("dia-2026-11-18");
+            const p = z.mapToItem(envoltura, 10, 10);
+            ev.mouseWheel(envoltura, p.x, p.y, Qt.NoButton, Qt.NoModifier, 0, -120, -1);
+        }]],
+        [[300, () => {
+            ventana.comprobar(ventana.ui().calMes === 12, "la rueda cambia de mes", String(ventana.ui().calMes));
+            ventana.clic(ventana.uno("tituloMes"));
+        }]],
+        [[600, () => {
+            ventana.comprobar(ventana.uno("selectorMes") !== null && ventana.uno("elegirMes-3") !== null, "el título abre el desplegable de mes y año");
+            ventana.captura("14-tareas-selector");
+            ventana.clic(ventana.uno("anioSiguiente"));
+        }]],
+        [[200, () => ventana.clic(ventana.uno("elegirMes-3"))]],
+        [[600, () => {
+            ventana.comprobar(ventana.ui().calMes === 3 && ventana.ui().calAnio === 2027, "elegir año y mes en el desplegable", ventana.ui().calAnio + "-" + ventana.ui().calMes);
+            ventana.comprobar(ventana.uno("selectorMes") === null, "  y se cierra");
+            ventana.clic(ventana.uno("tituloMes"));
+        }]],
+        [[600, () => {
+            // Clic fuera: en la cabecera de Tareas, lejos del desplegable.
+            const f = ventana.uno("cuentaTareas");
+            const p = f.mapToItem(envoltura, f.width - 4, 2);
+            ev.mouseClick(envoltura, p.x, p.y, Qt.LeftButton, Qt.NoModifier, -1);
+        }]],
+        [[600, () => {
+            ventana.comprobar(ventana.uno("selectorMes") === null, "un clic fuera cierra el desplegable");
+            ventana.clic(ventana.uno("mesHoy"));
+        }]],
+        [[600, () => {
+            ventana.comprobar(ventana.ui().calMes === 10 && ventana.ui().calAnio === 2026, "«Hoy» vuelve al mes de hoy");
+            // Arrastrar una fila (por su asa) a un día del calendario.
+            const f = ventana.filaDe("Cambiar los discos del NAS", "r") || ventana.filaDe("Cambiar los discos del NAS", "a");
+            ventana.traer(f);
+            ventana.asa = ventana.hijo(f, f.ctx === "r" ? "asaFila" : "asaTarjeta");
+            ventana.escrituras0 = apiFalsa.escrituras.length;
+            const p = ventana.asa.mapToItem(envoltura, ventana.asa.width / 2, ventana.asa.height / 2);
+            ventana.px = p.x;
+            ventana.qy = p.y;
+            ev.mousePress(envoltura, p.x, p.y, Qt.LeftButton, Qt.NoModifier, -1);
+        }]],
+        [[100, () => ev.mouseMove(envoltura, ventana.px + 8, ventana.qy - 10, -1, Qt.LeftButton, Qt.NoModifier)]],
+        [[100, () => {
+            const d = ventana.uno("dia-2026-10-23");
+            const q = d.mapToItem(envoltura, d.width / 2, d.height / 2);
+            ventana.px = q.x;
+            ventana.qy = q.y;
+            ev.mouseMove(envoltura, q.x, q.y, -1, Qt.LeftButton, Qt.NoModifier);
+        }]],
+        [[300, () => {
+            ventana.comprobar(ventana.ui().arrastrada !== null && ventana.ui().arrastrada.plano === "Cambiar los discos del NAS", "arrastrando por el asa se lleva la tarea");
+            ventana.captura("15-tareas-arrastre");
+            ev.mouseRelease(envoltura, ventana.px, ventana.qy, Qt.LeftButton, Qt.NoModifier, -1);
+        }]],
+        [[600, () => {
+            ventana.comprobar(ventana.ultima().op === "editar" && ventana.igual(ventana.ultima().cuerpo, { fecha: "2026-10-23" }), "soltar sobre un día le pone esa fecha", ventana.ultimaJSON());
+            ventana.comprobar(ventana.ui().arrastrada === null, "  y el arrastre acaba");
+        }]],
+        // A una semana: conserva el día de la semana (23 oct es viernes; semana del 26 oct).
+        [[100, () => {
+            const f = ventana.filaDe("Cambiar los discos del NAS", "r") || ventana.filaDe("Cambiar los discos del NAS", "a");
+            ventana.traer(f);
+            const a = ventana.hijo(f, f.ctx === "r" ? "asaFila" : "asaTarjeta");
+            const p = a.mapToItem(envoltura, a.width / 2, a.height / 2);
+            ev.mousePress(envoltura, p.x, p.y, Qt.LeftButton, Qt.NoModifier, -1);
+            ventana.px = p.x;
+            ventana.qy = p.y;
+        }]],
+        [[100, () => ev.mouseMove(envoltura, ventana.px + 8, ventana.qy - 10, -1, Qt.LeftButton, Qt.NoModifier)]],
+        [[100, () => {
+            const d = ventana.uno("semana-2026-10-26");
+            const q = d.mapToItem(envoltura, d.width / 2, d.height / 2);
+            ventana.px = q.x;
+            ventana.qy = q.y;
+            ev.mouseMove(envoltura, q.x, q.y, -1, Qt.LeftButton, Qt.NoModifier);
+        }]],
+        [[300, () => ev.mouseRelease(envoltura, ventana.px, ventana.qy, Qt.LeftButton, Qt.NoModifier, -1)]],
+        [[600, () => ventana.comprobar(ventana.ultima().op === "editar" && ventana.igual(ventana.ultima().cuerpo, { fecha: "2026-10-30" }), "soltar sobre una semana la mueve conservando el día", ventana.ultimaJSON())]],
+        // Edición desde el detalle: claude_off, fecha, prioridad, proyecto.
+        [[100, () => {
+            ventana.clicFila("Cambiar los discos del NAS", ventana.filaDe("Cambiar los discos del NAS", "r") ? "r" : "a");
+        }]],
+        [[600, () => {
+            const c = ventana.uno("claudeOff");
+            ventana.comprobar(c !== null, "el detalle tiene el interruptor «Claude no la hace»");
+            ventana.traer(c);
+            ventana.clic(c);
+        }]],
+        [[500, () => {
+            ventana.comprobar(ventana.ultima().op === "editar" && ventana.igual(ventana.ultima().cuerpo, { claudeOff: true }), "el interruptor manda claudeOff: true", ventana.ultimaJSON());
+            ventana.clic(ventana.uno("panelPrioridad"));
+        }]],
+        [[600, () => ventana.clic(ventana.uno("prio-alta"))]],
+        [[500, () => {
+            ventana.comprobar(ventana.igual(ventana.ultima().cuerpo, { prioridad: "alta" }), "el botón de prioridad cambia la prioridad", ventana.ultimaJSON());
+            ventana.clic(ventana.uno("panelFecha"));
+        }]],
+        [[600, () => {
+            ventana.captura("t17-detalle-fecha");
+            ventana.clic(ventana.uno("fecha-sin"));
+        }]],
+        [[500, () => {
+            ventana.comprobar(ventana.igual(ventana.ultima().cuerpo, { fecha: "" }), "el botón de fecha puede quitarla", ventana.ultimaJSON());
+            ventana.clic(ventana.uno("panelProyecto"));
+        }]],
+        [[600, () => ventana.clic(ventana.uno("proy-clase"))]],
+        [[500, () => {
+            ventana.comprobar(ventana.igual(ventana.ultima().cuerpo, { seccion: "clase" }), "el botón de proyecto mueve la tarea", ventana.ultimaJSON());
+            ventana.comprobar(ventana.uno("tiraDias") !== null ? !ventana.uno("tiraDias").visible : true, "la tira de días no se ve si no se arrastra");
+        }]],
+        // El aviso del móvil.
+        [[100, () => apiFalsa.confirmaciones = [{ id: "m1", tipo: "confirmar_envio", titulo: "Enviar el parte a Juanjo", detalle: "parte-semana.pdf", pendiente: true }]]],
+        [[800, () => {
+            ventana.comprobar(ventana.uno("avisoEnviar") !== null && ventana.tiene("Enviar el parte a Juanjo"), "un aviso confirmar_envio enseña la tarjeta con Enviar y No enviar");
+            ventana.captura("16-tareas-aviso-movil");
+            ventana.clic(ventana.uno("avisoEnviar"));
+        }]],
+        [[600, () => {
+            ventana.comprobar(ventana.igual(apiFalsa.respuestasAviso, [{ id: "m1", envio: true }]), "«Enviar» responde envio: true", JSON.stringify(apiFalsa.respuestasAviso));
+            ventana.comprobar(ventana.uno("avisoEnviar") === null, "  y la tarjeta se va");
+            apiFalsa.confirmaciones = [{ id: "m2", tipo: "confirmar_envio", titulo: "Otro", detalle: "", pendiente: true }];
+        }]],
+        [[800, () => ventana.clic(ventana.uno("avisoNoEnviar"))]],
+        [[600, () => ventana.comprobar(ventana.igual(apiFalsa.respuestasAviso[1], { id: "m2", envio: false }), "«No enviar» responde envio: false", JSON.stringify(apiFalsa.respuestasAviso))]],
+        // El modo «amplio»: calendario y lista lado a lado.
+        [[100, () => ventana.ui().modo = "amplio"]],
+        [[900, () => {
+            const l = ventana.uno("calendarioLateral");
+            ventana.comprobar(l !== null && l.width > 100 && ventana.uno("verCalendario") === null, "en «amplio» el calendario va a un lado y sin chip para plegarlo");
+            ventana.captura("t18-tareas-amplio");
+        }]],
+        [[600, () => ventana.ui().modo = "compacto"]],
+        [[100, () => ventana.seccion("inicio")]],
         [[50, () => ventana.comprobar(ventana.textos().indexOf("€") < 0, "no aparece ningún € en todo el texto del cajón")]],
         [[300, () => {
             console.log("Resultado: " + (ventana.hechas - ventana.fallos.length) + " de " + ventana.hechas + " bien" + (ventana.fallos.length ? "; fallan: " + ventana.fallos.join(" | ") : ""));

@@ -335,3 +335,129 @@ function pieDetalle(t) {
         partes.push("fijada en \u00abAhora\u00bb");
     return partes.join(" \u00b7 ");
 }
+
+// --- Calendario y arrastre -------------------------------------------------
+
+var MESES_LARGOS = ["enero", "febrero", "marzo", "abril", "mayo", "junio", "julio", "agosto", "septiembre", "octubre", "noviembre", "diciembre"];
+var DIAS_CORTOS = ["L", "M", "X", "J", "V", "S", "D"];
+
+function dos(x) {
+    return (x < 10 ? "0" : "") + x;
+}
+
+function aFecha(y, m, d) {
+    // m de 1 a 12; Date.UTC normaliza días fuera de rango.
+    var f = new Date(Date.UTC(y, m - 1, d));
+    return f.getUTCFullYear() + "-" + dos(f.getUTCMonth() + 1) + "-" + dos(f.getUTCDate());
+}
+
+function partes(s) {
+    var m = /^(\d{4})-(\d\d)-(\d\d)/.exec(s || "");
+    return m ? { y: +m[1], m: +m[2], d: +m[3] } : null;
+}
+
+// 0 = lunes … 6 = domingo.
+function diaSemana(s) {
+    var p = partes(s);
+    if (!p)
+        return 0;
+    return (new Date(Date.UTC(p.y, p.m - 1, p.d)).getUTCDay() + 6) % 7;
+}
+
+// El lunes de la semana de una fecha.
+function lunesDe(s) {
+    return fechaMasDias(s, -diaSemana(s));
+}
+
+// Número de semana ISO, para la etiqueta de cada fila del calendario.
+function semanaIso(s) {
+    var p = partes(s);
+    if (!p)
+        return 0;
+    var d = new Date(Date.UTC(p.y, p.m - 1, p.d));
+    var n = (d.getUTCDay() + 6) % 7;
+    d.setUTCDate(d.getUTCDate() - n + 3);
+    var primero = new Date(Date.UTC(d.getUTCFullYear(), 0, 4));
+    return 1 + Math.round(((d - primero) / 86400000 - 3 + ((primero.getUTCDay() + 6) % 7)) / 7);
+}
+
+// Las seis semanas de un mes (42 días desde el lunes anterior al día 1):
+// [{ fecha, dia, delMes }].
+function cuadricula(anio, mes) {
+    var primero = aFecha(anio, mes, 1);
+    var ini = lunesDe(primero);
+    var out = [];
+    for (var i = 0; i < 42; i++) {
+        var f = fechaMasDias(ini, i);
+        out.push({ fecha: f, dia: partes(f).d, delMes: partes(f).m === mes });
+    }
+    return out;
+}
+
+// El mismo día de la semana, en la semana que empieza en `lunes`.
+function mismoDiaEnSemana(fecha, lunes) {
+    return fechaMasDias(lunes, diaSemana(fecha));
+}
+
+// Las tareas abiertas con fecha, por día: { "2026-10-30": [entrada] }.
+function porDia(todas) {
+    var m = {};
+    todas.forEach(function (t) {
+        if (t.hecha || !t.vence)
+            return;
+        (m[t.vence] = m[t.vence] || []).push(t);
+    });
+    Object.keys(m).forEach(function (k) {
+        m[k].sort(porUrgencia);
+    });
+    return m;
+}
+
+// Mover el mes en n pasos, con años: { anio, mes }.
+function sumaMes(anio, mes, n) {
+    var i = anio * 12 + (mes - 1) + n;
+    return { anio: Math.floor(i / 12), mes: (i % 12 + 12) % 12 + 1 };
+}
+
+// Lo que significa soltar una tarea sobre la cabecera de un grupo, según la
+// vista: { fecha } | { seccion } | { prioridad } | null (no se puede soltar).
+function cambioDeGrupo(vista, g, hoy) {
+    if (!g || g.tipo !== "normal")
+        return null;
+    var k = String(g.clave).split("|")[1];
+    if (vista === "plazo") {
+        if (k === "Esta semana")
+            return { fecha: hoy };
+        if (k === "Con fecha más adelante")
+            return { fecha: fechaMasDias(hoy, 14) };
+        if (k === "Sin fecha")
+            return { fecha: "" };
+    } else if (vista === "proyecto") {
+        return k ? { seccion: k } : null;
+    } else if (vista === "prioridad") {
+        return { prioridad: k === "ninguna" ? "" : k };
+    }
+    return null;
+}
+
+// ¿Cambia de verdad algo? Para no escribir lo mismo.
+function esCambio(t, c) {
+    if (!c)
+        return false;
+    if ("fecha" in c)
+        return (t.vence || "") !== c.fecha;
+    if ("seccion" in c)
+        return t.seccionId !== c.seccion;
+    if ("prioridad" in c)
+        return (t.prioridad || "") !== c.prioridad;
+    return false;
+}
+
+// Una frase corta de lo que se hizo, para el aviso.
+function nombreDeCambio(c) {
+    if ("fecha" in c)
+        return c.fecha === "" ? "sin fecha" : fechaCorta(c.fecha);
+    if ("seccion" in c)
+        return "proyecto";
+    return c.prioridad ? NOMBRES[c.prioridad] : "sin prioridad";
+}
