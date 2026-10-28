@@ -105,6 +105,9 @@ function deTareas(tareas, conectado, actualizado) {
             if (texto === "")
                 continue;
             eventos.push({
+                // El id de la tarea en el panel (para moverla de día desde el
+                // calendario); las que no lo tienen no se pueden mover.
+                id: String(t.id || ""),
                 dia: dia,
                 titulo: texto,
                 origen: s.id === "clase" ? "clase" : "tarea",
@@ -144,6 +147,7 @@ function limpio(e) {
     var prio = String(e.prioridad || "");
     var hora = String(e.hora || "");
     return {
+        id: String(e.id || ""),
         dia: String(e.dia),
         titulo: titulo.slice(0, 300),
         origen: String(e.origen || "tarea"),

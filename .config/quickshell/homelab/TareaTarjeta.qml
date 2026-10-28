@@ -67,6 +67,13 @@ Rectangle {
                 anchors.verticalCenter: parent.verticalCenter
                 spacing: 6
 
+                AsaArrastre {
+                    objectName: "asaTarjeta"
+                    anchors.verticalCenter: parent.verticalCenter
+                    t: tarjeta.t
+                    ctrl: tarjeta.ctrl
+                }
+
                 Text {
                     visible: tarjeta.t.fijada
                     anchors.verticalCenter: parent.verticalCenter

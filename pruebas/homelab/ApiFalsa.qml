@@ -291,7 +291,8 @@ QtObject {
                             venceHoy: t.dias === 0,
                             detalles: t.detalles.slice(),
                             subtareas: t.subtareas.map(x => Object.assign({}, x)),
-                            fijada: t.fijada
+                            fijada: t.fijada,
+                            claudeOff: t.claudeOff === true
                         };
                     })
                 }));
@@ -456,6 +457,8 @@ QtObject {
                         }));
             if ("fijada" in cambios)
                 t.fijada = cambios.fijada;
+            if ("claudeOff" in cambios)
+                t.claudeOff = cambios.claudeOff;
             t.h++;
             if ("seccion" in cambios && cambios.seccion !== s.id) {
                 s.tareas.splice(s.tareas.indexOf(t), 1);
@@ -491,6 +494,20 @@ QtObject {
     function cargarTareas() {
         api.lecturasTareas++;
         api.publicar();
+    }
+
+    // Avisos del móvil, como en Api.qml.
+    property var confirmaciones: []
+    property var respuestasAviso: []
+
+    function cargarAvisosMovil() {
+    }
+
+    function responderAvisoMovil(id, envio, alAcabar) {
+        api.respuestasAviso = api.respuestasAviso.concat([{ id: id, envio: envio }]);
+        api.confirmaciones = api.confirmaciones.filter(a => a.id !== id);
+        if (alAcabar)
+            alAcabar(true);
     }
 
     function cargarHabitos() {

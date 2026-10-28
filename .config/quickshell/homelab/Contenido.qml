@@ -24,6 +24,10 @@ Item {
     objectName: "contenido"
 
     required property var shell
+
+    // «compacto» (<600 px), «medio» (600-1000) o «amplio» (>=1000), según el
+    // ancho del cajón (Cajon.qml). Las vistas lo leen de aquí.
+    property string modo: "compacto"
     // El cajón entero fuera y quieto. Los euros de Finanzas sólo se enseñan así
     // (decisión E11): con el cajón escondido o a medio sacar, nunca.
     property bool desplegado: false
@@ -449,6 +453,7 @@ Item {
                 Tareas {
                     objectName: "seccionTareas"
                     anchors.fill: parent
+                    modo: contenido.modo
                     visible: contenido.seccion === "tareas"
                     shell: contenido.shell
                     lineaConexion: contenido.conectado ? "" : contenido.textoConexion()
@@ -507,6 +512,7 @@ Item {
                 Finanzas {
                     objectName: "seccionFinanzas"
                     anchors.fill: parent
+                    modo: contenido.modo
                     visible: contenido.seccion === "finanzas"
                     shell: contenido.shell
                     desplegado: contenido.desplegado
@@ -1112,5 +1118,15 @@ Item {
                 }
             }
         }
+    }
+
+    // La petición del móvil también se ve fuera de Tareas (que lleva la suya).
+    AvisoMovilTarjeta {
+        x: 10
+        y: 10
+        width: parent.width - 20
+        // La tarjeta se reparenta al cajón, así que ocultar este item no la
+        // oculta: en Tareas (que lleva la suya) se queda sin api y no sale.
+        api: contenido.seccion !== "tareas" ? contenido.api : null
     }
 }
