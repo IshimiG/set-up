@@ -22,22 +22,31 @@ import "shared/AgendaFormato.js" as Formato
 // día con algo lleva puntos de colores, y debajo de la rejilla está la lista
 // de hoy o del día que se pulse. Sin agenda, la rejilla sola.
 //
-// Dos gestos más, además de la rueda:
-//   - El mes y el año se eligen con las flechas de la cabecera o con dos
-//     desplegables (un cuadro de meses y otro de años), que se cierran al
-//     pulsar fuera de ellos.
-//   - Una tarea de la lista del día se arrastra a otro día de la rejilla y al
-//     soltarla cambia su fecha (shell.tareas, bar/Tareas.qml, que escribe en
-//     el panel del NUC). Si se arrastra sobre las flechas de la cabecera, el
-//     mes pasa solo, para llevarla a otra semana o a otro mes. Si el POST
-//     falla, la tarea vuelve a su día y se avisa.
+// Nada de botones ni formularios a la vista: lo demás aparece al pedirlo.
+//   - El mes y el año se eligen con las flechas de la cabecera o con el chip
+//     del mes («Octubre 2026»), que abre un desplegable con el año arriba
+//     (‹ › lo cambian) y los doce meses debajo. Se cierra al pulsar fuera.
+//   - Con el panel del NUC al alcance (shell.tareas, bar/Tareas.qml, que es
+//     quien escribe en él), las tareas se editan desde aquí:
+//       · doble clic en un día abre una línea para crear una tarea en él
+//         (Intro la crea, Escape la cierra), con prioridad media y sin 🚫🤖;
+//       · el punto de una tarea, pulsado, abre un menú con las cinco
+//         prioridades;
+//       · el 🚫🤖 del final de la fila («Claude no la hace») se enciende y se
+//         apaga con un clic; apagado no se ve hasta pasar el ratón por ella;
+//       · una tarea se arrastra a otro día de la rejilla y al soltarla cambia
+//         su fecha. Si se arrastra sobre las flechas de la cabecera, el mes
+//         pasa solo, para llevarla a otra semana o a otro mes.
+//     Mover, la prioridad y el 🚫🤖 cambian la vista al momento; si el POST
+//     falla, vuelven a como estaban y se avisa.
 Item {
     id: root
 
     required property var shell
 
-    // 320 y no 300: la cabecera con flechas, mes, año y «hoy» no cabe en 300 con
-    // meses largos («Septiembre»). La isla toma este ancho sola (panelW).
+    // 320 y no 300: la cabecera (flechas, el chip de «Septiembre 2026» y
+    // «hoy») y las filas con su 🚫🤖 no caben en 300. La isla toma este ancho
+    // sola (panelW).
     implicitWidth: 320
     implicitHeight: content.implicitHeight + Theme.pad * 2
 
@@ -70,51 +79,192 @@ Item {
         return t.charAt(0).toUpperCase() + t.slice(1);
     }
 
-    // --- Los desplegables de mes y año -----------------------------------------
-    // "" cerrado, "mes" o "anio". La curva de abrir (rebote) y la de cerrar (sin
-    // rebote, como el resto de la isla) se fijan antes de cambiar el estado.
-    property string selector: ""
-    // Primer año de la página de años que se enseña.
-    property int anioBase: root.shown.getFullYear() - 4
+    // --- El desplegable de mes y año ------------------------------------------
+    // Arriba el año, que ‹ › cambian sin moverse todavía de mes; debajo, los
+    // doce meses: elegir uno lleva a ese mes de ese año y lo cierra.
+    property bool selectorAbierto: false
+    // El año que enseña el desplegable (al abrirlo, el que se está mirando).
+    property int selectorAnio: 0
 
-    function abrirSelector(cual) {
-        if (root.selector === cual) {
+    function abrirSelector() {
+        if (root.selectorAbierto) {
             root.cerrarSelector();
             return;
         }
-        root.anioBase = root.shown.getFullYear() - 4;
-        root.selector = cual;
+        root.cerrarPrioridad();
+        root.selectorAnio = root.shown.getFullYear();
+        root.selectorAbierto = true;
     }
 
     function cerrarSelector() {
-        root.selector = "";
+        root.selectorAbierto = false;
     }
 
-    // --- Arrastrar tareas -----------------------------------------------------
-    // El cliente del panel (bar/Tareas.qml); null en las pruebas.
+    // --- Editar tareas ----------------------------------------------------------
+    // El cliente del panel (bar/Tareas.qml); en las pruebas, uno falso o null.
     readonly property var tareas: root.shell.tareas ?? null
-    readonly property bool puedeMover: root.tareas !== null && root.tareas.puedeMover
+    readonly property bool puedeEscribir: root.tareas !== null && root.tareas.puedeEscribir
     // La tarea que se lleva en la mano (un evento de la agenda), o null.
     property var arrastrada: null
-    // Lo que se dice tras soltar: «Movida al 24 oct» o por qué no pudo ser.
+    // Lo que se dice tras escribir: «Movida al 24 oct», «Añadida al 30 oct»…
+    // o por qué no pudo ser.
     property string aviso: ""
+
+    // Crear: el día de la línea abierta ("2026-10-30"), o "" sin ella. Elegir
+    // otro día la cierra.
+    property string nuevaDia: ""
+    // Esperando al panel: crear no es optimista.
+    property bool creando: false
+    // Quien tenía el teclado al abrir la línea (la isla, que cierra con
+    // Escape): se le devuelve al cerrarla.
+    property Item tecladoAntes: null
+
+    // La prioridad: la tarea cuyo menú está abierto (un evento), o null.
+    property var menuDe: null
+
+    // Las del panel, de la más alta a la más baja, con el nombre de su color
+    // (Theme.colorPrioridad) y lo que se lee en el menú.
+    readonly property var prioridades: [
+        {
+            valor: "highest",
+            nombre: "maxima",
+            etiqueta: "Máxima"
+        },
+        {
+            valor: "high",
+            nombre: "alta",
+            etiqueta: "Alta"
+        },
+        {
+            valor: "medium",
+            nombre: "media",
+            etiqueta: "Media"
+        },
+        {
+            valor: "low",
+            nombre: "baja",
+            etiqueta: "Baja"
+        },
+        {
+            valor: "lowest",
+            nombre: "minima",
+            etiqueta: "Mínima"
+        }
+    ]
+
+    onDiaVistoChanged: if (root.nuevaDia !== "" && root.nuevaDia !== root.diaVisto)
+        root.cerrarNueva()
+
+    function abrirNueva(dia) {
+        if (!root.puedeEscribir)
+            return;
+        root.cerrarSelector();
+        root.cerrarPrioridad();
+        root.elegido = dia === root.hoy ? "" : dia;
+        root.nuevaDia = dia;
+    }
+
+    function cerrarNueva() {
+        if (root.nuevaDia === "")
+            return;
+        root.nuevaDia = "";
+        root.creando = false;
+        if (root.tecladoAntes)
+            root.tecladoAntes.forceActiveFocus();
+        root.tecladoAntes = null;
+    }
+
+    function crearNueva(texto) {
+        const dia = root.nuevaDia;
+        if (root.creando || dia === "" || texto.trim() === "" || !root.tareas)
+            return;
+        const cli = root.tareas;
+        root.creando = true;
+        cli.crear(texto, dia, ok => {
+            root.creando = false;
+            if (!ok) {
+                root.avisar(cli.error || "No se pudo crear la tarea");
+                return;
+            }
+            if (root.nuevaDia === dia)
+                root.cerrarNueva();
+            root.avisar("Añadida al " + Formato.diaCorto(dia));
+        });
+    }
+
+    // El menú sale debajo del punto si cabe y, si no (lo normal, porque la
+    // lista va al final de la isla), encima de la fila.
+    function abrirPrioridad(evento, punto) {
+        if (!root.puedeEscribir)
+            return;
+        if (root.menuDe !== null && root.menuDe.id === evento.id) {
+            root.cerrarPrioridad();
+            return;
+        }
+        root.cerrarSelector();
+        const q = punto.mapToItem(root, 0, 0);
+        const abajo = q.y + punto.height + 4;
+        menuPrio.arriba = abajo + menuPrio.height > root.height - 6;
+        menuPrio.y = menuPrio.arriba ? q.y - menuPrio.height - 4 : abajo;
+        menuPrio.x = Math.min(Math.max(Theme.pad - 6, q.x - 6), root.width - menuPrio.width - 6);
+        menuPrio.de = evento;
+        root.menuDe = evento;
+    }
+
+    function cerrarPrioridad() {
+        root.menuDe = null;
+    }
+
+    function elegirPrioridad(p) {
+        const t = root.menuDe;
+        root.cerrarPrioridad();
+        if (!t || !root.tareas || p.nombre === t.prioridadPropia)
+            return;
+        const cli = root.tareas;
+        cli.prioridad(t.id, p.valor, ok => {
+            root.avisar(ok ? "Prioridad " + p.etiqueta.toLowerCase() : (cli.error || "No se pudo cambiar la prioridad"));
+        });
+    }
+
+    function cambiarClaudeOff(evento) {
+        if (!root.puedeEscribir)
+            return;
+        const cli = root.tareas;
+        const activo = evento.claudeOff !== true;
+        cli.claudeOff(evento.id, activo, ok => {
+            root.avisar(ok ? (activo ? "Claude no la hará" : "Claude ya puede hacerla") : (cli.error || "No se pudo cambiar «Claude no la hace»"));
+        });
+    }
 
     function avisar(texto) {
         root.aviso = texto;
         avisoReloj.restart();
     }
 
-    function empezarArrastre(evento) {
+    // `escena`, dónde está el puntero (en la escena): el fantasma se pone
+    // ahí antes de echar a andar, para que el primer DropArea que se entere
+    // sea el de debajo del puntero y no el del sitio donde acabó el anterior.
+    function empezarArrastre(evento, escena) {
         root.arrastrada = evento;
         ghost.titulo = evento.titulo;
         ghost.punto = root.colorTipo(Formato.tipo(evento, root.hoy));
+        root.seguirArrastre(escena);
         ghost.Drag.active = true;
     }
 
+    // El fantasma va encima del puntero y no debajo, para no tapar el día
+    // sobre el que se va a soltar, que es el que se resalta; arriba del todo
+    // (las flechas de la cabecera), por debajo de él, para que la isla no lo
+    // recorte. Sin salirse por los lados. El punto caliente del arrastre, lo
+    // que miran los DropArea, sigue siendo el puntero.
     function seguirArrastre(escena) {
         const q = root.mapFromItem(null, escena.x, escena.y);
-        ghost.x = q.x - ghost.width / 2;
-        ghost.y = q.y - ghost.height / 2;
+        const x = Math.max(4, Math.min(root.width - ghost.width - 4, q.x - ghost.width / 2));
+        const encima = q.y - ghost.height - 10;
+        const y = encima >= 4 ? encima : q.y + 16;
+        ghost.Drag.hotSpot = Qt.point(q.x - x, q.y - y);
+        ghost.x = x;
+        ghost.y = y;
     }
 
     // Suelta: el DropArea que haya debajo recibe onDropped (soltarEn) antes de
@@ -169,6 +319,8 @@ Item {
                 root.monthOffset = 0;
                 root.elegido = "";
                 root.cerrarSelector();
+                root.cerrarPrioridad();
+                root.cerrarNueva();
                 root.cancelarArrastre();
             } else if (root.tareas) {
                 // Se lee al abrir (y solo si lo que hay es viejo), no se sondea.
@@ -255,7 +407,7 @@ Item {
         return e.area !== "" ? e.area : e.seccion;
     }
 
-    // Un botón de texto de la cabecera (el mes o el año) con su flecha de
+    // Un botón de texto de la cabecera (el mes y el año) con su flecha de
     // desplegable.
     component Chip: Rectangle {
         id: chip
@@ -383,7 +535,7 @@ Item {
         anchors.margins: Theme.pad
         spacing: 8
 
-        // Cabecera: flechas, el mes y el año que se están mirando (cada uno abre
+        // Cabecera: flechas, el mes y el año que se están mirando (el chip abre
         // su desplegable) y, a la derecha, volver a hoy. Las flechas aceptan
         // también una tarea arrastrada: con ella encima, el mes pasa solo.
         RowLayout {
@@ -399,17 +551,12 @@ Item {
             }
 
             Chip {
-                objectName: "chipMes"
-                texto: root.mayus(root.loc.monthName(root.shown.getMonth(), Locale.LongFormat))
-                abierto: root.selector === "mes"
-                onPulsado: root.abrirSelector("mes")
-            }
+                id: chipMes
 
-            Chip {
-                objectName: "chipAnio"
-                texto: String(root.shown.getFullYear())
-                abierto: root.selector === "anio"
-                onPulsado: root.abrirSelector("anio")
+                objectName: "chipMes"
+                texto: root.mayus(root.loc.monthName(root.shown.getMonth(), Locale.LongFormat)) + " " + root.shown.getFullYear()
+                abierto: root.selectorAbierto
+                onPulsado: root.abrirSelector()
             }
 
             Flecha {
@@ -517,20 +664,24 @@ Item {
                     border.color: Qt.rgba(1, 1, 1, 0.18)
                 }
 
-                // El día sobre el que está la tarea que se arrastra: la lámina
-                // crece con rebote al entrar y se encoge sin rebote al salir.
+                // El día sobre el que está la tarea que se arrastra: un halo
+                // sutil, una lámina apenas más clara que la del día pulsado
+                // con un canto fino, que crece con rebote al entrar y se
+                // encoge sin rebote al salir. El día de la propia tarea no es
+                // destino: no se resalta (su DropArea está apagado).
                 Rectangle {
                     id: objetivo
 
+                    objectName: "destino"
                     anchors.centerIn: parent
                     width: 30
                     height: 26
                     radius: 9
-                    color: Qt.rgba(Theme.accent.r, Theme.accent.g, Theme.accent.b, 0.22)
+                    color: Qt.rgba(Theme.accent.r, Theme.accent.g, Theme.accent.b, 0.12)
                     border.width: 1
-                    border.color: Qt.rgba(1, 1, 1, 0.5)
+                    border.color: Qt.rgba(1, 1, 1, 0.34)
                     opacity: 0
-                    scale: 0.6
+                    scale: 0.8
                     visible: opacity > 0
 
                     states: State {
@@ -585,7 +736,7 @@ Item {
                     font.family: Theme.font
                     font.pixelSize: 11
                     font.bold: cell.esHoy
-                    color: cell.esHoy ? Theme.strong : (cell.esDeFuera ? Qt.rgba(1, 1, 1, 0.18) : Theme.text)
+                    color: cell.esHoy || dropDia.containsDrag ? Theme.strong : (cell.esDeFuera ? Qt.rgba(1, 1, 1, 0.18) : Theme.text)
                 }
 
                 Row {
@@ -617,9 +768,19 @@ Item {
                     cursorShape: Qt.PointingHandCursor
                 }
 
-                TapHandler {
+                // Un clic elige el día; doble clic abre la línea para crear
+                // una tarea en él. Va en un MouseArea y no en un TapHandler
+                // porque el doble toque de un TapHandler no hay forma de
+                // provocarlo desde QtTest (separa cada clic del siguiente más
+                // que el intervalo de doble clic), y el doble clic de un
+                // MouseArea sí. Y de paso, en un doble clic el segundo no
+                // cuenta como otro clic: el día no se elige y se suelta en el
+                // mismo gesto.
+                MouseArea {
+                    anchors.fill: parent
                     enabled: root.agenda !== null
-                    onTapped: root.elegir(cell.clave)
+                    onClicked: root.elegir(cell.clave)
+                    onDoubleClicked: root.abrirNueva(cell.clave)
                 }
 
                 DropArea {
@@ -627,7 +788,7 @@ Item {
 
                     anchors.fill: parent
                     keys: ["tarea"]
-                    enabled: root.arrastrada !== null
+                    enabled: root.arrastrada !== null && root.arrastrada.dia !== cell.clave
                     onDropped: drop => {
                         drop.accept();
                         root.soltarEn(cell.clave);
@@ -662,14 +823,18 @@ Item {
                     font.bold: true
                 }
 
-                Item {
-                    Layout.fillWidth: true
-                }
-
-                // Lo que pasó al soltar una tarea.
+                // Lo que pasó al escribir en el panel (mover, crear…), a la
+                // derecha, con lo que quede de sitio y recortado si no cabe.
+                // Sin el ancho preferido y el mínimo a cero, un aviso largo
+                // (los del panel lo son) pediría su ancho entero a la fila, y
+                // la columna de fuera ensancharía con ella todo el calendario
+                // por encima de los 320 de la isla.
                 Text {
                     objectName: "avisoMover"
-                    Layout.maximumWidth: 170
+                    Layout.fillWidth: true
+                    Layout.preferredWidth: 0
+                    Layout.minimumWidth: 0
+                    horizontalAlignment: Text.AlignRight
                     elide: Text.ElideRight
                     visible: root.aviso !== ""
                     text: root.aviso
@@ -679,14 +844,32 @@ Item {
                 }
 
                 // El cajón la dejó sin conexión con el panel: puede no estar al
-                // día.
+                // día. Igual que el aviso.
                 Text {
                     objectName: "sinConexion"
+                    Layout.fillWidth: true
+                    Layout.preferredWidth: 0
+                    Layout.minimumWidth: 0
+                    horizontalAlignment: Text.AlignRight
+                    elide: Text.ElideRight
                     visible: root.aviso === "" && root.agenda !== null && !root.agenda.conectado
                     text: "sin conexión con el panel"
                     color: Theme.faint
                     font.family: Theme.font
                     font.pixelSize: 10
+                }
+            }
+
+            // La línea para crear una tarea en el día (doble clic en él). Solo
+            // existe mientras está abierta.
+            Loader {
+                Layout.fillWidth: true
+                active: root.nuevaDia !== ""
+                visible: active
+                sourceComponent: lineaNueva
+                onLoaded: {
+                    root.tecladoAntes = root.Window.activeFocusItem;
+                    item.enfocar();
                 }
             }
 
@@ -712,7 +895,9 @@ Item {
                         Layout.preferredHeight: 16
                         spacing: 8
 
-                        readonly property bool movible: root.puedeMover && fila.modelData.id !== ""
+                        // Se puede editar: con el panel al alcance y con id
+                        // (lo que viene del fichero del cajón no lo tiene).
+                        readonly property bool movible: root.puedeEscribir && fila.modelData.id !== ""
                         readonly property bool enMano: root.arrastrada !== null && root.arrastrada.id === fila.modelData.id
 
                         opacity: fila.enMano ? 0.35 : 1
@@ -726,6 +911,8 @@ Item {
                         // Arrastrar la fila lleva la tarea a otro día; la fila no
                         // se mueve (target null), lo que viaja es el fantasma.
                         HoverHandler {
+                            id: filaHover
+
                             enabled: fila.movible
                             cursorShape: dragFila.active ? Qt.ClosedHandCursor : Qt.OpenHandCursor
                         }
@@ -737,7 +924,7 @@ Item {
                             target: null
                             onActiveChanged: {
                                 if (dragFila.active)
-                                    root.empezarArrastre(fila.modelData);
+                                    root.empezarArrastre(fila.modelData, dragFila.centroid.scenePosition);
                                 else
                                     root.terminarArrastre();
                             }
@@ -748,12 +935,47 @@ Item {
                         Component.onDestruction: if (dragFila.active)
                             root.cancelarArrastre()
 
-                        Rectangle {
+                        // El punto, con el color de la prioridad de hoy. Pulsado
+                        // abre el menú de prioridades; la zona que se pulsa es
+                        // algo mayor que el punto, que crece un poco al pasar
+                        // por encima para decir que se puede.
+                        Item {
+                            id: puntoFila
+
+                            objectName: "puntoFila"
                             Layout.alignment: Qt.AlignVCenter
-                            implicitWidth: 6
-                            implicitHeight: 6
-                            radius: 3
-                            color: root.colorTipo(fila.tipo)
+                            Layout.leftMargin: -3
+                            implicitWidth: 12
+                            implicitHeight: 16
+
+                            Rectangle {
+                                anchors.centerIn: parent
+                                width: 6
+                                height: 6
+                                radius: 3
+                                color: root.colorTipo(fila.tipo)
+                                scale: puntoHover.hovered || (root.menuDe !== null && root.menuDe.id === fila.modelData.id) ? 1.5 : 1
+
+                                Behavior on scale {
+                                    NumberAnimation {
+                                        duration: 200
+                                        easing.type: Easing.OutBack
+                                        easing.overshoot: 1.9
+                                    }
+                                }
+                            }
+
+                            HoverHandler {
+                                id: puntoHover
+
+                                enabled: fila.movible
+                                cursorShape: Qt.PointingHandCursor
+                            }
+
+                            TapHandler {
+                                enabled: fila.movible
+                                onTapped: root.abrirPrioridad(fila.modelData, puntoFila)
+                            }
                         }
 
                         Text {
@@ -777,6 +999,44 @@ Item {
                             color: fila.tipo === "vencida" ? Theme.prioMaxima : Theme.faint
                             font.family: Theme.font
                             font.pixelSize: 10
+                        }
+
+                        // 🚫🤖 «Claude no la hace» (el robot tachado de la
+                        // fuente de la barra). Apagado no está hasta que el
+                        // ratón pasa por la fila, y entonces tenue; encendido,
+                        // siempre. Ocupa su sitio aunque no se vea, para que la
+                        // fila no baile.
+                        Text {
+                            id: robot
+
+                            readonly property bool activo: fila.modelData.claudeOff === true
+
+                            objectName: "claudeOffFila"
+                            Layout.alignment: Qt.AlignVCenter
+                            visible: fila.modelData.id !== ""
+                            text: "󱚧"
+                            color: robot.activo || robotHover.hovered ? Theme.strong : Theme.muted
+                            opacity: robot.activo || robotHover.hovered ? 1 : (filaHover.hovered ? 0.55 : 0)
+                            font.family: Theme.font
+                            font.pixelSize: 12
+
+                            Behavior on opacity {
+                                NumberAnimation {
+                                    duration: 140
+                                }
+                            }
+
+                            HoverHandler {
+                                id: robotHover
+
+                                enabled: fila.movible
+                                cursorShape: Qt.PointingHandCursor
+                            }
+
+                            TapHandler {
+                                enabled: fila.movible
+                                onTapped: root.cambiarClaudeOff(fila.modelData)
+                            }
                         }
                     }
                 }
@@ -808,15 +1068,20 @@ Item {
         onTriggered: root.aviso = ""
     }
 
-    // --- Los desplegables de mes y año -----------------------------------------
+    // --- Lo que flota: el desplegable de mes y año y el menú de prioridades ----
     // Pulsar fuera de ellos (pero dentro del calendario) los cierra; pulsar
-    // fuera de la isla la cierra entera, como siempre.
+    // fuera de la isla la cierra entera, como siempre. Con el desplegable
+    // abierto, la cabecera sigue a mano: el chip lo cierra y las flechas
+    // cambian de mes.
     MouseArea {
         anchors.fill: parent
-        anchors.topMargin: content.y + cabecera.y + cabecera.height
+        anchors.topMargin: root.selectorAbierto ? content.y + cabecera.y + cabecera.height : 0
         z: 4
-        enabled: root.selector !== ""
-        onPressed: root.cerrarSelector()
+        enabled: root.selectorAbierto || root.menuDe !== null
+        onPressed: {
+            root.cerrarSelector();
+            root.cerrarPrioridad();
+        }
     }
 
     Rectangle {
@@ -824,9 +1089,10 @@ Item {
 
         objectName: "selector"
         z: 5
-        x: Theme.pad
+        // Pequeño y bajo el chip, sin salirse del calendario.
+        width: 204
+        x: Math.max(Theme.pad, Math.min(root.width - Theme.pad - popup.width, content.x + cabecera.x + chipMes.x + chipMes.width / 2 - popup.width / 2))
         y: content.y + cabecera.y + cabecera.height + 6
-        width: root.width - Theme.pad * 2
         implicitHeight: popupContenido.implicitHeight + 16
         height: implicitHeight
         radius: 12
@@ -840,7 +1106,7 @@ Item {
 
         states: State {
             name: "abierto"
-            when: root.selector !== ""
+            when: root.selectorAbierto
             PropertyChanges {
                 popup.opacity: 1
                 popup.scale: 1.0
@@ -882,36 +1148,47 @@ Item {
             anchors.margins: 8
             spacing: 6
 
-            // Para los años: paginar de doce en doce.
+            // El año, con sus flechitas.
             RowLayout {
                 Layout.fillWidth: true
-                visible: root.selector === "anio"
                 spacing: 4
 
                 Flecha {
+                    objectName: "anioAnterior"
                     texto: "󰅁"
                     paso: 0
-                    onPulsada: root.anioBase -= 12
+                    onPulsada: root.selectorAnio -= 1
                 }
 
                 Text {
+                    objectName: "anioSelector"
                     Layout.fillWidth: true
                     horizontalAlignment: Text.AlignHCenter
-                    text: root.anioBase + " – " + (root.anioBase + 11)
-                    color: Theme.muted
+                    text: String(root.selectorAnio)
+                    color: root.selectorAnio === root.shown.getFullYear() ? Theme.strong : Theme.text
                     font.family: Theme.font
-                    font.pixelSize: 11
+                    font.pixelSize: 12
+                    font.bold: true
                 }
 
                 Flecha {
+                    objectName: "anioSiguiente"
                     texto: "󰅂"
                     paso: 0
-                    onPulsada: root.anioBase += 12
+                    onPulsada: root.selectorAnio += 1
                 }
             }
 
+            Rectangle {
+                Layout.fillWidth: true
+                implicitHeight: 1
+                color: Theme.rule
+            }
+
+            // Los meses, de tres en tres. Resaltado el que se está mirando;
+            // en negrita, el de hoy.
             GridLayout {
-                columns: 4
+                columns: 3
                 rowSpacing: 4
                 columnSpacing: 4
                 Layout.fillWidth: true
@@ -924,14 +1201,13 @@ Item {
 
                         required property int index
 
-                        readonly property int valor: root.selector === "mes" ? opcion.index : root.anioBase + opcion.index
-                        readonly property bool actual: root.selector === "mes" ? opcion.valor === root.shown.getMonth() : opcion.valor === root.shown.getFullYear()
-                        readonly property bool deHoy: root.selector === "mes" ? (root.shown.getFullYear() === root.shell.now.getFullYear() && opcion.valor === root.shell.now.getMonth()) : opcion.valor === root.shell.now.getFullYear()
+                        readonly property bool actual: root.selectorAnio === root.shown.getFullYear() && opcion.index === root.shown.getMonth()
+                        readonly property bool deHoy: root.selectorAnio === root.shell.now.getFullYear() && opcion.index === root.shell.now.getMonth()
 
                         objectName: "opcionSelector"
                         Layout.fillWidth: true
                         Layout.preferredWidth: 1
-                        implicitHeight: 30
+                        implicitHeight: 26
                         radius: 8
                         color: Qt.rgba(1, 1, 1, opcion.actual ? 0.16 : (opcionHover.hovered ? 0.08 : 0))
                         border.width: opcion.actual ? 1 : 0
@@ -943,9 +1219,12 @@ Item {
                             }
                         }
 
+                        // Los nombres cortos, de AgendaFormato.js y no de la
+                        // configuración regional: según la versión de sus
+                        // datos, septiembre es «sep», «sept» o «sept.».
                         Text {
                             anchors.centerIn: parent
-                            text: root.selector === "mes" ? root.mayus(root.loc.monthName(opcion.valor, Locale.ShortFormat)).replace(".", "") : String(opcion.valor)
+                            text: root.mayus(Formato.MESES[opcion.index])
                             color: opcion.actual ? Theme.strong : (opcion.deHoy ? Theme.text : Theme.muted)
                             font.family: Theme.font
                             font.pixelSize: 12
@@ -959,10 +1238,7 @@ Item {
 
                         TapHandler {
                             onTapped: {
-                                if (root.selector === "mes")
-                                    root.irA(root.shown.getFullYear(), opcion.valor);
-                                else
-                                    root.irA(opcion.valor, root.shown.getMonth());
+                                root.irA(root.selectorAnio, opcion.index);
                                 root.cerrarSelector();
                             }
                         }
@@ -972,9 +1248,211 @@ Item {
         }
     }
 
+    // El menú de prioridades de una tarea (al pulsar su punto). Lo que enseña
+    // sale de `de`, que se queda puesto al cerrar, para que no cambie mientras
+    // se va.
+    Rectangle {
+        id: menuPrio
+
+        property var de: null
+        // Si sale encima del punto (crece desde abajo) o debajo.
+        property bool arriba: true
+        readonly property int alto: 22
+
+        objectName: "menuPrioridad"
+        z: 5
+        width: 132
+        height: root.prioridades.length * (menuPrio.alto + 2) - 2 + 12
+        radius: 10
+        color: Theme.glassDense
+        border.width: 1
+        border.color: Qt.rgba(1, 1, 1, 0.18)
+        opacity: 0
+        scale: 0.9
+        transformOrigin: menuPrio.arriba ? Item.BottomLeft : Item.TopLeft
+        visible: opacity > 0
+
+        states: State {
+            name: "abierto"
+            when: root.menuDe !== null
+            PropertyChanges {
+                menuPrio.opacity: 1
+                menuPrio.scale: 1.0
+            }
+        }
+
+        transitions: [
+            Transition {
+                to: "abierto"
+                NumberAnimation {
+                    properties: "opacity,scale"
+                    duration: 320
+                    easing.type: Easing.OutBack
+                    easing.overshoot: 1.9
+                }
+            },
+            Transition {
+                from: "abierto"
+                NumberAnimation {
+                    properties: "opacity,scale"
+                    duration: 200
+                    easing.type: Easing.InOutQuint
+                }
+            }
+        ]
+
+        MouseArea {
+            anchors.fill: parent
+        }
+
+        Column {
+            anchors.fill: parent
+            anchors.margins: 6
+            spacing: 2
+
+            Repeater {
+                model: root.prioridades
+
+                Rectangle {
+                    id: opcionPrio
+
+                    required property var modelData
+
+                    // La que tiene puesta, no la de hoy: una tarea que vence
+                    // mañana sale roja aunque sea de prioridad baja.
+                    readonly property bool actual: menuPrio.de !== null && menuPrio.de.prioridadPropia === opcionPrio.modelData.nombre
+
+                    objectName: "opcionPrioridad"
+                    width: parent.width
+                    height: menuPrio.alto
+                    radius: 6
+                    color: Qt.rgba(1, 1, 1, opcionPrioHover.hovered ? 0.08 : 0)
+
+                    Behavior on color {
+                        ColorAnimation {
+                            duration: 120
+                        }
+                    }
+
+                    Rectangle {
+                        anchors.left: parent.left
+                        anchors.leftMargin: 8
+                        anchors.verticalCenter: parent.verticalCenter
+                        width: 6
+                        height: 6
+                        radius: 3
+                        color: Theme.colorPrioridad(opcionPrio.modelData.nombre)
+                    }
+
+                    Text {
+                        objectName: "etiquetaPrioridad"
+                        anchors.left: parent.left
+                        anchors.leftMargin: 22
+                        anchors.verticalCenter: parent.verticalCenter
+                        text: opcionPrio.modelData.etiqueta
+                        color: opcionPrio.actual || opcionPrioHover.hovered ? Theme.strong : Theme.text
+                        font.family: Theme.font
+                        font.pixelSize: 11
+                        font.bold: opcionPrio.actual
+                    }
+
+                    Text {
+                        objectName: "marcaPrioridad"
+                        anchors.right: parent.right
+                        anchors.rightMargin: 8
+                        anchors.verticalCenter: parent.verticalCenter
+                        visible: opcionPrio.actual
+                        text: "󰄬"
+                        color: Theme.strong
+                        font.family: Theme.font
+                        font.pixelSize: 12
+                    }
+
+                    HoverHandler {
+                        id: opcionPrioHover
+                        cursorShape: Qt.PointingHandCursor
+                    }
+
+                    TapHandler {
+                        onTapped: root.elegirPrioridad(opcionPrio.modelData)
+                    }
+                }
+            }
+        }
+    }
+
+    // --- La línea para crear una tarea -----------------------------------------
+    // Coge el teclado al aparecer (el onLoaded de su Loader) y se lo devuelve a
+    // quien lo tenía al cerrarse (cerrarNueva). Intro crea; Escape cierra sin crear. Mientras el panel
+    // contesta no se puede escribir en ella; si falla, se queda con el texto y
+    // el aviso dice por qué.
+    Component {
+        id: lineaNueva
+
+        Rectangle {
+            id: linea
+
+            implicitHeight: 26
+            radius: 8
+            color: campo.activeFocus ? Qt.rgba(1, 1, 1, 0.09) : Qt.rgba(1, 1, 1, 0.05)
+            border.width: 1
+            border.color: campo.activeFocus ? Qt.rgba(1, 1, 1, 0.3) : Theme.rule
+            opacity: root.creando ? 0.6 : 1
+            clip: true
+
+            Behavior on border.color {
+                ColorAnimation {
+                    duration: 140
+                }
+            }
+
+            function enfocar() {
+                campo.forceActiveFocus();
+            }
+
+            Text {
+                objectName: "pistaNueva"
+                anchors.fill: campo
+                verticalAlignment: Text.AlignVCenter
+                visible: campo.text === "" && campo.preeditText === ""
+                text: root.nuevaDia === root.hoy ? "Nueva tarea para hoy…" : root.nuevaDia === root.desdeHoy(1) ? "Nueva tarea para mañana…" : "Nueva tarea para el " + (Formato.fechaDe(root.nuevaDia) || new Date()).getDate() + "…"
+                elide: Text.ElideRight
+                color: Theme.faint
+                font.family: Theme.font
+                font.pixelSize: 11
+            }
+
+            TextInput {
+                id: campo
+
+                objectName: "campoNueva"
+                anchors.fill: parent
+                anchors.leftMargin: 10
+                anchors.rightMargin: 10
+                verticalAlignment: TextInput.AlignVCenter
+                // Lo mismo que acepta el panel: una línea de hasta 300.
+                maximumLength: 300
+                readOnly: root.creando
+                selectByMouse: true
+                color: Theme.strong
+                selectionColor: Qt.rgba(1, 1, 1, 0.3)
+                selectedTextColor: Theme.strong
+                font.family: Theme.font
+                font.pixelSize: 11
+
+                onAccepted: root.crearNueva(campo.text)
+                Keys.onEscapePressed: event => {
+                    event.accepted = true;
+                    root.cerrarNueva();
+                }
+            }
+        }
+    }
+
     // --- La tarea que se lleva en la mano ---------------------------------------
-    // Un fantasma de cristal que sigue al puntero; al soltarlo, el DropArea de
-    // la casilla de debajo recibe el drop. Sin soltar sobre un día, se funde.
+    // Un fantasma de cristal que sigue al puntero (seguirArrastre); al
+    // soltarlo, el DropArea de la casilla de debajo del puntero recibe el
+    // drop. Sin soltar sobre un día, se funde.
     Rectangle {
         id: ghost
 
@@ -994,8 +1472,6 @@ Item {
         visible: opacity > 0
 
         Drag.keys: ["tarea"]
-        Drag.hotSpot.x: ghost.width / 2
-        Drag.hotSpot.y: ghost.height / 2
 
         states: State {
             name: "llevado"

@@ -4,10 +4,12 @@ import Quickshell.Io
 import "shared/AgendaFormato.js" as Formato
 
 // El cliente mínimo del panel del NUC para el calendario: lee las tareas con
-// fecha (GET /api/tareas) y mueve una de día (POST /api/tareas/{id} con
-// { fecha }). Es el equivalente reducido de lo que hace homelab/Api.qml, que es
-// otro proceso de qs y no se comparte: el cajón sigue siendo quien escribe el
-// fichero de la agenda, y esto solo se usa mientras el calendario está abierto.
+// fecha (GET /api/tareas), crea una para un día (POST /api/tareas) y cambia
+// una de día, de prioridad o su 🚫🤖 «Claude no la hace» (POST
+// /api/tareas/{id} con { fecha }, { prioridad } o { claude_off }). Es el
+// equivalente reducido de lo que hace homelab/Api.qml, que es otro proceso de
+// qs y no se comparte: el cajón sigue siendo quien escribe el fichero de la
+// agenda, y esto solo se usa mientras el calendario está abierto.
 //
 // Las credenciales, como en el cajón: el usuario de Caddy sale del llavero
 // («secret-tool search servicio homelab-panel»), la contraseña se lee una vez
@@ -17,11 +19,15 @@ import "shared/AgendaFormato.js" as Formato
 //
 // Sin sondeo: se lee al abrir el calendario (refrescar()), si lo que hay tiene
 // más de frescoMs, y después de cada escritura, que ya contesta con el estado
-// nuevo. Mover es optimista: la vista cambia al soltar y, si el POST falla, se
-// revierte a lo anterior.
+// nuevo. Mover, la prioridad y el 🚫🤖 son optimistas: la vista cambia al
+// momento y, si el POST falla, se revierte a lo anterior. Crear no: la tarea
+// sale cuando el panel la ha escrito, que es cuando tiene id (y se puede
+// mover).
 //
 // datos tiene el mismo formato que bar/Agenda.qml (shared/AgendaFormato.js, con
-// el id de cada evento); null mientras no se haya podido leer nada.
+// el id de cada evento) y dos campos más en cada evento, que el fichero no
+// lleva: claudeOff y prioridadPropia (abajo, en agendaDe); null mientras no se
+// haya podido leer nada.
 Scope {
     id: cli
 
@@ -30,8 +36,9 @@ Scope {
     // o "no-autorizado".
     readonly property string estado: p.estado
     readonly property bool escribiendo: p.escribiendo
-    // Se puede mover una tarea: hay datos del panel y conexión.
-    readonly property bool puedeMover: p.estado === "conectado" && p.datos !== null && !p.escribiendo
+    // Se puede escribir (crear, mover, la prioridad, el 🚫🤖): hay datos del
+    // panel y conexión, y no hay otra escritura a medias.
+    readonly property bool puedeEscribir: p.estado === "conectado" && p.datos !== null && !p.escribiendo
     // Lo último que salió mal al escribir, o "".
     readonly property string error: p.error
 
@@ -61,15 +68,45 @@ Scope {
             lowest: "minima"
         })
 
+    // El orden de las prioridades en el panel (PrioRank del repo homelab): 0
+    // la más alta; sin prioridad, la última.
+    readonly property var rangoPrio: ({
+            highest: 0,
+            high: 1,
+            medium: 2,
+            low: 3,
+            lowest: 4
+        })
+
+    // La prioridad de hoy, como la calcula el panel (effectivePrio, en el repo
+    // homelab): la propia, subida a máxima si vence en un día o menos, a alta
+    // si en tres y a media si en siete. Solo sirve para que el punto no cambie
+    // dos veces al elegir una prioridad; la buena llega con la respuesta.
+    function efectiva(prio, vence, hoy) {
+        const d = Formato.fechaDe(vence);
+        const h = Formato.fechaDe(hoy);
+        if (!d || !h)
+            return prio;
+        const n = Math.round((d - h) / 86400000);
+        const suelo = n <= 1 ? "highest" : n <= 3 ? "high" : n <= 7 ? "medium" : "";
+        return suelo !== "" && cli.rangoPrio[suelo] < (cli.rangoPrio[prio] ?? 5) ? suelo : prio;
+    }
+
     function plano(texto) {
         return String(texto || "").replace(/\[\[([^\]|]+)(?:\|([^\]]+))?\]\]/g, (_, a, b) => (b || a.split("#")[0].split("/").pop()).trim()).replace(/\[([^\]]+)\]\((https?:\/\/[^\s)]+)\)/g, "$1").replace(/\*\*|~~|`/g, "");
     }
 
-    // De la respuesta de /api/tareas a la agenda del calendario.
+    // De la respuesta de /api/tareas a la agenda del calendario. Cada evento
+    // con id lleva además lo que el calendario necesita para editarlo y el
+    // fichero de la agenda no lleva (shared/AgendaFormato.js lo quitaría al
+    // leerlo): claudeOff, el 🚫🤖 «Claude no la hace», y prioridadPropia, la
+    // que tiene puesta ("maxima".."minima" o ""), que puede no ser la del
+    // punto: esa es la de hoy, que el panel sube cerca de la fecha.
     function agendaDe(d, conectado) {
         if (!d || typeof d !== "object")
             return null;
         const hoy = String(d.today || "").slice(0, 10);
+        const propias = {};
         const secciones = (d.sections || []).map(s => ({
                     id: String(s.id),
                     titulo: String(s.title || ""),
@@ -78,6 +115,11 @@ Scope {
                     tareas: (s.tasks || []).map(t => {
                         const vence = String(t.due || "").slice(0, 10);
                         const hecha = !!t.done;
+                        if (t.id)
+                            propias[String(t.id)] = {
+                                claudeOff: t.claude_off === true,
+                                prioridad: cli.nombrePrio[t.priority] || ""
+                            };
                         return {
                             id: String(t.id || ""),
                             vence: vence,
@@ -95,7 +137,23 @@ Scope {
             habilitado: d.enabled !== false,
             secciones: secciones
         }, conectado, new Date());
-        return a ? Formato.leer(JSON.stringify(a)) : null;
+        const agenda = a ? Formato.leer(JSON.stringify(a)) : null;
+        // porDia lleva los mismos objetos que eventos: basta con ponerlo aquí.
+        for (const e of agenda ? agenda.eventos : []) {
+            const x = propias[e.id];
+            e.claudeOff = !!x && x.claudeOff;
+            e.prioridadPropia = x ? x.prioridad : "";
+        }
+        return agenda;
+    }
+
+    // La sección en la que entra una tarea creada desde el calendario: la
+    // misma que el cajón cuando no se elige (General, o la primera que no
+    // esté en pausa).
+    function seccionPorDefecto() {
+        const ss = (p.crudas && p.crudas.sections) || [];
+        const s = ss.find(x => x.id === "general") || ss.find(x => x.id !== "en-pausa") || ss[0];
+        return s ? String(s.id) : "";
     }
 
     function poner(crudas, conectado) {
@@ -171,14 +229,93 @@ Scope {
         p.usuario = "";
     }
 
-    // Mueve la tarea `id` al día `dia` ("2026-10-22"). Cambia la vista al
-    // momento y la revierte si el POST falla. alAcabar(ok) al terminar.
+    // Mueve la tarea `id` al día `dia` ("2026-10-22"). Optimista, como las
+    // dos de abajo: cambia la vista al momento y la revierte si el POST falla.
+    // alAcabar(ok) al terminar.
     function mover(id, dia, alAcabar) {
+        if (!/^\d{4}-\d\d-\d\d$/.test(dia)) {
+            if (alAcabar)
+                alAcabar(false);
+            return;
+        }
+        cli.editar(id, {
+            fecha: dia
+        }, t => {
+            t.due = dia;
+        }, "No se pudo mover la tarea", alAcabar);
+    }
+
+    // Pone a la tarea `id` la prioridad `valor` (la del panel: "highest",
+    // "high", "medium", "low" o "lowest").
+    function prioridad(id, valor, alAcabar) {
+        if (!(valor in cli.rangoPrio)) {
+            if (alAcabar)
+                alAcabar(false);
+            return;
+        }
+        const hoy = String((p.crudas && p.crudas.today) || "").slice(0, 10);
+        cli.editar(id, {
+            prioridad: valor
+        }, t => {
+            t.priority = valor;
+            t.effective = cli.efectiva(valor, String(t.due || "").slice(0, 10), hoy);
+        }, "No se pudo cambiar la prioridad", alAcabar);
+    }
+
+    // Enciende o apaga el 🚫🤖 «Claude no la hace» de la tarea `id`.
+    function claudeOff(id, activo, alAcabar) {
+        cli.editar(id, {
+            claude_off: !!activo
+        }, t => {
+            t.claude_off = !!activo;
+        }, "No se pudo cambiar «Claude no la hace»", alAcabar);
+    }
+
+    // Crea una tarea con el texto `texto` para el día `dia`, en la sección de
+    // siempre (seccionPorDefecto), sin área, con prioridad media y sin 🚫🤖.
+    // No es optimista: la tarea aparece cuando el panel contesta con la lista
+    // nueva, que ya la lleva con su id. alAcabar(ok) al terminar.
+    function crear(texto, dia, alAcabar) {
         const fin = ok => {
             if (alAcabar)
                 alAcabar(ok);
         };
-        if (!cli.puedeMover || id === "" || !/^\d{4}-\d\d-\d\d$/.test(dia)) {
+        const limpio = String(texto || "").replace(/\s+/g, " ").trim();
+        const seccion = cli.seccionPorDefecto();
+        if (!cli.puedeEscribir || limpio === "" || !/^\d{4}-\d\d-\d\d$/.test(dia) || seccion === "") {
+            fin(false);
+            return;
+        }
+        p.error = "";
+        p.escribiendo = true;
+        cli.pedir("POST", "/api/tareas", {
+            seccion: seccion,
+            texto: limpio,
+            area: "",
+            fecha: dia,
+            prioridad: "medium",
+            claude_off: false
+        }, (estado, respuesta) => {
+            p.escribiendo = false;
+            if (cli.aceptada(estado, respuesta)) {
+                fin(true);
+                return;
+            }
+            cli.rechazada(estado, respuesta, "No se pudo crear la tarea");
+            fin(false);
+        });
+    }
+
+    // Lo común de mover, la prioridad y el 🚫🤖: cambia la tarea `id` en una
+    // copia de lo último leído con aplicar(t) (sobre la tarea tal como la
+    // devuelve el panel), la enseña, y manda `cuerpo` a POST /api/tareas/{id}.
+    // Si falla, vuelve lo anterior y `que` dice qué no se pudo hacer.
+    function editar(id, cuerpo, aplicar, que, alAcabar) {
+        const fin = ok => {
+            if (alAcabar)
+                alAcabar(ok);
+        };
+        if (!cli.puedeEscribir || !id) {
             fin(false);
             return;
         }
@@ -188,7 +325,7 @@ Scope {
         for (const s of nuevas.sections || [])
             for (const t of s.tasks || [])
                 if (String(t.id) === id) {
-                    t.due = dia;
+                    aplicar(t);
                     hallada = true;
                 }
         if (!hallada) {
@@ -199,36 +336,54 @@ Scope {
         p.escribiendo = true;
         const sec = ++p.sec;
         cli.poner(nuevas, true);
-        cli.pedir("POST", "/api/tareas/" + encodeURIComponent(id), {
-            fecha: dia
-        }, (estado, texto) => {
+        cli.pedir("POST", "/api/tareas/" + encodeURIComponent(id), cuerpo, (estado, texto) => {
             p.escribiendo = false;
-            const d = cli.leerJSON(estado === 409 ? 200 : estado, texto);
-            if (estado === 200 && d) {
-                p.sec++;
-                p.cargadas = Date.now();
-                p.estado = "conectado";
-                cli.poner(d, true);
+            if (cli.aceptada(estado, texto)) {
                 fin(true);
                 return;
             }
-            // Fallo: vuelve lo anterior.
+            // Fallo: vuelve lo anterior, si no ha llegado nada más nuevo.
             if (sec === p.sec)
                 cli.poner(antes, estado !== 0);
-            if (estado === 401) {
-                cli.noAutorizado();
-                p.error = "El panel no acepta las credenciales";
-            } else if (estado === 409) {
-                p.error = "La nota cambió; he recargado las tareas";
-                cli.cargar();
-            } else if (estado === 0) {
-                p.estado = "sin-conexion";
-                p.error = "El NUC no contesta";
-            } else {
-                p.error = "No se pudo mover la tarea (HTTP " + estado + ")";
-            }
+            cli.rechazada(estado, texto, que);
             fin(false);
         });
+    }
+
+    // La respuesta de una escritura que fue bien trae la lista nueva: se
+    // pone (y lo que se estuviera leyendo antes ya no vale). true si fue así.
+    function aceptada(estado, texto) {
+        const d = cli.leerJSON(estado, texto);
+        if (estado !== 200 || !d)
+            return false;
+        p.sec++;
+        p.cargadas = Date.now();
+        p.estado = "conectado";
+        cli.poner(d, true);
+        return true;
+    }
+
+    // Por qué no se pudo escribir, en error. Si la nota cambió por debajo
+    // (409), se relee; si el panel lo rechaza con un motivo (un texto de más
+    // de 300 caracteres, una fecha que no existe…), se dice el suyo, que ya
+    // va en español y nunca lleva el texto de una tarea.
+    function rechazada(estado, texto, que) {
+        if (estado === 401) {
+            cli.noAutorizado();
+            p.error = "El panel no acepta las credenciales";
+        } else if (estado === 409) {
+            p.error = "La nota cambió; he recargado las tareas";
+            cli.cargar();
+        } else if (estado === 0) {
+            p.estado = "sin-conexion";
+            p.error = "El NUC no contesta";
+        } else {
+            let motivo = "";
+            try {
+                motivo = String(JSON.parse(texto).error || "");
+            } catch (e) {}
+            p.error = estado >= 400 && estado < 500 && motivo !== "" ? motivo.slice(0, 160) : que + " (HTTP " + estado + ")";
+        }
     }
 
     function leerJSON(estado, texto) {
