@@ -82,9 +82,15 @@ Item {
 
                 RowLayout {
                     anchors.fill: parent
-                    anchors.leftMargin: 12
+                    anchors.leftMargin: 8
                     anchors.rightMargin: 8
-                    spacing: 8
+                    spacing: 6
+
+                    AsaArrastre {
+                        objectName: "asaFila"
+                        t: fila.t
+                        ctrl: fila.ctrl
+                    }
 
                     Casilla {
                         objectName: "casillaFila"

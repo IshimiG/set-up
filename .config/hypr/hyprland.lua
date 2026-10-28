@@ -504,14 +504,16 @@ local resizeSteps = {
 
 for _, resize in ipairs(resizeSteps) do
 	-- Ancho: ' ensancha hacia la izquierda, ¡ estrecha.
+	-- Con el cajón del homelab abierto, estas teclas cambian su ancho (el script
+	-- decide); si no, redimensionan la ventana como siempre.
 	hl.bind(
 		mainMod .. resize.mods .. " + apostrophe",
-		hl.dsp.window.resize({ x = -resize.step, y = 0, relative = true }),
+		hl.dsp.exec_cmd(os.getenv("HOME") .. "/.config/hypr/scripts/cajon-ancho.sh " .. resize.step),
 		{ repeating = true }
 	)
 	hl.bind(
 		mainMod .. resize.mods .. " + exclamdown",
-		hl.dsp.window.resize({ x = resize.step, y = 0, relative = true }),
+		hl.dsp.exec_cmd(os.getenv("HOME") .. "/.config/hypr/scripts/cajon-ancho.sh -" .. resize.step),
 		{ repeating = true }
 	)
 

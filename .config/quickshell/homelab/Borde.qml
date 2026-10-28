@@ -38,6 +38,9 @@ PanelWindow {
     implicitWidth: cajon.anchoSuperficie
     color: "transparent"
 
+    // El IPC (shell.qml) llega al cajón de esta pantalla por aquí.
+    Component.onCompleted: borde.shell.cajon = cajon
+
     // --- La máscara de entrada ---------------------------------------------
     // Cambia por estado y no por fotograma, por lo mismo que en Island.qml: una
     // región no sigue a una geometría que se anima. Las tres salen de medidas
@@ -113,6 +116,7 @@ PanelWindow {
 
             anchors.fill: parent
             shell: borde.shell
+            anchoPantalla: borde.screen ? borde.screen.width : 1440
         }
     }
 }
