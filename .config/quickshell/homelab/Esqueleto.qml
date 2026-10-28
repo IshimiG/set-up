@@ -2,17 +2,21 @@ pragma ComponentBehavior: Bound
 import QtQuick
 import "shared"
 
-// El cuerpo esqueleto: tarjetas con borde redondeado y, dentro, un bloque
-// cuadrado (avatar), una barra de título, una de subtítulo y dos de texto de
-// distinta longitud, todo en bloques sólidos. Un brillo diagonal recorre las
-// barras. Se enseña en lugar de un hueco mientras una sección carga
-// (SeccionPerezosa.qml).
+// El cuerpo esqueleto, en ASCII de verdad: una cuadrícula de caracteres
+// monoespaciados. Cada tarjeta es un marco redondeado (╭─╮│╰╯) con un avatar
+// de 6x3 celdas de █, una barra de título, una de subtítulo y dos de texto, y
+// una banda diagonal de brillo recorre los █ en 8 tonos de gris azulado. Se
+// enseña en lugar de un hueco mientras una sección carga (SeccionPerezosa.qml).
 //
 // Inspirado en Skeleton Loader de ASCII Magic (MIT):
 // https://www.ascii-magic.com/ascii/skeleton-loader
 //
-// Una sola animación (`fase`) mueve el brillo de todas las barras, y sólo corre
-// mientras el esqueleto se ve. Los colores salen de Theme.qml.
+// Rendimiento: ni un Text por celda ni uno por tarjeta; el cuerpo entero es UN
+// Text (StyledText, que es más barato que RichText) con tramos <font color>
+// agrupados por tono, y la cabecera, otro. El reloj es el único de todos los
+// esqueletos (shared/Reloj.qml, ~24 fps) y sólo corre mientras alguno se ve.
+// La maqueta (qué celda es marco, barra o hueco) se calcula sólo al cambiar el
+// tamaño o la variante; en cada cuadro sólo se recolorean los █.
 //
 //   variante "filas":    cabecera y una lista de tarjetas a todo el ancho
 //   variante "tarjetas": cabecera y una rejilla de tarjetas (2 columnas si caben)
@@ -22,121 +26,183 @@ Item {
     property string variante: "filas"
     // Cuántas tarjetas se dibujan como máximo (el resto se recorta al alto).
     property int cantidad: 8
+    // Cuadros pintados (para medir ticks por segundo).
+    property int cuadros: 0
+    // Decorativo: no recibe ni anuncia nada.
+    Accessible.ignored: true
 
-    // El brillo: 0 -> 1 y vuelta a empezar, compartido por todas las barras.
-    property real fase: 0
+    // Los 8 tonos, del más oscuro al más claro (#1c2128 -> #2d333b -> #444c56 -> #636e7b).
+    readonly property var tonos: ["#1c2128", "#232930", "#2d333b", "#394049", "#444c56", "#525b66", "#5c6672", "#636e7b"]
+    // Color del marco (≈ #484f58).
+    readonly property string colorMarco: "#484f58"
 
-    readonly property color base: Qt.rgba(1, 1, 1, 0.07)
-    readonly property color brillo: Qt.rgba(1, 1, 1, 0.20)
-    readonly property int hueco: Theme.gap + 2
-    // Lo que avanza el brillo en x por cada px de y (la diagonal).
-    readonly property real inclinacion: 0.6
-    readonly property int banda: 90
+    // La celda de la fuente de Theme.
+    TextMetrics {
+        id: medida
 
-    NumberAnimation on fase {
-        running: esqueleto.visible
-        loops: Animation.Infinite
-        from: 0
-        to: 1
-        duration: 1800
+        font.family: Theme.font
+        font.pixelSize: 13
+        text: "█"
+    }
+    readonly property real celdaAncho: Math.max(1, medida.advanceWidth)
+    readonly property real celdaAlto: Math.max(1, Math.ceil(medida.height))
+    readonly property int columnas: Math.max(8, Math.floor(cuerpo.width / esqueleto.celdaAncho))
+    readonly property int filasMax: Math.max(1, Math.floor((cuerpo.height - esqueleto.celdaAlto * 2) / esqueleto.celdaAlto))
+
+    // La maqueta: por fila, un texto de caracteres y un texto de clases
+    // (' ' hueco, 'm' marco, 'b' barra). Se rehace sólo al cambiar algo.
+    property var maqueta: []
+    property var cabeceraMaqueta: []
+    // Recuerda la columna y fila de cada celda para el brillo (x, y de la rejilla).
+    readonly property bool vivo: esqueleto.visible && esqueleto.width > 0 && esqueleto.height > 0
+
+    function _fila(n: int): var {
+        return {
+            c: new Array(n).fill(" "),
+            k: new Array(n).fill(" ")
+        };
     }
 
-    // Una barra sólida con el brillo encima. (cx, cy) es dónde está la tarjeta
-    // en el cuerpo; (x, y), dónde está la barra en la tarjeta.
-    component Barra: Rectangle {
-        id: barra
+    // Escribe `txt` en la fila desde la columna x con la clase k.
+    function _poner(f: var, x: int, txt: string, k: string): void {
+        for (let i = 0; i < txt.length && x + i < f.c.length; i++) {
+            if (x + i < 0)
+                continue;
+            f.c[x + i] = txt[i];
+            f.k[x + i] = k;
+        }
+    }
+    function _barra(f: var, x: int, largo: int, tope: int): void {
+        const l = Math.max(0, Math.min(largo, tope));
+        if (l > 0)
+            esqueleto._poner(f, x, "█".repeat(l), "b");
+    }
 
-        property real cx: 0
-        property real cy: 0
-        // El recorrido del brillo en la diagonal: del ancho del cuerpo más lo que
-        // se inclina en el alto.
-        readonly property real recorrido: cuerpo.width + cuerpo.height * esqueleto.inclinacion + esqueleto.banda
-        // Dónde queda el centro del brillo, en coordenadas de la barra.
-        readonly property real centro: esqueleto.fase * barra.recorrido - esqueleto.banda / 2 - (barra.cx + barra.x) - esqueleto.inclinacion * (barra.cy + barra.y)
+    // Dibuja una tarjeta de `an` columnas en las filas desde y0 de `filas`,
+    // empezando en la columna x0. `n` varía un poco los largos.
+    function _tarjeta(filas: var, x0: int, y0: int, an: int, n: int): void {
+        const alto = 7;
+        const arriba = "╭" + "─".repeat(an - 2) + "╮";
+        const abajo = "╰" + "─".repeat(an - 2) + "╯";
+        esqueleto._poner(filas[y0], x0, arriba, "m");
+        for (let r = 1; r < alto - 1; r++) {
+            esqueleto._poner(filas[y0 + r], x0, "│", "m");
+            esqueleto._poner(filas[y0 + r], x0 + an - 1, "│", "m");
+        }
+        esqueleto._poner(filas[y0 + alto - 1], x0, abajo, "m");
+        // Avatar 6x3 (si cabe).
+        const av = an >= 20 ? 6 : 0;
+        for (let r = 1; r <= 3 && av > 0; r++)
+            esqueleto._barra(filas[y0 + r], x0 + 2, av, av);
+        const xt = x0 + 2 + (av > 0 ? av + 1 : 0);
+        const disp = an - 2 - (xt - x0 - 1) - 1;
+        // Título (18), subtítulo (11), y dos de texto (44 y 36) a lo ancho.
+        esqueleto._barra(filas[y0 + 1], xt, n % 2 === 0 ? 18 : 15, disp);
+        esqueleto._barra(filas[y0 + 2], xt, n % 3 === 0 ? 11 : 9, disp);
+        const dispAncho = an - 4;
+        esqueleto._barra(filas[y0 + 4], x0 + 2, 44, dispAncho);
+        esqueleto._barra(filas[y0 + 5], x0 + 2, n % 3 === 0 ? 30 : 36, dispAncho);
+    }
 
-        radius: 5
-        color: esqueleto.base
-        clip: true
+    function rehacer(): void {
+        const cols = esqueleto.columnas;
+        const total = esqueleto.filasMax;
+        const filas = [];
+        for (let i = 0; i < total; i++)
+            filas.push(esqueleto._fila(cols));
+        const dos = esqueleto.variante === "tarjetas" && cols >= 58;
+        const an = dos ? Math.floor((cols - 2) / 2) : cols;
+        let n = 0;
+        for (let y = 0; y + 7 <= total && n < esqueleto.cantidad; y += 8) {
+            esqueleto._tarjeta(filas, 0, y, an, n++);
+            if (dos && n < esqueleto.cantidad)
+                esqueleto._tarjeta(filas, an + 2, y, cols - an - 2, n++);
+        }
+        // Cabecera: una barra de título.
+        const cab = esqueleto._fila(cols);
+        esqueleto._barra(cab, 0, Math.min(24, Math.floor(cols / 2)), cols);
+        esqueleto.maqueta = filas;
+        esqueleto.cabeceraMaqueta = [cab];
+        esqueleto.pintar();
+    }
 
-        Rectangle {
-            x: barra.centro - esqueleto.banda / 2
-            width: esqueleto.banda
-            height: barra.height
-            visible: x < barra.width && x + width > 0
-            gradient: Gradient {
-                orientation: Gradient.Horizontal
+    // El tono k de la celda (x, y) en t segundos.
+    function _tono(x: int, y: int, t: real): int {
+        const c = Math.cos((x * 0.12 - y * 0.25 - t * 2.4) * 1.3);
+        const v = c > 0 ? Math.pow(c, 6) : 0;
+        return Math.min(7, Math.max(0, Math.round(2 + v * 5)));
+    }
 
-                GradientStop {
-                    position: 0
-                    color: "transparent"
-                }
-                GradientStop {
-                    position: 0.5
-                    color: esqueleto.brillo
-                }
-                GradientStop {
-                    position: 1
-                    color: "transparent"
+    // El StyledText de un bloque de filas; `y0` desplaza la fila para el brillo.
+    function _html(filas: var, y0: int, t: real): string {
+        const tn = esqueleto.tonos;
+        const marco = esqueleto.colorMarco;
+        let sal = "";
+        for (let y = 0; y < filas.length; y++) {
+            const f = filas[y];
+            const n = f.c.length;
+            let i = 0;
+            while (i < n) {
+                const k = f.k[i];
+                if (k === " ") {
+                    let j = i + 1;
+                    while (j < n && f.k[j] === " ")
+                        j++;
+                    sal += "&nbsp;".repeat(j - i);
+                    i = j;
+                } else if (k === "m") {
+                    let j = i + 1;
+                    let s = f.c[i];
+                    while (j < n && f.k[j] === "m")
+                        s += f.c[j++];
+                    sal += "<font color=\"" + marco + "\">" + s + "</font>";
+                    i = j;
+                } else {
+                    const tono = esqueleto._tono(i, y + y0, t);
+                    let j = i + 1;
+                    while (j < n && f.k[j] === "b" && esqueleto._tono(j, y + y0, t) === tono)
+                        j++;
+                    sal += "<font color=\"" + tn[tono] + "\">" + "█".repeat(j - i) + "</font>";
+                    i = j;
                 }
             }
+            if (y < filas.length - 1)
+                sal += "<br>";
         }
+        return sal;
     }
 
-    // Una tarjeta del esqueleto, con sus cinco bloques.
-    component Tarjeta: Rectangle {
-        id: tarjeta
+    function pintar(): void {
+        esqueleto.cuadros++;
+        const t = Reloj.t;
+        cuerpoTexto.text = esqueleto._html(esqueleto.maqueta, 2, t);
+        cabeceraTexto.text = esqueleto._html(esqueleto.cabeceraMaqueta, 0, t);
+    }
 
-        // Dónde está en el cuerpo, para el brillo.
-        property real cx: 0
-        property real cy: 0
-        property int n: 0
+    onColumnasChanged: esqueleto.rehacer()
+    onFilasMaxChanged: esqueleto.rehacer()
+    onVarianteChanged: esqueleto.rehacer()
+    onCantidadChanged: esqueleto.rehacer()
+    Component.onCompleted: esqueleto.rehacer()
 
-        implicitHeight: 88
-        radius: Theme.gap + 4
-        color: "transparent"
-        border.width: 1
-        border.color: Theme.rule
+    // Mientras se ve, pide el reloj; al esconderse, lo suelta.
+    onVivoChanged: {
+        if (esqueleto.vivo) {
+            Reloj.pedir();
+            esqueleto.pintar();
+        } else {
+            Reloj.soltar();
+        }
+    }
+    Component.onDestruction: if (esqueleto.vivo)
+        Reloj.soltar()
 
-        Barra {
-            x: 12
-            y: 12
-            width: 64
-            height: 64
-            radius: 10
-            cx: tarjeta.cx
-            cy: tarjeta.cy
-        }
-        Barra {
-            x: 88
-            y: 14
-            width: Math.max(40, (tarjeta.width - 88 - 14) * (tarjeta.n % 2 === 0 ? 0.55 : 0.45))
-            height: 12
-            cx: tarjeta.cx
-            cy: tarjeta.cy
-        }
-        Barra {
-            x: 88
-            y: 32
-            width: Math.max(30, (tarjeta.width - 88 - 14) * 0.32)
-            height: 9
-            cx: tarjeta.cx
-            cy: tarjeta.cy
-        }
-        Barra {
-            x: 88
-            y: 50
-            width: Math.max(40, (tarjeta.width - 88 - 14) * 0.85)
-            height: 8
-            cx: tarjeta.cx
-            cy: tarjeta.cy
-        }
-        Barra {
-            x: 88
-            y: 63
-            width: Math.max(30, (tarjeta.width - 88 - 14) * (tarjeta.n % 3 === 0 ? 0.6 : 0.7))
-            height: 8
-            cx: tarjeta.cx
-            cy: tarjeta.cy
+    Connections {
+        target: Reloj
+        enabled: esqueleto.vivo
+
+        function onTicksChanged(): void {
+            esqueleto.pintar();
         }
     }
 
@@ -147,58 +213,29 @@ Item {
         anchors.margins: Theme.pad
         clip: true
 
-        Barra {
-            id: cabecera
+        Text {
+            id: cabeceraTexto
 
             objectName: "esqueletoCabecera"
-            width: Math.min(160, cuerpo.width * 0.5)
-            height: 18
+            width: parent.width
+            textFormat: Text.StyledText
+            font.family: Theme.font
+            font.pixelSize: 13
+            lineHeight: 1
+            wrapMode: Text.NoWrap
         }
 
-        Column {
-            id: filas
+        Text {
+            id: cuerpoTexto
 
-            objectName: "esqueletoFilas"
-            visible: esqueleto.variante !== "tarjetas"
-            y: cabecera.height + esqueleto.hueco
+            objectName: esqueleto.variante === "tarjetas" ? "esqueletoTarjetas" : "esqueletoFilas"
+            y: esqueleto.celdaAlto * 2
             width: parent.width
-            spacing: esqueleto.hueco
-
-            Repeater {
-                model: esqueleto.variante !== "tarjetas" ? esqueleto.cantidad : 0
-
-                Tarjeta {
-                    required property int index
-
-                    width: filas.width
-                    n: index
-                    cy: filas.y + index * (implicitHeight + esqueleto.hueco)
-                }
-            }
-        }
-
-        Flow {
-            id: rejilla
-
-            objectName: "esqueletoTarjetas"
-            visible: esqueleto.variante === "tarjetas"
-            y: cabecera.height + esqueleto.hueco
-            width: parent.width
-            spacing: esqueleto.hueco
-
-            Repeater {
-                model: esqueleto.variante === "tarjetas" ? esqueleto.cantidad : 0
-
-                Tarjeta {
-                    required property int index
-                    readonly property bool dos: rejilla.width >= 420
-
-                    width: dos ? (rejilla.width - esqueleto.hueco) / 2 : rejilla.width
-                    n: index
-                    cx: dos && index % 2 === 1 ? width + esqueleto.hueco : 0
-                    cy: rejilla.y + (dos ? Math.floor(index / 2) : index) * (implicitHeight + esqueleto.hueco)
-                }
-            }
+            textFormat: Text.StyledText
+            font.family: Theme.font
+            font.pixelSize: 13
+            lineHeight: 1
+            wrapMode: Text.NoWrap
         }
     }
 }
