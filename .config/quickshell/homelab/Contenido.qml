@@ -1,3 +1,4 @@
+pragma ComponentBehavior: Bound
 import QtQuick
 import QtQuick.Layouts
 import Quickshell
@@ -33,6 +34,15 @@ Item {
     property bool desplegado: false
 
     property string seccion: "inicio"
+
+    // Las secciones se crean al mirarlas y se descargan a los 45 s de dejarlas
+    // (SeccionPerezosa.qml). 45 s: lo bastante para ir y volver sin recargar ni
+    // perder el scroll, y poco para que no se acumulen nueve secciones vivas.
+    // Una sección con un editor o un borrador abierto no se descarga.
+    property int retardoDescarga: 45000
+    // Pasado este tiempo cargando, se enseña el esqueleto (antes, nada).
+    property int retardoEsqueleto: 150
+    property bool cargaAsincrona: true
 
     // La API del panel (Api.qml, creada en shell.qml).
     readonly property var api: contenido.shell.api
@@ -271,14 +281,44 @@ Item {
     // Primero se pide (así el Registro no se lee dos veces al aparecer) y
     // después se cambia de sección.
     function verEnRegistro(entrada) {
-        seccionRegistro.enfocar(entrada);
+        if (lazy_registro.item)
+            lazy_registro.item.enfocar(entrada);
+        else
+            contenido.registroPendiente = {
+                "entrada": entrada
+            };
         contenido.seccion = "registro";
+    }
+
+    // Lo que se pidió a una sección que aún no existía, se le entrega al crearla
+    // (SeccionPerezosa.cargada), antes de que se vea.
+    property var registroPendiente: null
+    property var notaPendiente: null
+
+    function entregarRegistro(item) {
+        const p = contenido.registroPendiente;
+        contenido.registroPendiente = null;
+        if (p)
+            item.enfocar(p.entrada);
+    }
+
+    function entregarNotas(item) {
+        const p = contenido.notaPendiente;
+        contenido.notaPendiente = null;
+        if (p)
+            item.abrir(p.ruta, p.cabecera);
     }
 
     // Una nota del vault como página (Notas.qml), desde Inicio o desde
     // cualquier sección que tenga un [[enlace]]: abrirNota(ruta, cabecera).
     function abrirNota(ruta, cabecera) {
-        seccionNotas.abrir(ruta, cabecera || "");
+        if (lazy_notas.item)
+            lazy_notas.item.abrir(ruta, cabecera || "");
+        else
+            contenido.notaPendiente = {
+                "ruta": ruta,
+                "cabecera": cabecera || ""
+            };
         contenido.seccion = "notas";
     }
 
@@ -444,90 +484,194 @@ Item {
                 Layout.fillWidth: true
                 Layout.fillHeight: true
 
-                Loader {
+                SeccionPerezosa {
+                    id: lazy_inicio
+
                     anchors.fill: parent
-                    visible: contenido.seccion === "inicio"
-                    sourceComponent: inicio
+                    actual: contenido.seccion === "inicio"
+                    variante: "filas"
+                    asincrono: contenido.cargaAsincrona
+                    retardoDescarga: contenido.retardoDescarga
+                    retardoEsqueleto: contenido.retardoEsqueleto
+                    esperando: contenido.conectado && (contenido.api && contenido.api.inicio === null)
+                    componente: inicio
                 }
 
-                Tareas {
-                    objectName: "seccionTareas"
+                SeccionPerezosa {
+                    id: lazy_tareas
+
                     anchors.fill: parent
-                    modo: contenido.modo
-                    visible: contenido.seccion === "tareas"
-                    shell: contenido.shell
-                    lineaConexion: contenido.conectado ? "" : contenido.textoConexion()
-                    onAbrirWeb: contenido.abrirEnLaWeb()
+                    actual: contenido.seccion === "tareas"
+                    variante: "filas"
+                    asincrono: contenido.cargaAsincrona
+                    retardoDescarga: contenido.retardoDescarga
+                    retardoEsqueleto: contenido.retardoEsqueleto
+                    esperando: contenido.conectado && (contenido.api && contenido.api.tareas === null)
+                    conservar: lazy_tareas.item !== null && (lazy_tareas.item.editores > 0 || lazy_tareas.item.filtro !== "")
+                    componente: Component {
+                        Tareas {
+                            objectName: "seccionTareas"
+                            anchors.fill: parent
+                            modo: contenido.modo
+                            shell: contenido.shell
+                            lineaConexion: contenido.conectado ? "" : contenido.textoConexion()
+                            onAbrirWeb: contenido.abrirEnLaWeb()
+                        }
+                    }
                 }
 
-                Clase {
-                    objectName: "seccionClase"
+                SeccionPerezosa {
+                    id: lazy_clase
+
                     anchors.fill: parent
-                    visible: contenido.seccion === "clase"
-                    shell: contenido.shell
-                    lineaConexion: contenido.conectado ? "" : contenido.textoConexion()
+                    actual: contenido.seccion === "clase"
+                    variante: "filas"
+                    asincrono: contenido.cargaAsincrona
+                    retardoDescarga: contenido.retardoDescarga
+                    retardoEsqueleto: contenido.retardoEsqueleto
+                    esperando: contenido.conectado && (contenido.api && contenido.api.clase === null)
+                    componente: Component {
+                        Clase {
+                            objectName: "seccionClase"
+                            anchors.fill: parent
+                            shell: contenido.shell
+                            lineaConexion: contenido.conectado ? "" : contenido.textoConexion()
+                        }
+                    }
                 }
 
-                Proyectos {
-                    objectName: "seccionProyectos"
+                SeccionPerezosa {
+                    id: lazy_proyectos
+
                     anchors.fill: parent
-                    visible: contenido.seccion === "proyectos"
-                    shell: contenido.shell
-                    lineaConexion: contenido.conectado ? "" : contenido.textoConexion()
-                    onAbrirWeb: contenido.abrirEnLaWeb()
-                    onAbrirEnlace: url => contenido.abrirEnlace(url)
+                    actual: contenido.seccion === "proyectos"
+                    variante: "tarjetas"
+                    asincrono: contenido.cargaAsincrona
+                    retardoDescarga: contenido.retardoDescarga
+                    retardoEsqueleto: contenido.retardoEsqueleto
+                    esperando: contenido.conectado && (contenido.api && contenido.api.proyectos === null)
+                    componente: Component {
+                        Proyectos {
+                            objectName: "seccionProyectos"
+                            anchors.fill: parent
+                            shell: contenido.shell
+                            lineaConexion: contenido.conectado ? "" : contenido.textoConexion()
+                            onAbrirWeb: contenido.abrirEnLaWeb()
+                            onAbrirEnlace: url => contenido.abrirEnlace(url)
+                        }
+                    }
                 }
 
-                Servidor {
-                    objectName: "seccionServidor"
+                SeccionPerezosa {
+                    id: lazy_servidor
+
                     anchors.fill: parent
-                    visible: contenido.seccion === "servidor"
-                    shell: contenido.shell
-                    lineaConexion: contenido.conectado ? "" : contenido.textoConexion()
-                    onAbrirWeb: contenido.abrirEnLaWeb()
+                    actual: contenido.seccion === "servidor"
+                    variante: "tarjetas"
+                    asincrono: contenido.cargaAsincrona
+                    retardoDescarga: contenido.retardoDescarga
+                    retardoEsqueleto: contenido.retardoEsqueleto
+                    esperando: contenido.conectado && (contenido.api && contenido.api.servidor === null)
+                    componente: Component {
+                        Servidor {
+                            objectName: "seccionServidor"
+                            anchors.fill: parent
+                            shell: contenido.shell
+                            lineaConexion: contenido.conectado ? "" : contenido.textoConexion()
+                            onAbrirWeb: contenido.abrirEnLaWeb()
+                        }
+                    }
                 }
 
-                Registro {
-                    id: seccionRegistro
+                SeccionPerezosa {
+                    id: lazy_registro
 
-                    objectName: "seccionRegistro"
                     anchors.fill: parent
-                    visible: contenido.seccion === "registro"
-                    shell: contenido.shell
-                    lineaConexion: contenido.conectado ? "" : contenido.textoConexion()
+                    actual: contenido.seccion === "registro"
+                    variante: "filas"
+                    asincrono: contenido.cargaAsincrona
+                    retardoDescarga: contenido.retardoDescarga
+                    retardoEsqueleto: contenido.retardoEsqueleto
+                    esperando: contenido.conectado && (contenido.api && contenido.api.registro === null)
+                    onCargada: item => contenido.entregarRegistro(item)
+                    componente: Component {
+                        Registro {
+                            objectName: "seccionRegistro"
+                            anchors.fill: parent
+                            shell: contenido.shell
+                            lineaConexion: contenido.conectado ? "" : contenido.textoConexion()
+                        }
+                    }
                 }
 
-                Notas {
-                    id: seccionNotas
+                SeccionPerezosa {
+                    id: lazy_notas
 
-                    objectName: "seccionNotas"
                     anchors.fill: parent
-                    visible: contenido.seccion === "notas"
-                    shell: contenido.shell
-                    desplegado: contenido.desplegado
-                    lineaConexion: contenido.conectado ? "" : contenido.textoConexion()
-                    onAbrirEnlace: url => contenido.abrirEnlace(url)
+                    actual: contenido.seccion === "notas"
+                    variante: "filas"
+                    asincrono: contenido.cargaAsincrona
+                    retardoDescarga: contenido.retardoDescarga
+                    retardoEsqueleto: contenido.retardoEsqueleto
+                    esperando: false
+                    onCargada: item => contenido.entregarNotas(item)
+                    componente: Component {
+                        Notas {
+                            objectName: "seccionNotas"
+                            anchors.fill: parent
+                            shell: contenido.shell
+                            desplegado: contenido.desplegado
+                            lineaConexion: contenido.conectado ? "" : contenido.textoConexion()
+                            onAbrirEnlace: url => contenido.abrirEnlace(url)
+                        }
+                    }
                 }
 
-                Finanzas {
-                    objectName: "seccionFinanzas"
+                SeccionPerezosa {
+                    id: lazy_finanzas
+
                     anchors.fill: parent
-                    modo: contenido.modo
-                    visible: contenido.seccion === "finanzas"
-                    shell: contenido.shell
-                    desplegado: contenido.desplegado
-                    lineaConexion: contenido.conectado ? "" : contenido.textoConexion()
-                    onAbrirWeb: contenido.abrirEnLaWeb()
+                    actual: contenido.seccion === "finanzas"
+                    variante: "tarjetas"
+                    asincrono: contenido.cargaAsincrona
+                    retardoDescarga: contenido.retardoDescarga
+                    retardoEsqueleto: contenido.retardoEsqueleto
+                    esperando: contenido.conectado && (contenido.api && contenido.api.finanzas === null)
+                    conservar: lazy_finanzas.item !== null && lazy_finanzas.item.editando !== 0
+                    componente: Component {
+                        Finanzas {
+                            objectName: "seccionFinanzas"
+                            anchors.fill: parent
+                            modo: contenido.modo
+                            shell: contenido.shell
+                            desplegado: contenido.desplegado
+                            lineaConexion: contenido.conectado ? "" : contenido.textoConexion()
+                            onAbrirWeb: contenido.abrirEnLaWeb()
+                        }
+                    }
                 }
 
-                Revisiones {
-                    objectName: "seccionRevisiones"
+                SeccionPerezosa {
+                    id: lazy_revisiones
+
                     anchors.fill: parent
-                    visible: contenido.seccion === "revisiones"
-                    shell: contenido.shell
-                    lineaConexion: contenido.conectado ? "" : contenido.textoConexion()
-                    onAbrirWeb: contenido.abrirEnLaWeb()
-                    onIrATareas: contenido.seccion = "tareas"
+                    actual: contenido.seccion === "revisiones"
+                    variante: "filas"
+                    asincrono: contenido.cargaAsincrona
+                    retardoDescarga: contenido.retardoDescarga
+                    retardoEsqueleto: contenido.retardoEsqueleto
+                    esperando: contenido.conectado && (contenido.api && contenido.api.revisiones === null)
+                    conservar: lazy_revisiones.item !== null && lazy_revisiones.item.editando !== ""
+                    componente: Component {
+                        Revisiones {
+                            objectName: "seccionRevisiones"
+                            anchors.fill: parent
+                            shell: contenido.shell
+                            lineaConexion: contenido.conectado ? "" : contenido.textoConexion()
+                            onAbrirWeb: contenido.abrirEnLaWeb()
+                            onIrATareas: contenido.seccion = "tareas"
+                        }
+                    }
                 }
 
                 Loader {
