@@ -1122,10 +1122,11 @@ Item {
 
     // La petición del móvil también se ve fuera de Tareas (que lleva la suya).
     AvisoMovilTarjeta {
-        visible: contenido.seccion !== "tareas"
         x: 10
         y: 10
         width: parent.width - 20
-        api: contenido.api
+        // La tarjeta se reparenta al cajón, así que ocultar este item no la
+        // oculta: en Tareas (que lleva la suya) se queda sin api y no sale.
+        api: contenido.seccion !== "tareas" ? contenido.api : null
     }
 }

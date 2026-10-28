@@ -1550,8 +1550,9 @@ FloatingWindow {
         [[600, () => ventana.seccion("finanzas")]],
         [[700, () => {
             ventana.comprobar(ventana.uno("seccionFinanzas") !== null && apiFalsa.lecturasFinanzas === 1, "la tira lleva a Finanzas, que se lee la primera vez que se mira", String(apiFalsa.lecturasFinanzas));
-            ventana.comprobar(ventana.tiene("OCTUBRE 2026") && ventana.tiene("Gastos") && ventana.tiene("Ingresos"), "el resumen del mes, con su nombre");
-            ventana.comprobar(ventana.uno("gastosMes").text === "770,42 €" && ventana.uno("ingresosMes").text === "1.850,00 €" && ventana.uno("patrimonio").text === "12.345,67 €", "con el cajón desplegado salen los euros, con formato de aquí", ventana.uno("gastosMes").text + " | " + ventana.uno("ingresosMes").text + " | " + ventana.uno("patrimonio").text);
+            ventana.comprobar(ventana.tiene("OCTUBRE 2026") && ventana.tiene("PATRIMONIO") && ventana.tiene("FLUJO DEL MES"), "el resumen del mes, con su nombre");
+            const tp = ventana.uno("tarjetaPatrimonio"), tf = ventana.uno("tarjetaFlujo");
+            ventana.comprobar(tp !== null && tf !== null && tf.detalle === "Ingresos 1.850,00 € · gastos 770,42 €" && tf.valor === "1.079,58 €" && tp.valor === "12.345,67 €", "con el cajón desplegado salen los euros, con formato de aquí", tp && tf ? tf.detalle + " | " + tf.valor + " | " + tp.valor : "");
             ventana.comprobar(ventana.tiene("41 % de la meta") && ventana.tiene("un 23 % menos que septiembre"), "  el % de la meta y la comparación con el mes anterior");
             ventana.comprobar(ventana.tiene("Mercadona") && ventana.tiene("-45,23 €") && ventana.tiene("20 oct") && !ventana.tiene("Gasolina"), "los movimientos del mes, los de la primera página");
             ventana.comprobar(ventana.uno("masFinanzas") !== null && ventana.uno("finanzasWeb") !== null, "  con «Cargar más» y «Abrir en la web»");
@@ -1566,14 +1567,16 @@ FloatingWindow {
             falso.abierto = true;
         }]],
         [[700, () => {
-            ventana.comprobar(ventana.uno("gastosMes").text === "770,42 €", "al volver a desplegar, otra vez los euros");
+            ventana.comprobar(ventana.uno("tarjetaPatrimonio").valor === "12.345,67 €" && ventana.uno("tarjetaFlujo").detalle === "Ingresos 1.850,00 € · gastos 770,42 €", "al volver a desplegar, otra vez los euros");
             ventana.clic(ventana.uno("masFinanzas"));
         }]],
         [[300, () => {
             ventana.comprobar(apiFalsa.masFinanzasPedidas === 1 && ventana.tiene("Gasolina") && ventana.tiene("Seguro") && ventana.uno("masFinanzas") === null, "«Cargar más» trae los de antes y se quita");
-            // El formulario: validaciones del cajón, sin llamar al NUC.
-            ventana.clic(ventana.uno("apuntarEfectivo"));
+            // El formulario (plegado de entrada): se despliega y valida, sin llamar al NUC.
+            ventana.comprobar(ventana.uno("formEfectivo") === null, "el formulario de efectivo empieza plegado");
+            ventana.clic(ventana.uno("alternarEfectivo"));
         }]],
+        [[700, () => ventana.clic(ventana.uno("apuntarEfectivo"))]],
         [[200, () => {
             ventana.comprobar(apiFalsa.efectivos.length === 0 && ventana.uno("errorForm") !== null && ventana.uno("errorForm").text.indexOf("importe") >= 0, "un importe vacío no sale hacia el NUC y lo dice", ventana.uno("errorForm") ? ventana.uno("errorForm").text : "");
             ventana.uno("campoImporte").texto = "12,50";
@@ -1602,7 +1605,7 @@ FloatingWindow {
         }]],
         [[400, () => {
             ventana.comprobar(apiFalsa.efectivos.length === 3 && ventana.textoAviso() === "Gasto en efectivo apuntado" && !/\d/.test(ventana.textoAviso()), "apuntado: el aviso no lleva ninguna cantidad", ventana.textoAviso());
-            ventana.comprobar(ventana.tiene("Cafetería") && ventana.tiene("-12,50 €") && ventana.uno("campoImporte").texto === "" && ventana.uno("errorForm") === null && ventana.uno("gastosMes").text === "782,92 €", "  el movimiento sale, el formulario se vacía y el resumen se pone al día", ventana.uno("gastosMes").text);
+            ventana.comprobar(ventana.tiene("Cafetería") && ventana.tiene("-12,50 €") && ventana.uno("campoImporte").texto === "" && ventana.uno("errorForm") === null && ventana.uno("tarjetaFlujo").detalle === "Ingresos 1.850,00 € · gastos 782,92 €", "  el movimiento sale, el formulario se vacía y el resumen se pone al día", ventana.uno("tarjetaFlujo").detalle);
             ventana.captura("29-finanzas-efectivo");
             // Sin el permiso de Trade Republic: el aviso se queda, el botón no.
             apiFalsa.permisos = { acciones_docker: true, login_traderepublic: false };
