@@ -176,14 +176,23 @@ Scope {
         p.estado = "conectando";
         // La salida normal de «search» lleva la contraseña: se tira. Los
         // atributos salen por la de errores.
-        cli.ejecutar(["sh", "-c", "secret-tool search servicio homelab-panel 2>&1 >/dev/null"], (codigo, texto) => {
-            const m = /^attribute\.usuario = (.+)$/m.exec(texto);
-            if (codigo !== 0 || !m) {
+        cli.ejecutar(["sh", "-c", "secret-tool search --all servicio homelab-panel 2>&1 >/dev/null"], (codigo, texto) => {
+            // Como el cajón (Api.qml): HOMELAB_PANEL_USUARIO si está, después
+            // los de cada equipo, y «movil» (el del móvil, sin permisos aquí) el último.
+            const fijado = Quickshell.env("HOMELAB_PANEL_USUARIO") || "";
+            const rango = u => u === fijado ? 0 : (u === "movil" ? 2 : 1);
+            const usuarios = [];
+            const re = /^attribute\.usuario = (.+)$/gm;
+            let m;
+            while ((m = re.exec(texto)) !== null)
+                usuarios.push(m[1].trim());
+            usuarios.sort((a, b) => rango(a) - rango(b));
+            if (codigo !== 0 || usuarios.length === 0) {
                 p.leyendo = false;
                 p.estado = "sin-credenciales";
                 return;
             }
-            const usuario = m[1].trim();
+            const usuario = usuarios[0];
             cli.ejecutar(["secret-tool", "lookup", "servicio", "homelab-panel", "usuario", usuario], (codigo2, clave) => {
                 p.leyendo = false;
                 clave = clave.replace(/\r?\n$/, "");
