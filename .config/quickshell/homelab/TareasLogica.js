@@ -46,6 +46,16 @@ function porUrgencia(a, b) {
     return a.linea - b.linea;
 }
 
+// Solo las tareas de un área (sin distinguir mayúsculas); área vacía no filtra.
+function deArea(lista, area) {
+    var a = (area || "").trim().toLowerCase();
+    if (!a)
+        return lista;
+    return lista.filter(function (t) {
+        return (t.area || "").trim().toLowerCase() === a;
+    });
+}
+
 // Todas las tareas con los datos de su sección.
 function entradas(datos) {
     var out = [];
@@ -120,9 +130,9 @@ function grupo(clave, titulo, items, o) {
 // filtro es lo que se teclea en el filtro («/»); vacío no filtra. ahoraLineas
 // son las líneas de lo que ya sale en «Ahora» (la vista Plazo no lo repite,
 // como en la web).
-function grupos(datos, vista, filtro, ahoraLineas) {
+function grupos(datos, vista, filtro, ahoraLineas, area) {
     var q = (filtro || "").trim().toLowerCase();
-    var todas = entradas(datos);
+    var todas = deArea(entradas(datos), area);
     var coincide = function (t) {
         return !q || (t.plano + " " + t.area + " " + t.seccionTitulo).toLowerCase().indexOf(q) >= 0;
     };
@@ -338,7 +348,6 @@ function pieDetalle(t) {
 
 // --- Calendario y arrastre -------------------------------------------------
 
-var MESES_LARGOS = ["enero", "febrero", "marzo", "abril", "mayo", "junio", "julio", "agosto", "septiembre", "octubre", "noviembre", "diciembre"];
 var DIAS_CORTOS = ["L", "M", "X", "J", "V", "S", "D"];
 
 function dos(x) {
@@ -411,12 +420,6 @@ function porDia(todas) {
         m[k].sort(porUrgencia);
     });
     return m;
-}
-
-// Mover el mes en n pasos, con años: { anio, mes }.
-function sumaMes(anio, mes, n) {
-    var i = anio * 12 + (mes - 1) + n;
-    return { anio: Math.floor(i / 12), mes: (i % 12 + 12) % 12 + 1 };
 }
 
 // Lo que significa soltar una tarea sobre la cabecera de un grupo, según la

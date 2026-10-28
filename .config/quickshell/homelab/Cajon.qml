@@ -89,9 +89,9 @@ Item {
         target: cajon
         property: "anchoAnim"
         to: cajon.anchoMeta
-        spring: 3.2
-        damping: 0.22
-        epsilon: 0.4
+        spring: 9
+        damping: 0.55
+        epsilon: 0.5
     }
     // Cuelga como los paneles de la barra: por debajo de ella y a un dedo de
     // los bordes.

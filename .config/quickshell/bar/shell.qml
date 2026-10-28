@@ -325,7 +325,8 @@ ShellRoot {
     // deja mover tareas), lo suyo; si no, lo que dejó el cajón en el fichero.
     readonly property var agenda: clienteTareas.datos ?? lectorAgenda.datos
 
-    // El cliente del panel para mover tareas de día desde el calendario.
+    // El cliente del panel para editar tareas desde el calendario (mover de día,
+    // crear, prioridad y «Claude no la hace»).
     readonly property var tareas: clienteTareas
 
     Agenda {
