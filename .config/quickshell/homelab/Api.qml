@@ -33,7 +33,9 @@ import Quickshell.Io
 // están en el llavero, guardados por el usuario con
 //   secret-tool store --label="Panel del homelab" servicio homelab-panel usuario <equipo>
 // Lo común no nombra ningún equipo, así que el usuario sale del propio
-// llavero: «secret-tool search» da los atributos del elemento. La contraseña
+// llavero: «secret-tool search --all» da los atributos de los elementos. Si hay
+// varios se prueban en orden (primero HOMELAB_PANEL_USUARIO, si está; «movil»
+// el último) hasta que el panel acepte uno. La contraseña
 // se lee una vez, con «secret-tool lookup», y se queda en memoria. Nunca va en
 // la línea de órdenes (curl la lee de la entrada estándar, con -K -), ni en un
 // log, ni en un console.log.
@@ -353,6 +355,9 @@ Scope {
         // Del llavero. La contraseña solo sale de aquí hacia la entrada
         // estándar de curl y hacia la cabecera de cada petición.
         property string usuarioLlavero: ""
+        // Los usuarios del llavero, en el orden en que se prueban.
+        property var candidatos: []
+        property int indiceCandidato: 0
         property string clave: ""
         property bool leyendo: false
         // Sube cada vez que se vuelven a leer las credenciales: las respuestas
@@ -459,28 +464,54 @@ Scope {
         p.conexion = "conectando";
         api.olvidarVivo();
         // La salida normal de «search» lleva la contraseña: se tira a
-        // /dev/null sin leerla. Los atributos salen por la de errores.
-        api.ejecutar(["sh", "-c", "secret-tool search servicio homelab-panel 2>&1 >/dev/null"], (codigo, texto) => {
-            const m = /^attribute\.usuario = (.+)$/m.exec(texto);
-            if (codigo !== 0 || !m) {
+        // /dev/null sin leerla. Los atributos salen por la de errores. Con
+        // --all salen todos los elementos, y no se elige el primero que
+        // devuelva el llavero: el orden no es fijo.
+        api.ejecutar(["sh", "-c", "secret-tool search --all servicio homelab-panel 2>&1 >/dev/null"], (codigo, texto) => {
+            const usuarios = [];
+            const re = /^attribute\.usuario = (.+)$/gm;
+            let m;
+            while ((m = re.exec(texto)) !== null) {
+                const u = m[1].trim();
+                if (u !== "" && usuarios.indexOf(u) < 0)
+                    usuarios.push(u);
+            }
+            if (codigo !== 0 || usuarios.length === 0) {
                 p.leyendo = false;
                 api.sinCredenciales(codigo !== 0 ? api.primeraLinea(texto) : "");
                 return;
             }
-            const usuario = m[1].trim();
-            api.ejecutar(["secret-tool", "lookup", "servicio", "homelab-panel", "usuario", usuario], (codigo2, clave) => {
-                p.leyendo = false;
-                // Guardada desde una tubería («echo … | secret-tool store»),
-                // la contraseña lleva el salto de línea del final.
-                clave = clave.replace(/\r?\n$/, "");
-                if (codigo2 !== 0 || clave === "") {
-                    api.sinCredenciales("");
-                    return;
-                }
-                p.usuarioLlavero = usuario;
-                p.clave = clave;
-                api.conectar();
-            });
+            p.candidatos = api.ordenarCandidatos(usuarios);
+            p.indiceCandidato = 0;
+            api.leerClave();
+        });
+    }
+
+    // El orden en que se prueban los usuarios del llavero: el que fija
+    // HOMELAB_PANEL_USUARIO, si está; después los demás, con «movil» (el de la
+    // app del móvil, que sólo ve) el último, y si el panel no acepta uno se
+    // pasa al siguiente.
+    function ordenarCandidatos(usuarios) {
+        const fijado = Quickshell.env("HOMELAB_PANEL_USUARIO") || "";
+        const rango = u => u === fijado ? 0 : (u === "movil" ? 2 : 1);
+        return usuarios.map((u, i) => ({ u: u, i: i })).sort((a, b) => rango(a.u) - rango(b.u) || a.i - b.i).map(x => x.u);
+    }
+
+    // Lee la contraseña del candidato en curso y conecta con ella.
+    function leerClave() {
+        const usuario = p.candidatos[p.indiceCandidato];
+        api.ejecutar(["secret-tool", "lookup", "servicio", "homelab-panel", "usuario", usuario], (codigo2, clave) => {
+            p.leyendo = false;
+            // Guardada desde una tubería («echo … | secret-tool store»),
+            // la contraseña lleva el salto de línea del final.
+            clave = clave.replace(/\r?\n$/, "");
+            if (codigo2 !== 0 || clave === "") {
+                api.sinCredenciales("");
+                return;
+            }
+            p.usuarioLlavero = usuario;
+            p.clave = clave;
+            api.conectar();
         });
     }
 
@@ -492,6 +523,19 @@ Scope {
 
     // Caddy no acepta el usuario o la contraseña. Tampoco se reintenta solo.
     function noAutorizado() {
+        if (p.leyendo)
+            return;
+        // Si el llavero tiene otro usuario, se prueba antes de rendirse.
+        if (p.indiceCandidato + 1 < p.candidatos.length) {
+            p.indiceCandidato++;
+            p.leyendo = true;
+            p.generacion++;
+            api.parar();
+            p.clave = "";
+            api.olvidarVivo();
+            api.leerClave();
+            return;
+        }
         api.parar();
         p.conexion = "no-autorizado";
         p.error = "El panel no acepta el usuario «" + p.usuarioLlavero + "» con la contraseña del llavero";
