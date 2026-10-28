@@ -184,7 +184,9 @@ QtObject {
                     color: "#b48cff",
                     pausa: false,
                     tareas: [
-                        api.nueva("Entrega de prueba con fecha", "alta", -2),
+                        api.nueva("Entrega de prueba con fecha", "alta", -2, {
+                            area: "Clase"
+                        }),
                         api.nueva("Leer el tema 4", "baja", 12, {
                             programada: api.fecha(3)
                         })

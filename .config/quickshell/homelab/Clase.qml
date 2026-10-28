@@ -84,6 +84,7 @@ Item {
         anchors.left: parent.left
         anchors.right: parent.right
         anchors.top: parent.top
+        anchors.bottom: parent.bottom
         spacing: 14
 
         RowLayout {
@@ -194,6 +195,25 @@ Item {
                 font.pixelSize: 12
                 wrapMode: Text.WordWrap
             }
+        }
+
+        // Las tareas de Aules (área «Clase»), con la lista completa y su edición.
+        Text {
+            Layout.fillWidth: true
+            text: "Tareas de Aules"
+            color: Theme.strong
+            font.family: Theme.font
+            font.pixelSize: 12
+        }
+
+        Tareas {
+            objectName: "tareasClase"
+            Layout.fillWidth: true
+            Layout.fillHeight: true
+            Layout.minimumHeight: 240
+            shell: clase.shell
+            soloArea: "Clase"
+            lineaConexion: clase.lineaConexion
         }
     }
 }
