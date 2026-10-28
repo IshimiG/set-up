@@ -105,6 +105,13 @@ FloatingWindow {
         shell: falso
     }
 
+    // Los pasos del orden de las secciones (PasosOrden.qml, al lado).
+    PasosOrden {
+        id: pasosOrden
+        v: ventana
+        zona: envoltura
+    }
+
     property var fallos: []
     property int hechas: 0
 
@@ -400,6 +407,7 @@ FloatingWindow {
     }
 
     readonly property var pasos: [].concat(
+        pasosOrden.pasos,
         [[300, () => ev.mouseMove(envoltura, 350, 450, -1, Qt.NoButton, Qt.NoModifier)]],
         [[300, () => {
             ventana.comprobar(!cajon.asoma, "en medio de la pantalla no asoma");
