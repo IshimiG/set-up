@@ -8,10 +8,12 @@ import "barra" as Barra
 import "cajon" as Cajon
 
 // Prueba sin pantalla de la agenda del calendario (la lanza prueba.sh, al
-// lado). Tres partes: el formato, el fichero entre el cajón y la barra (con
-// una API falsa y un $XDG_RUNTIME_DIR temporal) y el CalendarPanel.qml del
-// repo con un shell falso, movido con TestEvent. Cada comprobación imprime OK
-// o FALLO; al final, el recuento.
+// lado). Cuatro partes: el formato, el fichero entre el cajón y la barra (con
+// una API falsa y un $XDG_RUNTIME_DIR temporal), el CalendarPanel.qml del
+// repo con un shell falso, movido con TestEvent, y el cliente del panel
+// (Tareas.qml) de verdad contra el panel falso de prueba.sh (panel-falso.py),
+// con el calendario encima. Cada comprobación imprime OK o FALLO; al final,
+// el recuento.
 //
 // Ninguna comprobación imprime el texto de una tarea ni el JSON: prueba.sh
 // mira después que no haya ninguno en el log.
@@ -249,7 +251,7 @@ FloatingWindow {
         id: tareasFalso
         property var evs: []
         property var datos: null
-        property bool puedeMover: true
+        property bool puedeEscribir: true
         property string error: ""
         property bool falla: false
         property int refrescos: 0
@@ -278,6 +280,12 @@ FloatingWindow {
             publicar();
             alAcabar(true);
         }
+    }
+
+    // El cliente de verdad: lee HOMELAB_PANEL_URL (el panel falso) y el
+    // secret-tool de mentira de prueba.sh.
+    Barra.Tareas {
+        id: cliente
     }
 
     Item {
@@ -385,6 +393,125 @@ FloatingWindow {
 
     function igual(a, b) {
         return JSON.stringify(a) === JSON.stringify(b);
+    }
+
+    // Como hijos(), pero también lo que no se ve (un halo a opacidad 0).
+    function buscar(raiz, nombre) {
+        const l = [];
+        ventana.recorrer(raiz, it => {
+            if (it.objectName === nombre)
+                l.push(it);
+        });
+        return l;
+    }
+
+    function dobleClicDia(dia) {
+        const c = ventana.uno("dia-" + dia);
+        const p = c.mapToItem(envoltura, c.width / 2, c.height / 2);
+        ev.mouseDoubleClickSequence(envoltura, p.x, p.y, Qt.LeftButton, Qt.NoModifier, -1);
+    }
+
+    function titulos() {
+        return ventana.filas().map(f => ventana.hijos(f, "tituloFila")[0].text);
+    }
+
+    function filaDe(titulo) {
+        return ventana.filas().find(f => ventana.hijos(f, "tituloFila")[0].text === titulo) || null;
+    }
+
+    function puntoDe(titulo) {
+        return ventana.hijos(ventana.filaDe(titulo), "puntoFila")[0];
+    }
+
+    // El color del punto de una fila (el Rectangle de dentro de puntoFila).
+    function colorPunto(titulo) {
+        return ventana.puntoDe(titulo).children[0].color;
+    }
+
+    function robotDe(titulo) {
+        return ventana.hijos(ventana.filaDe(titulo), "claudeOffFila")[0];
+    }
+
+    function porId(agenda, id) {
+        return agenda ? agenda.eventos.find(e => e.id === id) || null : null;
+    }
+
+    function porTitulo(titulo) {
+        return cliente.datos ? cliente.datos.eventos.find(e => e.titulo === titulo) || null : null;
+    }
+
+    // --- El panel falso ------------------------------------------------------------
+    // Sus dos puertas de prueba, sin credenciales: lo que le han pedido
+    // (/__registro) y cuánto tarda o cómo falla en las escrituras (/__ajustes).
+
+    readonly property string urlPanel: Quickshell.env("HOMELAB_PANEL_URL") || ""
+    property var registro: []
+    property int filas0: 0
+
+    function alPanel(metodo, ruta, cuerpo, alAcabar) {
+        const x = new XMLHttpRequest();
+        x.onreadystatechange = () => {
+            if (x.readyState === XMLHttpRequest.DONE && alAcabar)
+                alAcabar(x.status, x.responseText);
+        };
+        x.open(metodo, ventana.urlPanel + ruta);
+        if (cuerpo === undefined) {
+            x.send();
+        } else {
+            x.setRequestHeader("Content-Type", "application/json");
+            x.send(JSON.stringify(cuerpo));
+        }
+    }
+
+    function ajustar(a) {
+        ventana.alPanel("POST", "/__ajustes", a);
+    }
+
+    function leerRegistro() {
+        ventana.alPanel("GET", "/__registro", undefined, (estado, texto) => {
+            try {
+                ventana.registro = JSON.parse(texto);
+            } catch (e) {
+                ventana.registro = [];
+            }
+        });
+    }
+
+    function ultima() {
+        return ventana.registro.length ? ventana.registro[ventana.registro.length - 1] : {};
+    }
+
+    // Coge la fila `titulo` y la lleva por encima de `por` hasta `a`, sin
+    // soltarla (soltar() la suelta donde esté); alPasar("por") y alPasar("a")
+    // al llegar a cada uno, para mirar qué casillas se resaltan.
+    function arrastrar(titulo, por, a, alPasar) {
+        const f = ventana.filaDe(titulo);
+        const ini = f.mapToItem(envoltura, 60, f.height / 2);
+        const cPor = ventana.uno("dia-" + por);
+        const cA = ventana.uno("dia-" + a);
+        const pPor = cPor.mapToItem(envoltura, cPor.width / 2, cPor.height / 2);
+        const pA = cA.mapToItem(envoltura, cA.width / 2, cA.height / 2);
+        ev.mousePress(envoltura, ini.x, ini.y, Qt.LeftButton, Qt.NoModifier, 50);
+        for (let k = 1; k <= 10; k++)
+            ev.mouseMove(envoltura, ini.x + (pPor.x - ini.x) * k / 10, ini.y + (pPor.y - ini.y) * k / 10, 20, Qt.LeftButton, Qt.NoModifier);
+        alPasar("por");
+        for (let k = 1; k <= 4; k++)
+            ev.mouseMove(envoltura, pPor.x + (pA.x - pPor.x) * k / 4, pPor.y + (pA.y - pPor.y) * k / 4, 20, Qt.LeftButton, Qt.NoModifier);
+        alPasar("a");
+        ventana.soltarEn = pA;
+    }
+
+    property var soltarEn: null
+
+    function soltar() {
+        ev.mouseRelease(envoltura, ventana.soltarEn.x, ventana.soltarEn.y, Qt.LeftButton, Qt.NoModifier, 50);
+    }
+
+    // El halo de destino de la casilla de un día: si está puesto.
+    function halo(dia) {
+        const c = ventana.uno("dia-" + dia);
+        const h = c ? ventana.buscar(c, "destino")[0] : null;
+        return h ? h.state === "sobre" : null;
     }
 
     // --- Los pasos ---------------------------------------------------------------
@@ -704,22 +831,42 @@ FloatingWindow {
                 ventana.clicEn(ventana.uno("chipMes"));
             }],
         [500, () => {
-                ventana.comprobar(cal.selector === "mes" && ventana.todos("opcionSelector").length === 12, "el mes se elige en un desplegable de doce", cal.selector);
-                ventana.captura("7-selector-mes");
+                const actual = ventana.todos("opcionSelector").filter(o => o.actual).map(o => o.index);
+                ventana.comprobar(ventana.uno("chipMes").texto === "Octubre 2026", "la cabecera lleva un chip con el mes y el año", ventana.uno("chipMes").texto);
+                ventana.comprobar(cal.selectorAbierto && ventana.textoDe("anioSelector") === "2026" && ventana.todos("opcionSelector").length === 12, "  que abre un desplegable con el año arriba y los doce meses", ventana.textoDe("anioSelector"));
+                ventana.comprobar(ventana.igual(actual, [9]) && ventana.igual(ventana.todos("opcionSelector").map(o => o.children[0].text).slice(0, 3), ["Ene", "Feb", "Mar"]), "  con el mes que se mira resaltado", actual.join(" "));
+                ventana.captura("7-selector");
                 ventana.clicEn(ventana.todos("opcionSelector")[10]);
             }],
         [300, () => {
-                ventana.comprobar(cal.monthOffset === 1 && cal.selector === "" && cal.shown.getMonth() === 10, "elegir noviembre cambia de mes y cierra el desplegable", String(cal.monthOffset));
-                ventana.clicEn(ventana.uno("chipAnio"));
+                ventana.comprobar(cal.monthOffset === 1 && !cal.selectorAbierto && cal.shown.getMonth() === 10, "elegir noviembre cambia de mes y cierra el desplegable", String(cal.monthOffset));
+                ventana.clicEn(ventana.uno("chipMes"));
             }],
         [500, () => {
-                const o = ventana.todos("opcionSelector").filter(x => x.valor === 2028)[0];
-                ventana.comprobar(cal.selector === "anio" && o !== undefined, "el año se elige en otro, con doce años a la vista");
-                ventana.captura("8-selector-anio");
-                ventana.clicEn(o);
+                ventana.clicEn(ventana.uno("anioSiguiente"));
+                ventana.clicEn(ventana.uno("anioSiguiente"));
             }],
         [300, () => {
-                ventana.comprobar(cal.shown.getFullYear() === 2028 && cal.shown.getMonth() === 10 && cal.monthOffset === 25, "elegir 2028 cambia el año y conserva el mes", String(cal.monthOffset));
+                ventana.comprobar(cal.selectorAbierto && ventana.textoDe("anioSelector") === "2028" && cal.monthOffset === 1, "las flechitas cambian el año del desplegable sin cambiar todavía de mes", ventana.textoDe("anioSelector"));
+                ventana.comprobar(ventana.todos("opcionSelector").filter(o => o.actual).length === 0, "  y en otro año no hay mes resaltado");
+                ventana.captura("8-selector-2028");
+                ventana.clicEn(ventana.todos("opcionSelector")[10]);
+            }],
+        [300, () => {
+                ventana.comprobar(cal.shown.getFullYear() === 2028 && cal.shown.getMonth() === 10 && cal.monthOffset === 25 && !cal.selectorAbierto, "elegir un mes lleva a ese mes de ese año", String(cal.monthOffset));
+                ventana.comprobar(ventana.uno("chipMes").texto === "Noviembre 2028", "  y el chip lo dice", ventana.uno("chipMes").texto);
+                ventana.clicEn(ventana.uno("chipMes"));
+            }],
+        [500, () => {
+                ventana.comprobar(ventana.textoDe("anioSelector") === "2028", "al abrirlo otra vez, el año es el que se mira");
+                ventana.clicEn(ventana.uno("anioAnterior"));
+            }],
+        [300, () => {
+                ventana.comprobar(ventana.textoDe("anioSelector") === "2027" && cal.monthOffset === 25, "  la flechita izquierda retrocede un año");
+                ventana.clicEn(ventana.uno("chipMes"));
+            }],
+        [400, () => {
+                ventana.comprobar(!cal.selectorAbierto && cal.monthOffset === 25, "pulsar otra vez el chip lo cierra sin cambiar nada");
                 ventana.clicEn(ventana.uno("mesAnterior"));
             }],
         [300, () => {
@@ -733,12 +880,14 @@ FloatingWindow {
         [300, () => {
                 ventana.clicEn(ventana.uno("chipMes"));
             }],
-        [400, () => {
-                ventana.comprobar(cal.selector === "mes", "(desplegable abierto)");
-                ventana.clicDia("2026-10-23");
+        [500, () => {
+                const c = ventana.uno("dia-2026-10-25");
+                const pop = ventana.uno("selector");
+                ventana.comprobar(cal.selectorAbierto && !pop.contains(c.mapToItem(pop, c.width / 2, c.height / 2)), "(desplegable abierto, y el 25 queda fuera)");
+                ventana.clicDia("2026-10-25");
             }],
         [400, () => {
-                ventana.comprobar(cal.selector === "" && cal.elegido === "", "pulsar fuera del desplegable lo cierra sin elegir un día");
+                ventana.comprobar(!cal.selectorAbierto && cal.elegido === "", "pulsar fuera del desplegable lo cierra sin elegir un día");
                 ventana.clicDia("2026-10-23");
             }],
         [300, () => {
@@ -811,6 +960,279 @@ FloatingWindow {
             }],
         [500, () => {
                 ventana.comprobar(ventana.todos("punto").length === 0 && ventana.uno("agendaDia") === null, "y si el cajón borra la agenda, el calendario vuelve a la rejilla sola");
+            }],
+        // --- El cliente del panel, de verdad, contra el panel falso ---
+        [200, () => {
+                ventana.comprobar(cliente.estado === "inactivo" && cliente.datos === null && !cliente.puedeEscribir, "el cliente del panel no hace nada hasta que se le pide");
+                ventana.comprobar(cliente.efectiva("low", "2026-10-22", "2026-10-21") === "highest" && cliente.efectiva("low", "2026-10-24", "2026-10-21") === "high" && cliente.efectiva("", "2026-10-28", "2026-10-21") === "medium" && cliente.efectiva("high", "2026-10-26", "2026-10-21") === "high" && cliente.efectiva("lowest", "2026-11-30", "2026-10-21") === "lowest" && cliente.efectiva("low", "", "2026-10-21") === "low", "la prioridad de hoy sube cerca de la fecha, como la calcula el panel");
+                let r = null;
+                cliente.crear("Comprar pilas", "2026-10-30", ok => r = ok);
+                ventana.comprobar(r === false && !cliente.escribiendo, "  sin conexión no se crea nada (y contesta enseguida)");
+                cliente.refrescar(true);
+            }],
+        [900, () => {
+                const d = cliente.datos;
+                const c1 = ventana.porId(d, "c1");
+                const g2 = ventana.porId(d, "g2");
+                ventana.comprobar(cliente.estado === "conectado" && d !== null && d.eventos.length === 3, "con el llavero (de mentira) lee las tareas del panel falso", cliente.estado + ", " + (d ? d.eventos.length : "sin datos"));
+                ventana.comprobar(c1 !== null && c1.claudeOff === true && ventana.porId(d, "g1").claudeOff === false, "  cada evento lleva su 🚫🤖 (claudeOff)");
+                ventana.comprobar(g2 !== null && g2.prioridadPropia === "baja" && g2.prioridad === "maxima", "  y la prioridad que tiene puesta, además de la de hoy", g2 ? g2.prioridadPropia + " / " + g2.prioridad : "");
+                ventana.comprobar(c1 !== null && c1.prioridadPropia === "" && Formato.delDia(d, "2026-10-30", "2026-10-21").every(e => "claudeOff" in e), "  sin prioridad, vacía; y los campos pasan a la lista del día");
+                ventana.comprobar(cliente.seccionPorDefecto() === "general", "lo que se cree va a General, aunque no sea la primera sección");
+                const rs = [];
+                cliente.crear("   ", "2026-10-30", ok => rs.push(ok));
+                cliente.crear("Algo", "30/10/2026", ok => rs.push(ok));
+                cliente.prioridad("g1", "urgente", ok => rs.push(ok));
+                cliente.claudeOff("no-existe", true, ok => rs.push(ok));
+                cliente.mover("g1", "", ok => rs.push(ok));
+                ventana.comprobar(ventana.igual(rs, [false, false, false, false, false]) && !cliente.escribiendo, "un texto vacío, una fecha rota, una prioridad que no existe o una tarea que no está no se mandan");
+                ventana.leerRegistro();
+            }],
+        [300, () => {
+                ventana.comprobar(ventana.registro.length === 1 && ventana.registro[0].metodo === "GET" && ventana.registro.every(x => x.auth), "  (al panel solo le ha llegado la lectura, y con las credenciales)", ventana.registro.length + " peticiones");
+                shellFalso.tareas = cliente;
+                shellFalso.agenda = Qt.binding(() => cliente.datos);
+                cal.volverAHoy();
+            }],
+        // Crear.
+        [300, () => {
+                ventana.ajustar({
+                    retraso: 500
+                });
+                ventana.dobleClicDia("2026-10-30");
+            }],
+        [300, () => {
+                const campo = ventana.uno("campoNueva");
+                ventana.comprobar(cal.nuevaDia === "2026-10-30" && campo !== null && campo.activeFocus, "doble clic en un día abre una línea para crear una tarea, con el teclado en ella");
+                ventana.comprobar(cal.elegido === "2026-10-30" && ventana.textoDe("tituloDia") === "Viernes 30 de octubre", "  y la lista es la de ese día", ventana.textoDe("tituloDia"));
+                ventana.comprobar(ventana.textoDe("pistaNueva") === "Nueva tarea para el 30…", "  con la pista del día", ventana.textoDe("pistaNueva"));
+                ev.keyClick(Qt.Key_P, Qt.NoModifier, -1);
+                ventana.comprobar(campo !== null && campo.text === "p", "  lo que se teclea va a la línea");
+                ventana.captura("11-crear");
+            }],
+        [200, () => {
+                ventana.uno("campoNueva").text = "Comprar pilas";
+                ventana.filas0 = ventana.filas().length;
+                ev.keyClick(Qt.Key_Return, Qt.NoModifier, -1);
+            }],
+        [150, () => {
+                const campo = ventana.uno("campoNueva");
+                ventana.comprobar(cal.creando && campo !== null && campo.readOnly && ventana.filas().length === ventana.filas0, "Intro la manda, y no sale hasta que el panel contesta (no es optimista)", ventana.filas().length + " filas");
+            }],
+        [800, () => {
+                ventana.comprobar(!cal.creando && cal.nuevaDia === "" && ventana.uno("campoNueva") === null, "  al contestar, la línea se cierra");
+                ventana.comprobar(ventana.titulos().indexOf("Comprar pilas") >= 0 && ventana.filas().length === ventana.filas0 + 1, "  y la tarea sale en el día", ventana.filas().length + " filas");
+                ventana.comprobar(ventana.textoDe("avisoMover") === "Añadida al 30 oct", "  y avisa", ventana.textoDe("avisoMover"));
+                ventana.leerRegistro();
+            }],
+        [300, () => {
+                const r = ventana.ultima();
+                const c = r.cuerpo || {};
+                ventana.comprobar(r.metodo === "POST" && r.ruta === "/api/tareas" && r.auth === true, "  con POST /api/tareas", r.metodo + " " + r.ruta);
+                ventana.comprobar(ventana.igual(Object.keys(c).sort(), ["area", "claude_off", "fecha", "prioridad", "seccion", "texto"]) && c.seccion === "general" && c.texto === "Comprar pilas" && c.area === "" && c.fecha === "2026-10-30" && c.prioridad === "medium" && c.claude_off === false, "  la sección, el texto, el día, sin área, prioridad media y el 🚫🤖 apagado");
+                const n = ventana.porTitulo("Comprar pilas");
+                ventana.comprobar(n !== null && n.id !== "" && n.claudeOff === false && n.prioridadPropia === "media", "  y vuelve con su id, prioridad media y sin 🚫🤖");
+                ventana.ajustar({
+                    retraso: 0
+                });
+                ventana.dobleClicDia("2026-10-30");
+            }],
+        [300, () => {
+                ventana.comprobar(ventana.uno("campoNueva") !== null, "(otra vez la línea)");
+                ventana.uno("campoNueva").text = "No la quiero";
+                ev.keyClick(Qt.Key_Escape, Qt.NoModifier, -1);
+            }],
+        [300, () => {
+                ventana.comprobar(cal.nuevaDia === "" && ventana.uno("campoNueva") === null, "Escape cierra la línea sin crear nada");
+                ventana.leerRegistro();
+            }],
+        [300, () => {
+                ventana.comprobar(ventana.registro.filter(x => x.metodo === "POST").length === 1, "  (ni una petición más)");
+                ventana.ajustar({
+                    fallos: [
+                        {
+                            estado: 422,
+                            error: "El texto debe tener entre 1 y 300 caracteres, en una sola línea."
+                        }
+                    ]
+                });
+                ventana.dobleClicDia("2026-10-30");
+            }],
+        [300, () => {
+                ventana.uno("campoNueva").text = "Otra";
+                ev.keyClick(Qt.Key_Return, Qt.NoModifier, -1);
+            }],
+        [500, () => {
+                const campo = ventana.uno("campoNueva");
+                ventana.comprobar(cal.nuevaDia === "2026-10-30" && campo !== null && campo.text === "Otra" && !campo.readOnly && campo.activeFocus, "si el panel no la acepta, la línea se queda abierta con el texto");
+                ventana.comprobar(ventana.textoDe("avisoMover") === "El texto debe tener entre 1 y 300 caracteres, en una sola línea.", "  y el aviso dice el porqué del panel", ventana.textoDe("avisoMover"));
+                ventana.comprobar(ventana.uno("agendaDia").width === cal.width - 2 * Theme.pad && ventana.uno("avisoMover").truncated, "  recortado: un aviso largo no ensancha el calendario", ventana.uno("agendaDia").width + " de " + (cal.width - 2 * Theme.pad));
+                ventana.captura("12-aviso-largo");
+            }],
+        [200, () => {
+                ventana.clicDia("2026-10-23");
+            }],
+        [300, () => {
+                ventana.comprobar(cal.nuevaDia === "" && cal.elegido === "2026-10-23", "elegir otro día cierra la línea");
+                ventana.clicDia("2026-10-30");
+            }],
+        // La prioridad.
+        [300, () => {
+                ventana.ajustar({
+                    retraso: 500
+                });
+                ventana.clicEn(ventana.puntoDe("Revisar el informe"));
+            }],
+        [450, () => {
+                const ops = ventana.todos("opcionPrioridad");
+                const m = ventana.uno("menuPrioridad");
+                ventana.comprobar(cal.menuDe !== null && cal.menuDe.id === "g1" && ops.length === 5, "pulsar el punto de una tarea abre el menú de prioridades", ops.length + " opciones");
+                ventana.comprobar(ventana.igual(ops.map(o => ventana.hijos(o, "etiquetaPrioridad")[0].text), ["Máxima", "Alta", "Media", "Baja", "Mínima"]), "  las cinco, de la más alta a la más baja");
+                ventana.comprobar(ventana.igual(ops.map(o => ventana.hijos(o, "marcaPrioridad").length), [0, 0, 0, 1, 0]), "  con la marca en la que tiene puesta (baja)");
+                ventana.comprobar(m !== null && m.y >= 0 && m.y + m.height <= cal.height && m.x >= 0 && m.x + m.width <= cal.width, "  y el menú cabe en el calendario", m ? Math.round(m.x) + "," + Math.round(m.y) : "");
+                ventana.captura("13-prioridad");
+            }],
+        // Una captura sale en el siguiente fotograma: elegir, en otro paso.
+        [200, () => ventana.clicEn(ventana.todos("opcionPrioridad")[1])],
+        [150, () => {
+                const e = ventana.porId(cliente.datos, "g1");
+                ventana.comprobar(cal.menuDe === null && e.prioridadPropia === "alta" && Qt.colorEqual(ventana.colorPunto("Revisar el informe"), Theme.prioAlta) && cliente.escribiendo, "elegir una la cambia al momento, antes de que conteste el panel (optimista)");
+            }],
+        [800, () => {
+                ventana.comprobar(!cliente.escribiendo && ventana.porId(cliente.datos, "g1").prioridadPropia === "alta" && ventana.textoDe("avisoMover") === "Prioridad alta", "  el panel la confirma y se avisa", ventana.textoDe("avisoMover"));
+                ventana.leerRegistro();
+            }],
+        [300, () => {
+                const r = ventana.ultima();
+                ventana.comprobar(r.metodo === "POST" && r.ruta === "/api/tareas/g1" && ventana.igual(r.cuerpo, {
+                    prioridad: "high"
+                }), "  con POST /api/tareas/{id} y solo { prioridad: \"high\" }", JSON.stringify(r.cuerpo));
+                ventana.ajustar({
+                    retraso: 300,
+                    fallos: [
+                        {
+                            estado: 500
+                        }
+                    ]
+                });
+                ventana.clicEn(ventana.puntoDe("Revisar el informe"));
+            }],
+        [450, () => ventana.clicEn(ventana.todos("opcionPrioridad")[4])],
+        [100, () => {
+                ventana.comprobar(ventana.porId(cliente.datos, "g1").prioridadPropia === "minima" && Qt.colorEqual(ventana.colorPunto("Revisar el informe"), Theme.prioMinima), "(mínima mientras el panel contesta)");
+            }],
+        [600, () => {
+                ventana.comprobar(ventana.porId(cliente.datos, "g1").prioridadPropia === "alta" && Qt.colorEqual(ventana.colorPunto("Revisar el informe"), Theme.prioAlta), "si el panel falla, la prioridad vuelve a la de antes");
+                ventana.comprobar(ventana.textoDe("avisoMover") === "No se pudo cambiar la prioridad (HTTP 500)", "  y lo dice", ventana.textoDe("avisoMover"));
+                ventana.ajustar({
+                    retraso: 0
+                });
+                ventana.clicEn(ventana.puntoDe("Revisar el informe"));
+            }],
+        [450, () => {
+                ventana.comprobar(cal.menuDe !== null, "(menú abierto)");
+                ventana.clicDia("2026-10-23");
+            }],
+        [400, () => {
+                ventana.comprobar(cal.menuDe === null && cal.elegido === "2026-10-30", "pulsar fuera del menú lo cierra sin elegir un día");
+                ventana.clicEn(ventana.puntoDe("Revisar el informe"));
+            }],
+        [450, () => ventana.clicEn(ventana.todos("opcionPrioridad")[1])],
+        [300, () => {
+                ventana.comprobar(cal.menuDe === null && !cliente.escribiendo, "elegir la que ya tiene solo cierra el menú");
+                ventana.leerRegistro();
+            }],
+        // El 🚫🤖.
+        [300, () => {
+                ventana.comprobar(ventana.registro.filter(x => x.metodo === "POST").length === 4, "  (sin pedirle nada al panel)", ventana.registro.filter(x => x.metodo === "POST").length + " escrituras");
+                const f = ventana.filaDe("Revisar el informe");
+                const p = f.mapToItem(envoltura, 60, f.height / 2);
+                ev.mouseMove(envoltura, p.x, p.y, 20, Qt.NoButton, Qt.NoModifier);
+            }],
+        [400, () => {
+                const r1 = ventana.robotDe("Revisar el informe");
+                const r2 = ventana.robotDe("MIA: Tarea quinta");
+                const r3 = ventana.robotDe("Comprar pilas");
+                ventana.comprobar(r1.opacity > 0.3 && r1.opacity < 1, "el 🚫🤖 apagado sale tenue al pasar el ratón por la fila", String(r1.opacity));
+                ventana.comprobar(r3.opacity === 0, "  y en las demás filas no se ve", String(r3.opacity));
+                ventana.comprobar(r2.opacity === 1 && Qt.colorEqual(r2.color, Theme.strong), "  encendido, se ve siempre");
+                ventana.captura("14-claude-off");
+                // Los ajustes del panel, un paso antes de la escritura: si no,
+                // pueden llegarle después que ella.
+                ventana.ajustar({
+                    retraso: 400
+                });
+            }],
+        [200, () => ventana.clicEn(ventana.robotDe("Revisar el informe"))],
+        [150, () => {
+                ventana.comprobar(ventana.porId(cliente.datos, "g1").claudeOff === true && cliente.escribiendo, "pulsarlo lo enciende al momento (optimista)");
+            }],
+        [700, () => {
+                ventana.comprobar(!cliente.escribiendo && ventana.porId(cliente.datos, "g1").claudeOff === true && ventana.robotDe("Revisar el informe").opacity === 1, "  y sigue encendido cuando el panel contesta", String(ventana.robotDe("Revisar el informe").opacity));
+                ventana.comprobar(ventana.textoDe("avisoMover") === "Claude no la hará", "  y avisa", ventana.textoDe("avisoMover"));
+                ventana.ajustar({
+                    retraso: 0
+                });
+                ventana.leerRegistro();
+            }],
+        [300, () => {
+                const r = ventana.ultima();
+                ventana.comprobar(r.ruta === "/api/tareas/g1" && ventana.igual(r.cuerpo, {
+                    claude_off: true
+                }), "  con { claude_off: true }", JSON.stringify(r.cuerpo));
+                ventana.clicEn(ventana.robotDe("Revisar el informe"));
+            }],
+        [400, () => {
+                ventana.comprobar(ventana.porId(cliente.datos, "g1").claudeOff === false && ventana.textoDe("avisoMover") === "Claude ya puede hacerla", "pulsarlo otra vez lo apaga", ventana.textoDe("avisoMover"));
+                ventana.leerRegistro();
+            }],
+        [300, () => {
+                ventana.comprobar(ventana.igual(ventana.ultima().cuerpo, {
+                    claude_off: false
+                }), "  con { claude_off: false }");
+            }],
+        // Mover, con el cliente de verdad, y el halo del día destino.
+        [200, () => {
+                const vistos = {};
+                ventana.arrastrar("Comprar pilas", "2026-10-30", "2026-10-31", cuando => {
+                    vistos[cuando] = [ventana.halo("2026-10-30"), ventana.halo("2026-10-31")];
+                });
+                ventana.comprobar(ventana.igual(vistos.por, [false, false]), "arrastrando, el día de la propia tarea no se resalta", JSON.stringify(vistos.por));
+                ventana.comprobar(ventana.igual(vistos.a, [false, true]), "  y el día de destino sí", JSON.stringify(vistos.a));
+            }],
+        [400, () => ventana.captura("15-halo")],
+        [200, () => ventana.soltar()],
+        [600, () => {
+                const n = ventana.porTitulo("Comprar pilas");
+                ventana.comprobar(n !== null && n.dia === "2026-10-31" && ventana.textoDe("avisoMover") === "Movida al 31 oct", "al soltarla se mueve", ventana.textoDe("avisoMover"));
+                ventana.comprobar(ventana.halo("2026-10-31") === false, "  y el halo se va");
+                ventana.leerRegistro();
+            }],
+        [300, () => {
+                const r = ventana.ultima();
+                ventana.comprobar(r.metodo === "POST" && /^\/api\/tareas\/n\d+$/.test(r.ruta) && ventana.igual(r.cuerpo, {
+                    fecha: "2026-10-31"
+                }), "  con POST /api/tareas/{id} y { fecha }", JSON.stringify(r.cuerpo));
+                ventana.dobleClicDia("2026-10-23");
+            }],
+        [300, () => {
+                ventana.comprobar(cal.nuevaDia === "2026-10-23", "(la línea abierta)");
+                ventana.clicEn(ventana.uno("chipMes"));
+            }],
+        [300, () => {
+                ventana.comprobar(cal.selectorAbierto && cal.nuevaDia === "2026-10-23", "(y el desplegable)");
+                shellFalso.mode = "";
+            }],
+        [300, () => {
+                ventana.comprobar(cal.nuevaDia === "" && cal.menuDe === null && !cal.selectorAbierto, "al cerrar la isla se cierran la línea, el menú y el desplegable");
+                shellFalso.mode = "calendar";
+                ventana.leerRegistro();
+            }],
+        [300, () => {
+                const gets = ventana.registro.filter(x => x.metodo === "GET").length;
+                ventana.comprobar(gets === 1 && ventana.registro.every(x => x.auth), "al abrirla otra vez no se relee (lo que hay es reciente), y todo fue con credenciales", gets + " lecturas");
+                shellFalso.tareas = null;
+                shellFalso.agenda = null;
             }],
         [300, () => {
                 console.log("Resultado: " + (ventana.hechas - ventana.fallos.length) + " de " + ventana.hechas + " bien" + (ventana.fallos.length ? "; fallan: " + ventana.fallos.join(" | ") : ""));

@@ -105,6 +105,13 @@ FloatingWindow {
         shell: falso
     }
 
+    // Los pasos del orden de las secciones (PasosOrden.qml, al lado).
+    PasosOrden {
+        id: pasosOrden
+        v: ventana
+        zona: envoltura
+    }
+
     property var fallos: []
     property int hechas: 0
 
@@ -400,6 +407,7 @@ FloatingWindow {
     }
 
     readonly property var pasos: [].concat(
+        pasosOrden.pasos,
         [[300, () => ev.mouseMove(envoltura, 350, 450, -1, Qt.NoButton, Qt.NoModifier)]],
         [[300, () => {
             ventana.comprobar(!cajon.asoma, "en medio de la pantalla no asoma");
@@ -1757,54 +1765,14 @@ FloatingWindow {
             ventana.seccion("inicio");
         }]],
         // =====================================================================
-        // Tareas: calendario, arrastrar, edición desde el detalle y avisos del móvil
+        // Tareas: arrastrar, edición desde el detalle y avisos del móvil
         // =====================================================================
         [[50, () => ventana.seccion("tareas")]],
         [[600, () => ventana.clic(ventana.uno("vista-plazo"))]],
         [[300, () => {
             ventana.comprobar(ventana.uno("actualizarTareas") !== null, "Tareas tiene el botón de actualizar");
-            ventana.comprobar(ventana.uno("dia-2026-10-20") === null, "el calendario está plegado de entrada");
-            ventana.clic(ventana.uno("verCalendario"));
-        }]],
-        [[800, () => {
-            ventana.comprobar(ventana.uno("dia-2026-10-20") !== null && ventana.ui().calMes === 10 && ventana.ui().calDia === "2026-10-20", "el chip abre el calendario en el mes de hoy con hoy elegido", String(ventana.ui().calMes));
-            ventana.captura("13-tareas-calendario");
-            ventana.clic(ventana.uno("mesSiguiente"));
-        }]],
-        [[300, () => {
-            ventana.comprobar(ventana.ui().calMes === 11 && ventana.ui().calAnio === 2026, "› pasa al mes siguiente");
-            const z = ventana.uno("dia-2026-11-18");
-            const p = z.mapToItem(envoltura, 10, 10);
-            ev.mouseWheel(envoltura, p.x, p.y, Qt.NoButton, Qt.NoModifier, 0, -120, -1);
-        }]],
-        [[300, () => {
-            ventana.comprobar(ventana.ui().calMes === 12, "la rueda cambia de mes", String(ventana.ui().calMes));
-            ventana.clic(ventana.uno("tituloMes"));
-        }]],
-        [[600, () => {
-            ventana.comprobar(ventana.uno("selectorMes") !== null && ventana.uno("elegirMes-3") !== null, "el título abre el desplegable de mes y año");
-            ventana.captura("14-tareas-selector");
-            ventana.clic(ventana.uno("anioSiguiente"));
-        }]],
-        [[200, () => ventana.clic(ventana.uno("elegirMes-3"))]],
-        [[600, () => {
-            ventana.comprobar(ventana.ui().calMes === 3 && ventana.ui().calAnio === 2027, "elegir año y mes en el desplegable", ventana.ui().calAnio + "-" + ventana.ui().calMes);
-            ventana.comprobar(ventana.uno("selectorMes") === null, "  y se cierra");
-            ventana.clic(ventana.uno("tituloMes"));
-        }]],
-        [[600, () => {
-            // Clic fuera: en la cabecera de Tareas, lejos del desplegable.
-            const f = ventana.uno("cuentaTareas");
-            const p = f.mapToItem(envoltura, f.width - 4, 2);
-            ev.mouseClick(envoltura, p.x, p.y, Qt.LeftButton, Qt.NoModifier, -1);
-        }]],
-        [[600, () => {
-            ventana.comprobar(ventana.uno("selectorMes") === null, "un clic fuera cierra el desplegable");
-            ventana.clic(ventana.uno("mesHoy"));
-        }]],
-        [[600, () => {
-            ventana.comprobar(ventana.ui().calMes === 10 && ventana.ui().calAnio === 2026, "«Hoy» vuelve al mes de hoy");
-            // Arrastrar una fila (por su asa) a un día del calendario.
+            ventana.comprobar(ventana.uno("verCalendario") === null && ventana.cualquiera("calendarioLateral") === null && ventana.uno("tituloMes") === null, "el cajón ya no tiene calendario (es el de la isla)");
+            // Arrastrar una fila (por su asa) a un destino de la tira de días.
             const f = ventana.filaDe("Cambiar los discos del NAS", "r") || ventana.filaDe("Cambiar los discos del NAS", "a");
             ventana.traer(f);
             ventana.asa = ventana.hijo(f, f.ctx === "r" ? "asaFila" : "asaTarjeta");
@@ -1815,8 +1783,9 @@ FloatingWindow {
             ev.mousePress(envoltura, p.x, p.y, Qt.LeftButton, Qt.NoModifier, -1);
         }]],
         [[100, () => ev.mouseMove(envoltura, ventana.px + 8, ventana.qy - 10, -1, Qt.LeftButton, Qt.NoModifier)]],
-        [[100, () => {
-            const d = ventana.uno("dia-2026-10-23");
+        [[100, () => ev.mouseMove(envoltura, ventana.px + 30, ventana.qy + 40, -1, Qt.LeftButton, Qt.NoModifier)]],
+        [[600, () => {
+            const d = ventana.uno("destinoDia-3");
             const q = d.mapToItem(envoltura, d.width / 2, d.height / 2);
             ventana.px = q.x;
             ventana.qy = q.y;
@@ -1824,14 +1793,15 @@ FloatingWindow {
         }]],
         [[300, () => {
             ventana.comprobar(ventana.ui().arrastrada !== null && ventana.ui().arrastrada.plano === "Cambiar los discos del NAS", "arrastrando por el asa se lleva la tarea");
+            ventana.comprobar(ventana.uno("tiraDias").visible, "al arrastrar baja la tira de días");
             ventana.captura("15-tareas-arrastre");
             ev.mouseRelease(envoltura, ventana.px, ventana.qy, Qt.LeftButton, Qt.NoModifier, -1);
         }]],
         [[600, () => {
-            ventana.comprobar(ventana.ultima().op === "editar" && ventana.igual(ventana.ultima().cuerpo, { fecha: "2026-10-23" }), "soltar sobre un día le pone esa fecha", ventana.ultimaJSON());
+            ventana.comprobar(ventana.ultima().op === "editar" && ventana.igual(ventana.ultima().cuerpo, { fecha: "2026-10-23" }), "soltar sobre un día de la tira le pone esa fecha", ventana.ultimaJSON());
             ventana.comprobar(ventana.ui().arrastrada === null, "  y el arrastre acaba");
         }]],
-        // A una semana: conserva el día de la semana (23 oct es viernes; semana del 26 oct).
+        // A «+1 s»: una semana desde hoy (20 oct → 27 oct).
         [[100, () => {
             const f = ventana.filaDe("Cambiar los discos del NAS", "r") || ventana.filaDe("Cambiar los discos del NAS", "a");
             ventana.traer(f);
@@ -1842,15 +1812,16 @@ FloatingWindow {
             ventana.qy = p.y;
         }]],
         [[100, () => ev.mouseMove(envoltura, ventana.px + 8, ventana.qy - 10, -1, Qt.LeftButton, Qt.NoModifier)]],
-        [[100, () => {
-            const d = ventana.uno("semana-2026-10-26");
+        [[100, () => ev.mouseMove(envoltura, ventana.px + 30, ventana.qy + 40, -1, Qt.LeftButton, Qt.NoModifier)]],
+        [[600, () => {
+            const d = ventana.uno("destinoSemana");
             const q = d.mapToItem(envoltura, d.width / 2, d.height / 2);
             ventana.px = q.x;
             ventana.qy = q.y;
             ev.mouseMove(envoltura, q.x, q.y, -1, Qt.LeftButton, Qt.NoModifier);
         }]],
         [[300, () => ev.mouseRelease(envoltura, ventana.px, ventana.qy, Qt.LeftButton, Qt.NoModifier, -1)]],
-        [[600, () => ventana.comprobar(ventana.ultima().op === "editar" && ventana.igual(ventana.ultima().cuerpo, { fecha: "2026-10-30" }), "soltar sobre una semana la mueve conservando el día", ventana.ultimaJSON())]],
+        [[600, () => ventana.comprobar(ventana.ultima().op === "editar" && ventana.igual(ventana.ultima().cuerpo, { fecha: "2026-10-27" }), "soltar sobre «+1 s» la mueve una semana desde hoy", ventana.ultimaJSON())]],
         // Edición desde el detalle: claude_off, fecha, prioridad, proyecto.
         [[100, () => {
             ventana.clicFila("Cambiar los discos del NAS", ventana.filaDe("Cambiar los discos del NAS", "r") ? "r" : "a");
@@ -1897,14 +1868,41 @@ FloatingWindow {
         }]],
         [[800, () => ventana.clic(ventana.uno("avisoNoEnviar"))]],
         [[600, () => ventana.comprobar(ventana.igual(apiFalsa.respuestasAviso[1], { id: "m2", envio: false }), "«No enviar» responde envio: false", JSON.stringify(apiFalsa.respuestasAviso))]],
-        // El modo «amplio»: calendario y lista lado a lado.
-        [[100, () => ventana.ui().modo = "amplio"]],
+        // =====================================================================
+        // Clase: las tareas de Aules (Tareas con soloArea: "Clase")
+        // =====================================================================
+        [[100, () => ventana.seccion("clase")]],
         [[900, () => {
-            const l = ventana.uno("calendarioLateral");
-            ventana.comprobar(l !== null && l.width > 100 && ventana.uno("verCalendario") === null, "en «amplio» el calendario va a un lado y sin chip para plegarlo");
-            ventana.captura("t18-tareas-amplio");
+            const t = ventana.uno("tareasClase");
+            ventana.comprobar(t !== null && t.soloArea === "Clase", "Clase lleva debajo Tareas con soloArea «Clase»");
+            ventana.comprobar(ventana.uno("botonAules") !== null && ventana.hijo(t, "botonAnadir") !== null, "  bajo el botón de Aules, con su fila de añadir");
+            const planos = ventana.filasDe(t).map(f => f.t.plano);
+            ventana.comprobar(planos.indexOf("Entrega de prueba con fecha") >= 0, "soloArea: sale la tarea de área Clase", JSON.stringify(planos));
+            ventana.comprobar(planos.indexOf("Leer el tema 4") < 0 && planos.indexOf("Cambiar los discos del NAS") < 0 && planos.indexOf("Revisar la copia de seguridad") < 0, "  y ninguna de otras áreas", JSON.stringify(planos));
+            ventana.comprobar(ventana.hijo(t, "tarjetaAhora") === null && ventana.hijo(t, "ahoraVacio") === null && ventana.hijo(t, "vista-plazo") === null && ventana.hijo(t, "vista-proyecto") === null, "  sin «Ahora» ni vistas");
+            let tira = null;
+            ventana.recorrer(t, it => { if (it.objectName === "tiraDias") tira = it; });
+            ventana.comprobar(tira !== null, "  y con la tira de días para arrastrar");
+            ventana.captura("t19-clase-tareas");
+            const c = ventana.hijo(t, "campoNueva");
+            c.enfocar();
+            c.texto = "Entrega nueva de Aules";
         }]],
-        [[600, () => ventana.ui().modo = "compacto"]],
+        [[100, () => {
+            ventana.escrituras0 = apiFalsa.escrituras.length;
+            ventana.tecla(Qt.Key_Return);
+        }]],
+        [[400, () => {
+            ventana.comprobar(ventana.igual(ventana.ultima().cuerpo, { seccion: "clase", texto: "Entrega nueva de Aules", prioridad: "media", area: "Clase" }), "soloArea: lo que se añade lleva el área y va a la sección Clase", ventana.ultimaJSON());
+            ventana.comprobar(ventana.filasDe(ventana.uno("tareasClase")).some(f => f.t.plano === "Entrega nueva de Aules"), "  y sale en la lista");
+        }]],
+        [[100, () => {
+            const t = ventana.uno("tareasClase");
+            const f = ventana.filasDe(t).find(x => x.t.plano === "Entrega de prueba con fecha");
+            ventana.escrituras0 = apiFalsa.escrituras.length;
+            ventana.clic(ventana.hijo(f, "casillaFila") || f);
+        }]],
+        [[500, () => ventana.comprobar(apiFalsa.escrituras.length > ventana.escrituras0, "soloArea: marcar una fila escribe en el panel", String(apiFalsa.escrituras.length - ventana.escrituras0))]],
         [[100, () => ventana.seccion("inicio")]],
         [[50, () => ventana.comprobar(ventana.textos().indexOf("€") < 0, "no aparece ningún € en todo el texto del cajón")]],
         // =====================================================================

@@ -31,17 +31,19 @@ FocusScope {
     // La línea de conexión de Contenido, si no está «conectado».
     property string lineaConexion: ""
     // "compacto" | "medio" | "amplio", lo pone Contenido según el ancho del
-    // cajón. En «amplio» el calendario y la lista van lado a lado; en los demás,
-    // el calendario se despliega encima de la lista.
+    // cajón.
     property string modo: "compacto"
-    readonly property bool amplio: tareas.modo === "amplio"
+    // Si no está vacío, este bloque solo muestra las tareas de esa área (por
+    // ejemplo «Clase», en Clase.qml): sin «Ahora» ni vistas, siempre por plazo,
+    // sin recordar nada en disco, y lo que se añada lleva esa área.
+    property string soloArea: ""
     // --- Lo que llega y lo que se deriva ---
     readonly property var datos: tareas.api ? tareas.api.tareas : null
-    readonly property var todas: Logica.entradas(tareas.datos)
-    readonly property var listaAhora: Logica.ahora(tareas.todas)
-    readonly property var listaGrupos: tareas.datos ? Logica.grupos(tareas.datos, tareas.vista, tareas.filtro, tareas.listaAhora.map((t) => {
+    readonly property var todas: Logica.deArea(Logica.entradas(tareas.datos), tareas.soloArea)
+    readonly property var listaAhora: tareas.soloArea !== "" ? [] : Logica.ahora(tareas.todas)
+    readonly property var listaGrupos: tareas.datos ? Logica.grupos(tareas.datos, tareas.soloArea !== "" ? "plazo" : tareas.vista, tareas.filtro, tareas.listaAhora.map((t) => {
         return t.linea;
-    })) : []
+    }), tareas.soloArea) : []
     // El orden de j y k.
     readonly property var orden: Logica.recorrido(tareas.listaAhora, tareas.listaGrupos, (g) => {
         return tareas.estaPlegado(g);
@@ -67,12 +69,6 @@ FocusScope {
         "linea": -1
     })
     property bool ayuda: false
-    // --- Calendario (AgendaCalendario.qml): mes que se mira y día elegido ---
-    property int calAnio: 2026
-    property int calMes: 1
-    property string calDia: ""
-    property bool calendarioAbierto: false
-    readonly property bool calendarioVisible: tareas.amplio || tareas.calendarioAbierto
     // --- Arrastrar tareas ---
     // La tarea que se lleva, o null. El fantasma (más abajo) la acompaña; las
     // zonas de soltar (días, semanas, grupos, la tira) llaman a soltarSobre.
@@ -86,22 +82,6 @@ FocusScope {
     readonly property bool teclasActivas: tareas.shell.abierto && tareas.visible && tareas.activeFocus
 
     signal abrirWeb()
-
-    function irAMes(anio, mes) {
-        tareas.calAnio = anio;
-        tareas.calMes = mes;
-    }
-
-    function cambiarMes(n) {
-        const m = Logica.sumaMes(tareas.calAnio, tareas.calMes, n);
-        tareas.irAMes(m.anio, m.mes);
-    }
-
-    function irAHoy() {
-        const p = tareas.hoy !== "" ? tareas.hoy : Logica.aFecha(new Date().getFullYear(), new Date().getMonth() + 1, new Date().getDate());
-        tareas.calDia = p;
-        tareas.irAMes(+p.slice(0, 4), +p.slice(5, 7));
-    }
 
     function empezarArrastre(t, escena) {
         tareas.arrastrada = t;
@@ -285,6 +265,12 @@ FocusScope {
     }
 
     function seccionPorDefecto() {
+        const propia = tareas.soloArea === "" ? null : tareas.secciones.find((x) => {
+            return x.id === tareas.soloArea.toLowerCase();
+        });
+        if (propia)
+            return propia.id;
+
         const s = tareas.secciones.find((x) => {
             return x.id === "general";
         }) || tareas.secciones.find((x) => {
@@ -317,6 +303,8 @@ FocusScope {
             datos.area = opcionesNueva.area.trim();
             datos.fecha = opcionesNueva.fecha;
         }
+        if (tareas.soloArea !== "")
+            datos.area = tareas.soloArea;
         tareas.api.anadirTarea(datos, (ok) => {
             if (ok) {
                 campoNueva.texto = "";
@@ -327,8 +315,16 @@ FocusScope {
     }
 
     // La vista y los grupos plegados se recuerdan entre reinicios.
-    onVistaChanged: recuerdo.guardar(tareas.vista, tareas.plegados)
-    onPlegadosChanged: recuerdo.guardar(tareas.vista, tareas.plegados)
+    onVistaChanged: {
+        if (tareas.soloArea === "")
+            recuerdo.guardar(tareas.vista, tareas.plegados);
+
+    }
+    onPlegadosChanged: {
+        if (tareas.soloArea === "")
+            recuerdo.guardar(tareas.vista, tareas.plegados);
+
+    }
     onEditoresChanged: {
         if (tareas.api)
             tareas.api.editandoTarea = tareas.editores > 0;
@@ -349,9 +345,6 @@ FocusScope {
     // Si la tarea que se edita ya no está (otro la quitó), el editor se cierra.
     onDatosChanged: {
         tareas.ajustarNueva();
-        if (tareas.calDia === "" && tareas.hoy !== "")
-            tareas.irAHoy();
-
         if (tareas.edicion.linea >= 0 && !tareas.todas.some((t) => {
             return t.linea === tareas.edicion.linea;
         }))
@@ -446,19 +439,17 @@ FocusScope {
             }
         }
     }
-    Component.onCompleted: {
-        tareas.ajustarNueva();
-        // Creada ya con los datos (las secciones se crean al mirarlas): onDatosChanged
-        // no salta, y el calendario se quedaría en enero.
-        if (tareas.calDia === "" && tareas.hoy !== "")
-            tareas.irAHoy();
-    }
+    Component.onCompleted: tareas.ajustarNueva()
 
     TareasEstado {
         id: recuerdo
 
         objectName: "recuerdoTareas"
         onLeido: (vista, plegados) => {
+            // Con soloArea no se toca lo que recuerda el bloque de Tareas.
+            if (tareas.soloArea !== "")
+                return ;
+
             tareas.vista = vista;
             tareas.plegados = plegados;
         }
@@ -481,29 +472,6 @@ FocusScope {
     RowLayout {
         anchors.fill: parent
         spacing: 14
-
-        // En «amplio», el calendario a la izquierda.
-        Flickable {
-            id: lateral
-
-            objectName: "calendarioLateral"
-            Layout.preferredWidth: Math.max(260, Math.min(340, tareas.width * 0.42))
-            Layout.fillHeight: true
-            visible: tareas.amplio && tareas.datos !== null && tareas.datos.habilitado
-            clip: true
-            contentWidth: width
-            contentHeight: calLateral.implicitHeight
-            boundsBehavior: Flickable.StopAtBounds
-
-            AgendaCalendario {
-                id: calLateral
-
-                width: lateral.width
-                ctrl: tareas
-                modo: tareas.modo
-            }
-
-        }
 
         ColumnLayout {
             Layout.fillWidth: true
@@ -663,6 +631,7 @@ FocusScope {
                             required property var modelData
 
                             objectName: "vista-" + modelData[0]
+                            visible: tareas.soloArea === ""
                             texto: modelData[1]
                             activo: tareas.vista === modelData[0]
                             onActivado: {
@@ -723,18 +692,6 @@ FocusScope {
                     }
 
                     Chip {
-                        objectName: "verCalendario"
-                        visible: !tareas.amplio
-                        glifo: "\uf073"
-                        implicitWidth: 30
-                        activo: tareas.calendarioAbierto
-                        onActivado: {
-                            tareas.calendarioAbierto = !tareas.calendarioAbierto;
-                            tareas.enfocar();
-                        }
-                    }
-
-                    Chip {
                         objectName: "botonAyuda"
                         texto: "?"
                         implicitWidth: 30
@@ -742,30 +699,6 @@ FocusScope {
                             tareas.ayuda = !tareas.ayuda;
                             tareas.enfocar();
                         }
-                    }
-
-                }
-
-            }
-
-            // El calendario, encima de la lista, en compacto y medio.
-            Item {
-                Layout.fillWidth: true
-                implicitHeight: calPleg.height
-                visible: calPleg.abierto || calPleg.moviendo
-
-                Plegable {
-                    id: calPleg
-
-                    width: parent.width
-                    abierto: !tareas.amplio && tareas.calendarioAbierto && tareas.datos !== null && tareas.datos.habilitado
-
-                    AgendaCalendario {
-                        id: calArriba
-
-                        width: parent.width
-                        ctrl: tareas
-                        modo: tareas.modo
                     }
 
                 }
@@ -794,12 +727,13 @@ FocusScope {
                     opacity: tareas.lineaConexion === "" ? 1 : 0.5
 
                     Etiqueta {
+                        visible: tareas.soloArea === ""
                         text: "AHORA"
                     }
 
                     Text {
                         objectName: "ahoraVacio"
-                        visible: tareas.listaAhora.length === 0
+                        visible: tareas.soloArea === "" && tareas.listaAhora.length === 0
                         text: tareas.todas.some((t) => {
                             return !t.hecha;
                         }) ? "Nada urgente ahora mismo." : "Sin tareas abiertas."
@@ -1091,12 +1025,11 @@ FocusScope {
     }
 
     // La tira de destinos rápidos: baja desde arriba mientras se arrastra, con
-    // los siete próximos días, «+1 sem» y «Sin fecha». Con el calendario a la
-    // vista no hace falta.
+    // los siete próximos días, «+1 sem» y «Sin fecha».
     Rectangle {
         id: tira
 
-        readonly property bool saca: tareas.arrastrada !== null && !tareas.calendarioVisible
+        readonly property bool saca: tareas.arrastrada !== null
 
         objectName: "tiraDias"
         x: 0
@@ -1235,7 +1168,7 @@ FocusScope {
         x: 10
         y: 10
         width: parent.width - 20
-        api: tareas.api
+        api: tareas.soloArea === "" ? tareas.api : null
     }
 
     TareasAyuda {
