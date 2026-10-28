@@ -65,7 +65,8 @@ cat >"$tmp/bin/secret-tool" <<'FIN'
 # secret-tool de mentira: los atributos por la salida de errores, como el de
 # verdad, y la contraseña de la prueba al pedirla.
 case "$1" in
-search) echo "attribute.usuario = prueba" >&2 ;;
+# Con --all salen todas, y «movil» primero: la barra tiene que quedarse con la otra.
+search) [ "$2" = "--all" ] && echo "attribute.usuario = movil" >&2; echo "attribute.usuario = prueba" >&2 ;;
 lookup) cat "$PRUEBA_DIR/clave" ;;
 *) exit 1 ;;
 esac
