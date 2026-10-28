@@ -889,6 +889,10 @@ Item {
                         required property var modelData
 
                         readonly property string tipo: Formato.tipo(fila.modelData, root.hoy)
+                        // El punto enseña la prioridad que se le ha puesto, no la
+                        // «efectiva» (que el panel sube según la fecha): si no,
+                        // elegir otra en el menú no se vería en lo cercano.
+                        readonly property string tipoPunto: fila.tipo === "vencida" || fila.tipo === "hecha" ? fila.tipo : (fila.modelData.prioridadPropia || fila.tipo)
 
                         objectName: "filaAgenda"
                         Layout.fillWidth: true
@@ -953,7 +957,7 @@ Item {
                                 width: 6
                                 height: 6
                                 radius: 3
-                                color: root.colorTipo(fila.tipo)
+                                color: root.colorTipo(fila.tipoPunto)
                                 scale: puntoHover.hovered || (root.menuDe !== null && root.menuDe.id === fila.modelData.id) ? 1.5 : 1
 
                                 Behavior on scale {
