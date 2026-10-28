@@ -17,9 +17,82 @@ Item {
     required property var shell
 
     // --- Medidas ------------------------------------------------------------
-    // 460 px caben en el portátil (1440 lógicos a escala 2) y dejan ver lo que
-    // hay detrás. Fijo, para que el arrastre sea predecible.
-    readonly property int ancho: 460
+    // El ancho se puede cambiar (SUPER+' / SUPER+¡, IPC, o tirando del canto
+    // izquierdo) entre el 15 % y el 100 % de la pantalla. 460 px, el de siempre,
+    // caben en el portátil (1440 lógicos a escala 2) y es el de la primera vez.
+    //
+    // «anchoMeta» es lo que se pide; «anchoAnim» lo persigue con un muelle (rebota
+    // pasándose un poco en los dos sentidos); «ancho» es lo que se ve, en px.
+    // El ancho del monitor; Borde lo pone. (Sin él vale lo que mida el Item, para la
+    // prueba sin pantalla.)
+    property real anchoPantalla: cajon.width
+    readonly property int anchoDefecto: 460
+    property real anchoMeta: cajon.anchoDefecto
+    property real anchoAnim: cajon.anchoDefecto
+    readonly property int ancho: Math.round(cajon.anchoAnim)
+    // El mínimo es el 15 % de la pantalla, con un suelo de 320 px (por debajo el
+    // contenido no cabe). El máximo deja el margen derecho: «hasta el final».
+    readonly property int anchoMin: Math.max(320, Math.round(cajon.anchoPantalla * 0.15))
+    readonly property int anchoMax: Math.max(cajon.anchoMin, cajon.anchoPantalla - 2 * cajon.margen)
+    // Para las vistas: compacto (<600), medio (600-1000) o amplio (>=1000). Va por
+    // la meta y no por lo que se ve, para que no cambie de disposición a cada
+    // fotograma del muelle.
+    readonly property string modo: cajon.anchoMeta < 600 ? "compacto" : (cajon.anchoMeta < 1000 ? "medio" : "amplio")
+    property bool redimensionando: false
+
+    function limitar(n) {
+        return Math.max(cajon.anchoMin, Math.min(cajon.anchoMax, Math.round(n)));
+    }
+
+    // Cambia el ancho en píxeles (con el muelle). Lo llaman el IPC y las teclas.
+    function cambiarAncho(delta) {
+        cajon.anchoMeta = cajon.limitar(cajon.anchoMeta + delta);
+        cajon.guardarAncho();
+    }
+
+    function fijarAncho(n) {
+        cajon.anchoMeta = cajon.limitar(n);
+        cajon.guardarAncho();
+    }
+
+    function guardarAncho() {
+        if (cajon.estadoAncho)
+            cajon.estadoAncho.guardar(cajon.anchoMeta);
+    }
+
+    property var estadoAncho: estadoAnchoObj
+
+    CajonEstado {
+        id: estadoAnchoObj
+
+        onLeido: n => {
+            if (n > 0)
+                cajon.anchoMeta = cajon.limitar(n);
+        }
+    }
+
+    // Si la pantalla cambia (otro monitor), el ancho guardado se reajusta.
+    onAnchoMinChanged: cajon.anchoMeta = cajon.limitar(cajon.anchoMeta)
+    onAnchoMaxChanged: cajon.anchoMeta = cajon.limitar(cajon.anchoMeta)
+
+    onAnchoMetaChanged: {
+        if (cajon.redimensionando)
+            cajon.anchoAnim = cajon.anchoMeta;
+        else
+            muelle.restart();
+    }
+
+    // El muelle: elástico en ambos sentidos, como el resto del escritorio.
+    SpringAnimation {
+        id: muelle
+
+        target: cajon
+        property: "anchoAnim"
+        to: cajon.anchoMeta
+        spring: 3.2
+        damping: 0.22
+        epsilon: 0.4
+    }
     // Cuelga como los paneles de la barra: por debajo de ella y a un dedo de
     // los bordes.
     readonly property int margen: Theme.dropSide
@@ -43,12 +116,15 @@ Item {
     // Lo que viaja el cajón de escondido a abierto: hasta que el asa queda justo
     // fuera de la pantalla.
     readonly property int recorrido: cajon.margen + cajon.ancho + cajon.asaHueco + cajon.asaAncho
-    // La superficie: el cajón abierto con su asa, más el aire del rebote
-    // (Theme.slideRoom). Al pasarse de largo, el cajón entra unos píxeles más.
-    readonly property int anchoSuperficie: Theme.slideRoom + cajon.recorrido
+    // Lo mismo con el ancho pedido, para la máscara de entrada (no sigue al muelle).
+    readonly property int recorridoMeta: cajon.margen + Math.max(cajon.anchoMeta, cajon.ancho) + cajon.asaHueco + cajon.asaAncho
+    // La superficie mide lo que la pantalla: el cajón puede llegar a cualquier
+    // ancho sin que el compositor la redimensione a cada fotograma. Lo que deja
+    // pasar los clics de lo que no es cajón es la máscara.
+    readonly property int anchoSuperficie: cajon.anchoMax + 2 * cajon.margen
     // Dónde empieza, abierto, lo que tiene que recibir el ratón: el asa con su
     // zona de agarre.
-    readonly property int xZonaAbierta: Math.max(0, cajon.width - cajon.recorrido - 10)
+    readonly property int xZonaAbierta: Math.max(0, cajon.width - cajon.recorridoMeta - 10)
 
     // --- Estado -------------------------------------------------------------
     property real progreso: 0
@@ -347,8 +423,49 @@ Item {
             anchors.fill: parent
             anchors.margins: 1
             shell: cajon.shell
+            modo: cajon.modo
             desplegado: cajon.shell.abierto && !cajon.arrastrando && cajon.progreso > 0.98
         }
+    }
+
+    // --- Cambiar el ancho ---------------------------------------------------
+    // Un canto en el borde izquierdo del cajón: tirando de él se ensancha o se
+    // estrecha, siguiendo al ratón sin muelle; al soltar, si se ha pasado del
+    // límite, vuelve con rebote. Doble clic: el ancho de siempre.
+    // (SUPER+botón derecho no llega aquí: Hyprland se lo queda para las ventanas.)
+    MouseArea {
+        id: agarre
+
+        property real xIni: 0
+        property real anchoIni: 0
+
+        x: cajon.xCajon - 3
+        y: cajon.arriba + Theme.radius
+        width: 10
+        height: Math.max(0, cajon.height - cajon.arriba - cajon.abajo - 2 * Theme.radius)
+        visible: cajon.progreso > 0.98
+        hoverEnabled: true
+        preventStealing: true
+        cursorShape: Qt.SizeHorCursor
+
+        onPressed: m => {
+            muelle.stop();
+            cajon.redimensionando = true;
+            agarre.xIni = agarre.mapToItem(cajon, m.x, 0).x;
+            agarre.anchoIni = cajon.anchoMeta;
+        }
+        onPositionChanged: m => {
+            if (!agarre.pressed)
+                return;
+            const x = agarre.mapToItem(cajon, m.x, 0).x;
+            cajon.anchoMeta = cajon.limitar(agarre.anchoIni + (agarre.xIni - x));
+        }
+        onReleased: {
+            cajon.redimensionando = false;
+            cajon.guardarAncho();
+        }
+        onCanceled: cajon.redimensionando = false
+        onDoubleClicked: cajon.fijarAncho(cajon.anchoDefecto)
     }
 
     // --- El asa -------------------------------------------------------------

@@ -65,3 +65,82 @@ function comparar(gastos) {
         return "igual que " + mes;
     return "un " + Math.abs(d) + " % " + (d > 0 ? "más" : "menos") + " que " + mes;
 }
+
+// --- Lo nuevo del rediseño ---------------------------------------------------
+
+// La cuenta de Trade Republic entre las del NUC (por banco o nombre; si no,
+// la primera de inversión). null si no hay.
+function cuentaTR(cuentas) {
+    var l = cuentas || [];
+    for (var i = 0; i < l.length; i++)
+        if (/trade\s*republic/i.test(l[i].banco + " " + l[i].nombre))
+            return l[i];
+    for (var j = 0; j < l.length; j++)
+        if (l[j].tipo !== "corriente" && l[j].tipo !== "efectivo")
+            return l[j];
+    return null;
+}
+
+// Ingresos menos gastos del mes, en céntimos.
+function flujo(ingresos, gastos) {
+    return (Number(ingresos) || 0) - (Number(gastos) || 0);
+}
+
+// Los últimos n meses con datos de ahorro.meses, del más viejo al más nuevo, con
+// la fracción de cada barra respecto al mayor valor (0–1). Sin cantidades.
+function serieMeses(meses, n) {
+    var l = (meses || []).filter(function (m) {
+        return m.conDatos;
+    }).slice(-n);
+    var max = 0;
+    l.forEach(function (m) {
+        max = Math.max(max, m.ingresos, m.gastos);
+    });
+    return l.map(function (m) {
+        return {
+            mes: m.mes,
+            etiqueta: MESES[+m.mes.slice(5, 7) - 1] ? MESES[+m.mes.slice(5, 7) - 1].slice(0, 3) : m.mes,
+            ingresos: max > 0 ? m.ingresos / max : 0,
+            gastos: max > 0 ? m.gastos / max : 0,
+            parcial: m.parcial
+        };
+    });
+}
+
+// Gastos por categoría con la fracción de cada una respecto a la mayor.
+function barrasCategorias(porCategoria, n) {
+    var l = (porCategoria || []).slice(0, n);
+    var max = l.length ? Math.max.apply(null, l.map(function (c) {
+        return c.total;
+    })) : 0;
+    return l.map(function (c) {
+        return {
+            id: c.id,
+            nombre: c.nombre,
+            total: c.total,
+            n: c.n,
+            fraccion: max > 0 ? Math.max(0.03, c.total / max) : 0
+        };
+    });
+}
+
+// "2026-09" → "sep".
+function mesCorto(mes) {
+    var m = /^\d{4}-(\d\d)/.exec(mes || "");
+    return m && MESES[+m[1] - 1] ? MESES[+m[1] - 1].slice(0, 3) : "";
+}
+
+// Hace cuánto fue la última comprobación buena de TR, en palabras.
+function haceCuanto(ms) {
+    if (!isFinite(ms) || ms < 0)
+        return "";
+    var min = Math.floor(ms / 60000);
+    if (min < 1)
+        return "ahora mismo";
+    if (min < 60)
+        return "hace " + min + " min";
+    var h = Math.floor(min / 60);
+    if (h < 48)
+        return "hace " + h + " h";
+    return "hace " + Math.floor(h / 24) + " días";
+}
