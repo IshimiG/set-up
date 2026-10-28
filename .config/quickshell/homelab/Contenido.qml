@@ -453,6 +453,7 @@ Item {
                 Tareas {
                     objectName: "seccionTareas"
                     anchors.fill: parent
+                    modo: contenido.modo
                     visible: contenido.seccion === "tareas"
                     shell: contenido.shell
                     lineaConexion: contenido.conectado ? "" : contenido.textoConexion()
@@ -511,6 +512,7 @@ Item {
                 Finanzas {
                     objectName: "seccionFinanzas"
                     anchors.fill: parent
+                    modo: contenido.modo
                     visible: contenido.seccion === "finanzas"
                     shell: contenido.shell
                     desplegado: contenido.desplegado
@@ -1116,5 +1118,14 @@ Item {
                 }
             }
         }
+    }
+
+    // La petición del móvil también se ve fuera de Tareas (que lleva la suya).
+    AvisoMovilTarjeta {
+        visible: contenido.seccion !== "tareas"
+        x: 10
+        y: 10
+        width: parent.width - 20
+        api: contenido.api
     }
 }

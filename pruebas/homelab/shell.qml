@@ -89,6 +89,7 @@ FloatingWindow {
         Cajon {
             id: cajon
             anchors.fill: parent
+            anchoPantalla: 1440
             shell: falso
         }
     }
