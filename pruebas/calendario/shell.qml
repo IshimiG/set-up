@@ -240,6 +240,44 @@ FloatingWindow {
         property date now: new Date(2026, 9, 21, 12, 0)
         property string mode: "calendar"
         property var agenda: null
+        property var tareas: null
+    }
+
+    // El cliente del panel (bar/Tareas.qml), falso: guarda las llamadas y
+    // aplica el movimiento a su propia agenda, o falla.
+    QtObject {
+        id: tareasFalso
+        property var evs: []
+        property var datos: null
+        property bool puedeMover: true
+        property string error: ""
+        property bool falla: false
+        property int refrescos: 0
+        property var llamadas: []
+        function publicar() {
+            datos = Formato.leer(JSON.stringify({
+                formato: 1,
+                conectado: true,
+                actualizado: "",
+                eventos: evs
+            }));
+        }
+        function refrescar(forzar) {
+            refrescos++;
+        }
+        function mover(id, dia, alAcabar) {
+            llamadas = llamadas.concat([[id, dia]]);
+            if (falla) {
+                error = "El NUC no contesta";
+                alAcabar(false);
+                return;
+            }
+            evs = evs.map(e => e.id === id ? Object.assign({}, e, {
+                    dia: dia
+                }) : e);
+            publicar();
+            alAcabar(true);
+        }
     }
 
     Item {
@@ -643,6 +681,118 @@ FloatingWindow {
         [300, () => {
                 ventana.comprobar(ventana.uno("sinConexion") !== null, "si el cajón no tenía conexión, la lista lo dice");
                 ventana.captura("5-sin-conexion");
+            }],
+        // --- Mes y año, y arrastrar tareas ---
+        [200, () => {
+                shellFalso.mode = "";
+            }],
+        [200, () => {
+                shellFalso.mode = "calendar";
+                ventana.comprobar(tareasFalso.refrescos >= 0, "(abierto otra vez)");
+                tareasFalso.evs = [ventana.ev1("2026-10-23", "Media", {
+                        id: "b",
+                        prioridad: "media"
+                    }), ventana.ev1("2026-10-23", "Alta", {
+                        id: "c",
+                        prioridad: "alta"
+                    }), ventana.ev1("2026-10-19", "Sin id", {})];
+                tareasFalso.publicar();
+                shellFalso.tareas = tareasFalso;
+                shellFalso.agenda = Qt.binding(() => tareasFalso.datos);
+            }],
+        [300, () => {
+                ventana.clicEn(ventana.uno("chipMes"));
+            }],
+        [500, () => {
+                ventana.comprobar(cal.selector === "mes" && ventana.todos("opcionSelector").length === 12, "el mes se elige en un desplegable de doce", cal.selector);
+                ventana.captura("7-selector-mes");
+                ventana.clicEn(ventana.todos("opcionSelector")[10]);
+            }],
+        [300, () => {
+                ventana.comprobar(cal.monthOffset === 1 && cal.selector === "" && cal.shown.getMonth() === 10, "elegir noviembre cambia de mes y cierra el desplegable", String(cal.monthOffset));
+                ventana.clicEn(ventana.uno("chipAnio"));
+            }],
+        [500, () => {
+                const o = ventana.todos("opcionSelector").filter(x => x.valor === 2028)[0];
+                ventana.comprobar(cal.selector === "anio" && o !== undefined, "el año se elige en otro, con doce años a la vista");
+                ventana.captura("8-selector-anio");
+                ventana.clicEn(o);
+            }],
+        [300, () => {
+                ventana.comprobar(cal.shown.getFullYear() === 2028 && cal.shown.getMonth() === 10 && cal.monthOffset === 25, "elegir 2028 cambia el año y conserva el mes", String(cal.monthOffset));
+                ventana.clicEn(ventana.uno("mesAnterior"));
+            }],
+        [300, () => {
+                ventana.comprobar(cal.monthOffset === 24 && cal.shown.getMonth() === 9, "la flecha izquierda retrocede un mes");
+                ventana.clicEn(ventana.uno("mesSiguiente"));
+            }],
+        [300, () => {
+                ventana.comprobar(cal.monthOffset === 25, "la flecha derecha avanza un mes");
+                ventana.clicEn(ventana.uno("botonHoy"));
+            }],
+        [300, () => {
+                ventana.clicEn(ventana.uno("chipMes"));
+            }],
+        [400, () => {
+                ventana.comprobar(cal.selector === "mes", "(desplegable abierto)");
+                ventana.clicDia("2026-10-23");
+            }],
+        [400, () => {
+                ventana.comprobar(cal.selector === "" && cal.elegido === "", "pulsar fuera del desplegable lo cierra sin elegir un día");
+                ventana.clicDia("2026-10-23");
+            }],
+        [300, () => {
+                ventana.comprobar(cal.elegido === "2026-10-23" && ventana.filas().length === 2, "(el 23, con sus tareas)", ventana.filas().length + " filas");
+            }],
+        [100, () => {
+                // Arrastrar la fila «Media» (id b) al 27.
+                const f = ventana.filas().filter(x => ventana.hijos(x, "tituloFila")[0].text === "Media")[0];
+                const c = ventana.uno("dia-2026-10-27");
+                const a = f.mapToItem(envoltura, 60, f.height / 2);
+                const z = c.mapToItem(envoltura, c.width / 2, c.height / 2);
+                ev.mousePress(envoltura, a.x, a.y, Qt.LeftButton, Qt.NoModifier, 50);
+                for (let k = 1; k <= 12; k++)
+                    ev.mouseMove(envoltura, a.x + (z.x - a.x) * k / 12, a.y + (z.y - a.y) * k / 12, 20, Qt.LeftButton, Qt.NoModifier);
+                ventana.comprobar(cal.arrastrada !== null && cal.arrastrada.id === "b", "arrastrar una fila lleva la tarea en la mano");
+                ventana.captura("9-arrastrando");
+                ev.mouseRelease(envoltura, z.x, z.y, Qt.LeftButton, Qt.NoModifier, 50);
+            }],
+        [500, () => {
+                ventana.comprobar(ventana.igual(tareasFalso.llamadas, [["b", "2026-10-27"]]), "soltar sobre un día pide moverla a esa fecha", JSON.stringify(tareasFalso.llamadas));
+                ventana.comprobar(ventana.puntosDe("2026-10-27").length === 1 && ventana.puntosDe("2026-10-23").length === 1, "  y la vista cambia: un punto menos el 23 y uno más el 27");
+                ventana.comprobar(ventana.uno("avisoMover") !== null && ventana.uno("avisoMover").text === "Movida al 27 oct", "  y avisa", ventana.textoDe("avisoMover"));
+                ventana.captura("10-movida");
+            }],
+        [100, () => {
+                tareasFalso.falla = true;
+                const f = ventana.filas()[0];
+                const c = ventana.uno("dia-2026-10-28");
+                const a = f.mapToItem(envoltura, 60, f.height / 2);
+                const z = c.mapToItem(envoltura, c.width / 2, c.height / 2);
+                ev.mousePress(envoltura, a.x, a.y, Qt.LeftButton, Qt.NoModifier, 50);
+                for (let k = 1; k <= 12; k++)
+                    ev.mouseMove(envoltura, a.x + (z.x - a.x) * k / 12, a.y + (z.y - a.y) * k / 12, 20, Qt.LeftButton, Qt.NoModifier);
+                ev.mouseRelease(envoltura, z.x, z.y, Qt.LeftButton, Qt.NoModifier, 50);
+            }],
+        [500, () => {
+                ventana.comprobar(tareasFalso.llamadas.length === 2 && ventana.textoDe("avisoMover") === "El NUC no contesta", "si el panel falla, lo dice", ventana.textoDe("avisoMover"));
+                ventana.comprobar(ventana.puntosDe("2026-10-28").length === 0, "  y la tarea no cambia de día");
+        }],
+        [100, () => {
+                // Soltar fuera de la rejilla no hace nada; sin id, no se arrastra.
+                tareasFalso.falla = false;
+                const f = ventana.filas()[0];
+                const a = f.mapToItem(envoltura, 60, f.height / 2);
+                ev.mousePress(envoltura, a.x, a.y, Qt.LeftButton, Qt.NoModifier, 50);
+                for (let k = 1; k <= 8; k++)
+                    ev.mouseMove(envoltura, a.x + 100, a.y + 10 * k, 20, Qt.LeftButton, Qt.NoModifier);
+                ev.mouseRelease(envoltura, a.x + 100, a.y + 80, Qt.LeftButton, Qt.NoModifier, 50);
+            }],
+        [400, () => {
+                ventana.comprobar(tareasFalso.llamadas.length === 2 && cal.arrastrada === null, "soltar fuera de un día no pide nada");
+                shellFalso.tareas = null;
+                shellFalso.agenda = null;
+                cal.volverAHoy();
             }],
         [200, () => {
                 // Todo junto: lo que escribe el cajón llega al calendario.
