@@ -80,7 +80,8 @@ choca.
   calendario: el formato (`shared/AgendaFormato.js`), el fichero que escribe el
   cajón y lee la barra (en un `$XDG_RUNTIME_DIR` de prueba) y el
   `CalendarPanel.qml` con sus puntos, la lista del día y los clics
-  (`--guardar` deja las capturas).
+  (`--guardar` deja las capturas). Levanta un panel falso
+  (`panel-falso.py`), así que necesita `python3`.
 
 ## Instalación
 
