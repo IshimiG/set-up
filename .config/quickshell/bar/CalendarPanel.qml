@@ -594,6 +594,8 @@ Item {
             model: chip.textosPosibles
 
             Text {
+                required property string modelData
+
                 visible: false
                 text: modelData + "  󰅀"
                 font: etiquetaChip.font
@@ -728,7 +730,9 @@ Item {
 
                 objectName: "chipMes"
                 texto: root.mayus(root.loc.monthName(root.shown.getMonth(), Locale.LongFormat)) + " " + root.shown.getFullYear()
-                textosPosibles: Formato.MESES.map(m => root.mayus(m) + " " + root.shown.getFullYear())
+                textosPosibles: Array.from({
+                    length: 12
+                }, (_, m) => root.mayus(root.loc.monthName(m, Locale.LongFormat)) + " " + root.shown.getFullYear())
                 abierto: root.selectorAbierto
                 onPulsado: root.abrirSelector()
             }

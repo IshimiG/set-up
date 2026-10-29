@@ -19,6 +19,8 @@ import "cajon" as Cajon
 // mira después que no haya ninguno en el log.
 FloatingWindow {
     id: ventana
+    property real anchoChip: 0
+    property real xFlecha: 0
 
     implicitWidth: 420
     implicitHeight: 640
@@ -1040,6 +1042,18 @@ FloatingWindow {
             }],
         [300, () => {
                 ventana.comprobar(cal.monthOffset === 25, "la flecha derecha avanza un mes");
+                ventana.anchoChip = ventana.uno("chipMes").width;
+                ventana.xFlecha = ventana.uno("mesSiguiente").x;
+                cal.monthOffset = 19;
+            }],
+        [300, () => {
+                const c = ventana.uno("chipMes");
+                ventana.comprobar(c.texto === "Mayo 2028" && c.width === ventana.anchoChip && ventana.uno("mesSiguiente").x === ventana.xFlecha, "el chip mide lo mismo con un mes corto (Mayo) que con uno largo (Noviembre), y la flecha no se mueve", c.width + " vs " + ventana.anchoChip);
+                cal.monthOffset = 23;
+            }],
+        [300, () => {
+                const c = ventana.uno("chipMes");
+                ventana.comprobar(c.texto === "Septiembre 2028" && c.width === ventana.anchoChip && ventana.uno("mesSiguiente").x === ventana.xFlecha, "  ni con el más largo (Septiembre)", c.width + " vs " + ventana.anchoChip);
                 ventana.clicEn(ventana.uno("botonHoy"));
             }],
         [300, () => {
