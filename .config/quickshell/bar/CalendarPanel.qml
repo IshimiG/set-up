@@ -1681,8 +1681,12 @@ Item {
                         cursorShape: Qt.PointingHandCursor
                     }
 
-                    TapHandler {
-                        onTapped: root.elegirPrioridad(opcionPrio.modelData)
+                    // MouseArea y no TapHandler: el toque no se cuela al punto o
+                    // la fila que queda debajo del menú (como en la lista de
+                    // categorías).
+                    MouseArea {
+                        anchors.fill: parent
+                        onClicked: root.elegirPrioridad(opcionPrio.modelData)
                     }
                 }
             }
