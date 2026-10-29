@@ -13,11 +13,20 @@ import "shared/AgendaFormato.js" as Formato
 //   [ Título                                            ]
 //   Todo el día  (●  )               De [09:00] a [10:00]
 //   Prioridad  ● ● ◉ ● ●  Media                         󱚧
+//   Categoría  (● General ▾)
 //   [Eliminar] (por qué no se puede guardar)   [Cancelar] [Guardar]
 //
 // Las horas solo se ven, y solo cuentan, sin «Todo el día». La prioridad
-// elegida, pulsada otra vez, se quita. «Eliminar» solo está al editar una
-// tarea que se puede borrar (no las de Aules); la primera pulsación pide
+// elegida, pulsada otra vez, se quita. La categoría es la sección de la tarea
+// en el panel: un solo control de una línea con la actual (su color y su
+// nombre) que abre la lista de las que se ofrecen (la pone CalendarPanel,
+// que también la cierra al pulsar fuera; con ella abierta, Escape solo la
+// cierra a ella). Al crear sale la de siempre; al editar, la de la tarea, y
+// si es una que no se ofrece (En pausa, o una borrada con la hoja abierta) se
+// enseña igual, y no se manda nada de ella hasta que se elija otra. Sin
+// categorías que ofrecer (las entregas de Aules son de solo lectura), o con
+// una sola que ya es la de la tarea, la fila no sale. «Eliminar» solo está al
+// editar una tarea que se puede borrar (no las de Aules); la primera pulsación pide
 // confirmación («¿Eliminar?»), la segunda emite eliminar, y la confirmación
 // se retira sola a los 4 s o al tocar cualquier otra cosa.
 //
@@ -34,11 +43,18 @@ FocusScope {
     required property string dia
     // Con qué se abre: { texto, horaInicio y horaFin ("HH:MM", o "" las dos:
     // todo el día), prioridad (la
-    // del panel, de "highest" a "lowest", o ""), claudeOff }.
+    // del panel, de "highest" a "lowest", o ""), claudeOff, seccion (el id de
+    // la categoría) y, por si no está entre las que se ofrecen, seccionNombre
+    // y seccionColor (lo que se enseña de ella) }.
     required property var inicial
     // Las cinco prioridades, de la más alta a la más baja: { valor, nombre,
     // etiqueta } (las de CalendarPanel).
     required property var prioridades
+    // Las categorías que se ofrecen: { id, nombre, color ("#rrggbb" o "") },
+    // en el orden del panel (Tareas.categorias). Vacía: sin la fila.
+    property var categorias: []
+    // La lista de categorías está abierta (la de CalendarPanel).
+    property bool menuAbierto: false
     // Esperando al panel: no se toca nada.
     property bool ocupada: false
     // Lo que contestó el panel al no aceptarla, o "".
@@ -48,13 +64,17 @@ FocusScope {
     // Se puede borrar (y se enseña «Eliminar»): editando, y no una de Aules.
     property bool borrable: false
 
-    // valores: { texto, horaInicio, horaFin, prioridad, claudeOff }.
+    // valores: { texto, horaInicio, horaFin, prioridad, claudeOff, seccion }.
     signal guardar(var valores)
     // Confirmado «Eliminar».
     signal eliminar
     signal cancelar
     // Algo ha cambiado (para que se vaya el error del panel).
     signal tocada
+    // Pulsado el control de la categoría (`control` es él, para colocar la
+    // lista) y Escape con la lista abierta.
+    signal abrirCategorias(Item control)
+    signal cerrarMenu
 
     // Lo que se está editando. El texto y las horas están en sus campos.
     property bool todoElDia: true
@@ -62,6 +82,8 @@ FocusScope {
     property bool confirmando: false
     property string prioridad: ""
     property bool claudeOff: false
+    // El id de la categoría elegida.
+    property string seccion: ""
     // Se ha intentado guardar: desde entonces se dice también si falta el
     // título (antes no, que una hoja recién abierta no es un error).
     property bool intentado: false
@@ -83,6 +105,23 @@ FocusScope {
             etiqueta: "Sin prioridad"
         }).etiqueta
 
+    // La categoría que se enseña: la elegida si se ofrece; si no (En pausa,
+    // una sección borrada), la que traía la tarea, con su nombre y su color.
+    readonly property var categoriaActual: {
+        const c = hoja.categorias.find(x => x.id === hoja.seccion);
+        if (c)
+            return c;
+        const i = hoja.inicial || {};
+        const igual = String(i.seccion || "") === hoja.seccion;
+        return {
+            id: hoja.seccion,
+            nombre: igual && i.seccionNombre ? String(i.seccionNombre) : hoja.seccion,
+            color: igual && /^#[0-9a-fA-F]{6}$/.test(i.seccionColor || "") ? i.seccionColor : ""
+        };
+    }
+    // Con una sola categoría que ya es la actual no hay nada que elegir.
+    readonly property bool categoriasVisibles: hoja.categorias.length > 1 || (hoja.categorias.length === 1 && hoja.categorias[0].id !== hoja.seccion)
+
     readonly property var diasSemana: ["dom", "lun", "mar", "mié", "jue", "vie", "sáb"]
 
     implicitHeight: columna.implicitHeight
@@ -95,6 +134,7 @@ FocusScope {
         campoFin.text = i.horaFin || Formato.sumarMinutos(campoInicio.text, 60);
         hoja.prioridad = String(i.prioridad || "");
         hoja.claudeOff = i.claudeOff === true;
+        hoja.seccion = String(i.seccion || "");
     }
 
     function enfocar() {
@@ -111,7 +151,8 @@ FocusScope {
             horaInicio: hoja.horaInicio,
             horaFin: hoja.horaFin,
             prioridad: hoja.prioridad,
-            claudeOff: hoja.claudeOff
+            claudeOff: hoja.claudeOff,
+            seccion: hoja.seccion
         };
         // Lo que se manda, tal cual se ve («9» se queda en «09:00»).
         if (!hoja.todoElDia) {
@@ -137,6 +178,10 @@ FocusScope {
         hoja.tocada();
     }
     onClaudeOffChanged: {
+        hoja.confirmando = false;
+        hoja.tocada();
+    }
+    onSeccionChanged: {
         hoja.confirmando = false;
         hoja.tocada();
     }
@@ -171,7 +216,10 @@ FocusScope {
     }
     Keys.onEscapePressed: event => {
         event.accepted = true;
-        hoja.cancelar();
+        if (hoja.menuAbierto)
+            hoja.cerrarMenu();
+        else
+            hoja.cancelar();
     }
 
     // Sale con el rebote de lo que aparece en la isla.
@@ -325,6 +373,97 @@ FocusScope {
             enabled: !hoja.ocupada
             onTapped: punto.pulsado()
         }
+    }
+
+    // El control de la categoría: una línea con el punto del color de la
+    // sección, su nombre (con «…» si es largo) y una flecha. Pulsado abre la
+    // lista (la pone CalendarPanel, como el menú de prioridades).
+    component ControlCategoria: Rectangle {
+        id: control
+
+        property string nombre: ""
+        property color tinta: Theme.faint
+        // La lista está abierta.
+        property bool abierto: false
+        signal pulsado
+
+        implicitHeight: 22
+        radius: 11
+        color: Qt.rgba(1, 1, 1, control.abierto ? 0.16 : (controlHover.hovered ? 0.1 : 0.05))
+        border.width: 1
+        border.color: control.abierto ? Qt.rgba(1, 1, 1, 0.4) : Theme.rule
+
+        Behavior on color {
+            ColorAnimation {
+                duration: 140
+            }
+        }
+
+        RowLayout {
+            anchors.fill: parent
+            anchors.leftMargin: 8
+            anchors.rightMargin: 8
+            spacing: 6
+
+            Rectangle {
+                Layout.alignment: Qt.AlignVCenter
+                implicitWidth: 8
+                implicitHeight: 8
+                radius: 4
+                color: control.tinta
+            }
+
+            Text {
+                Layout.fillWidth: true
+                Layout.preferredWidth: 0
+                Layout.minimumWidth: 0
+                Layout.alignment: Qt.AlignVCenter
+                text: control.nombre
+                elide: Text.ElideRight
+                textFormat: Text.PlainText
+                color: control.abierto || controlHover.hovered ? Theme.strong : Theme.text
+                font.family: Theme.font
+                font.pixelSize: 10
+            }
+
+            Text {
+                Layout.alignment: Qt.AlignVCenter
+                text: control.abierto ? "󰅃" : "󰅀"
+                color: Theme.muted
+                font.family: Theme.font
+                font.pixelSize: 11
+            }
+        }
+
+        HoverHandler {
+            id: controlHover
+            enabled: !hoja.ocupada
+            cursorShape: Qt.PointingHandCursor
+        }
+
+        TapHandler {
+            enabled: !hoja.ocupada
+            onTapped: control.pulsado()
+        }
+    }
+
+    // El aviso de la hoja (lo que dijo el panel, lo que está mal…): se parte
+    // en líneas, y en palabras largas donde haga falta, para no montarse sobre
+    // los botones.
+    component Aviso: Text {
+        objectName: "avisoHoja"
+        Layout.preferredWidth: 0
+        Layout.minimumWidth: 0
+        text: hoja.aviso
+        wrapMode: Text.WrapAtWordBoundaryOrAnywhere
+        // Lo que dice el panel puede ser largo («La hora de inicio y la de
+        // fin van juntas: …»): entero.
+        maximumLineCount: 5
+        elide: Text.ElideRight
+        textFormat: Text.PlainText
+        color: hoja.error !== "" || hoja.motivoHoras !== "" || hoja.intentado && hoja.texto === "" ? Theme.prioMaxima : Theme.faint
+        font.family: Theme.font
+        font.pixelSize: 10
     }
 
     // Un botón de texto. El principal (Guardar) va en una lámina más clara.
@@ -620,16 +759,17 @@ FocusScope {
                 }
             }
 
+            // Con el nombre largo («Sin prioridad») y «Claude no» a la vez no
+            // cabe todo: este es el que cede y se corta con «…».
             Text {
                 objectName: "prioridadHoja"
+                Layout.fillWidth: true
+                Layout.minimumWidth: 0
                 text: hoja.nombrePrioridad
+                elide: Text.ElideRight
                 color: Theme.faint
                 font.family: Theme.font
                 font.pixelSize: 10
-            }
-
-            Item {
-                Layout.fillWidth: true
             }
 
             // 🚫🤖 «Claude no la hace», el mismo de la lista.
@@ -688,30 +828,55 @@ FocusScope {
             }
         }
 
-        // Por qué no se puede guardar, y los botones. Con sitio para dos
-        // líneas de aviso, para que la isla no cambie de alto mientras se
-        // teclea una hora (lo que dice el panel puede llevar alguna más).
+        // La categoría: la sección del panel, en un solo control que abre la
+        // lista. Una línea siempre, sean cuantas sean (la hoja no cambia de alto).
         RowLayout {
+            objectName: "categoriasHoja"
             Layout.fillWidth: true
-            Layout.topMargin: 2
-            Layout.minimumHeight: 28
-            spacing: 8
+            spacing: 6
+            visible: hoja.categoriasVisibles
 
             Text {
-                objectName: "avisoHoja"
+                text: "Categoría"
+                color: Theme.muted
+                font.family: Theme.font
+                font.pixelSize: 10
+            }
+
+            ControlCategoria {
+                id: controlCategoria
+
+                objectName: "categoriaControl"
                 Layout.fillWidth: true
                 Layout.preferredWidth: 0
                 Layout.minimumWidth: 0
-                text: hoja.aviso
-                wrapMode: Text.WordWrap
-                // Lo que dice el panel puede ser largo («La hora de inicio y
-                // la de fin van juntas: …»): entero.
-                maximumLineCount: 5
-                elide: Text.ElideRight
-                textFormat: Text.PlainText
-                color: hoja.error !== "" || hoja.motivoHoras !== "" || hoja.intentado && hoja.texto === "" ? Theme.prioMaxima : Theme.faint
-                font.family: Theme.font
-                font.pixelSize: 10
+                nombre: hoja.categoriaActual.nombre
+                tinta: hoja.categoriaActual.color !== "" ? hoja.categoriaActual.color : Theme.faint
+                abierto: hoja.menuAbierto
+                onPulsado: hoja.abrirCategorias(controlCategoria)
+            }
+        }
+
+        // Por qué no se puede guardar, y los botones. El aviso va a la
+        // izquierda de los botones y, si hay «Eliminar» (que no deja sitio),
+        // en su propia línea encima, con una reservada para que la isla no
+        // cambie de alto cuando sale (lo que dice el panel puede llevar más).
+        Aviso {
+            Layout.fillWidth: true
+            Layout.topMargin: 2
+            Layout.minimumHeight: 14
+            visible: hoja.borrable
+        }
+
+        RowLayout {
+            Layout.fillWidth: true
+            Layout.topMargin: hoja.borrable ? 0 : 2
+            Layout.minimumHeight: 28
+            spacing: 8
+
+            Aviso {
+                Layout.fillWidth: true
+                visible: !hoja.borrable
             }
 
             Boton {

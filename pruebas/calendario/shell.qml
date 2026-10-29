@@ -15,10 +15,17 @@ import "cajon" as Cajon
 // con el calendario encima. Cada comprobación imprime OK o FALLO; al final,
 // el recuento.
 //
+// El panel falso manda «aules» en cada tarea (como el panel nuevo): con él,
+// «Clase» se ofrece como categoría y una tarea propia movida a Clase se
+// borra y se recategoriza; una entrega de Aules no. Con su ajuste «viejo»
+// (sin el campo), Clase no se ofrece y toda tarea de Clase es de Aules.
+//
 // Ninguna comprobación imprime el texto de una tarea ni el JSON: prueba.sh
 // mira después que no haya ninguno en el log.
 FloatingWindow {
     id: ventana
+    property real anchoChip: 0
+    property real xFlecha: 0
 
     implicitWidth: 420
     implicitHeight: 640
@@ -503,6 +510,36 @@ FloatingWindow {
     function titulo() {
         return ventana.unoHoja("campoTitulo");
     }
+
+    // Lo que se sale por la derecha de la hoja: los hijos de su columna que
+    // acaban más allá de su ancho, y los de cada fila más allá de la fila.
+    function desbordes() {
+        const h = ventana.hoja();
+        const malos = [];
+        const col = h.children[0];
+        for (const f of col.children) {
+            if (!f.visible)
+                continue;
+            if (f.x + f.width > h.width + 0.5)
+                malos.push((f.objectName || "fila") + " " + Math.round(f.x + f.width) + ">" + Math.round(h.width));
+            for (const c of f.children) {
+                if (c.visible && c.width > 0 && c.x + c.width > f.width + 0.5)
+                    malos.push((c.objectName || "hijo") + " de " + (f.objectName || "fila") + " " + Math.round(c.x + c.width) + ">" + Math.round(f.width));
+            }
+        }
+        return malos;
+    }
+
+    // Pulsa el control de la categoría de la hoja (abre o cierra la lista).
+    function abrirCategorias() {
+        ventana.clicEn(ventana.unoHoja("categoriaControl"));
+    }
+
+    property bool prioIntacta: false
+    property real alturaHoja: 0
+    property real altoIsla: 0
+    property int gets0: 0
+    property string dia0: ""
 
     // Un campo de hora, se vea o no (sin «Todo el día» no se ve).
     function campoHora(nombre) {
@@ -1040,6 +1077,18 @@ FloatingWindow {
             }],
         [300, () => {
                 ventana.comprobar(cal.monthOffset === 25, "la flecha derecha avanza un mes");
+                ventana.anchoChip = ventana.uno("chipMes").width;
+                ventana.xFlecha = ventana.uno("mesSiguiente").x;
+                cal.monthOffset = 19;
+            }],
+        [300, () => {
+                const c = ventana.uno("chipMes");
+                ventana.comprobar(c.texto === "Mayo 2028" && c.width === ventana.anchoChip && ventana.uno("mesSiguiente").x === ventana.xFlecha, "el chip mide lo mismo con un mes corto (Mayo) que con uno largo (Noviembre), y la flecha no se mueve", c.width + " vs " + ventana.anchoChip);
+                cal.monthOffset = 23;
+            }],
+        [300, () => {
+                const c = ventana.uno("chipMes");
+                ventana.comprobar(c.texto === "Septiembre 2028" && c.width === ventana.anchoChip && ventana.uno("mesSiguiente").x === ventana.xFlecha, "  ni con el más largo (Septiembre)", c.width + " vs " + ventana.anchoChip);
                 ventana.clicEn(ventana.uno("botonHoy"));
             }],
         [300, () => {
@@ -1622,6 +1671,7 @@ FloatingWindow {
                 const h = ventana.hoja();
                 ventana.comprobar(cal.hojaModo === "editar" && h !== null && h.prioridad === "lowest" && !cal.guardando && ventana.textoDe("avisoHoja") === "Prioridad no válida.", "si el panel rechaza una edición, la hoja se queda con lo elegido y el porqué", ventana.textoDe("avisoHoja"));
                 ventana.comprobar(ventana.porTitulo("Clase de yoga").prioridadPropia === "alta", "  y la tarea vuelve a como estaba");
+                ventana.comprobar(ventana.igual(ventana.desbordes(), []) && ventana.textoDe("prioridadHoja") === "Mínima" && ventana.unoHoja("claudeOffHoja").activo, "  y con «Mínima» y «Claude no» a la vez, nada de la hoja se sale por la derecha", ventana.desbordes().join(" | "));
                 ventana.captura("18-hoja-editar-422");
             }],
         [200, () => ventana.clicDia("2026-10-29")],
@@ -1652,6 +1702,134 @@ FloatingWindow {
                 ev.keyClick(Qt.Key_Escape, Qt.NoModifier, -1);
                 ventana.comprobar(ventana.escapesFuera === 1, "  (sin hoja, Escape sí sigue hacia arriba: la comprobación de antes vale)", ventana.escapesFuera + " escapes fuera");
                 cal.elegido = "2026-10-30";
+                ventana.clicEn(ventana.tituloDe("Clase de yoga"));
+            }],
+        // La categoría, en la hoja de editar y en la de crear: un control de
+        // una línea que abre una lista. Cada captura va en un paso y la acción
+        // que la prepara, en el anterior (sale en el siguiente fotograma).
+        [300, () => {
+                const c = ventana.unoHoja("categoriaControl");
+                const h = ventana.hoja();
+                ventana.comprobar(cal.hojaModo === "editar" && c !== null && ventana.unoHoja("categoriasHoja") !== null && c.nombre === "General" && Qt.colorEqual(c.tinta, "#e67c73"), "la hoja enseña la categoría de la tarea en un solo control, con su color (General)", c ? c.nombre : "sin control");
+                ventana.comprobar(ventana.todos("categoriaOpcion").length === 0 && !cal.menuCatAbierto, "  y la lista no sale hasta pulsarlo");
+                ventana.comprobar(c.height <= 24 && c.x + c.width <= c.parent.width + 0.5, "  en una línea y dentro del ancho de la hoja", Math.round(c.height) + " de alto");
+                ventana.alturaHoja = h.height;
+                ventana.altoIsla = cal.implicitHeight;
+                ventana.posts0 = ventana.posts();
+                ventana.abrirCategorias();
+            }],
+        [450, () => {
+                const o = ventana.todos("categoriaOpcion");
+                const m = ventana.uno("menuCategorias");
+                ventana.comprobar(cal.menuCatAbierto && ventana.igual(o.map(x => ventana.hijos(x, "etiquetaCategoria")[0].text), ["Clase", "General", "Homelab", "Proyecto de fin de ciclo"]), "pulsar el control abre la lista con las secciones del panel (con «Clase», que el panel nuevo distingue de las de Aules, y sin «En pausa»)", o.length + " opciones");
+                ventana.comprobar(ventana.igual(o.map(x => ventana.hijos(x, "marcaCategoria").length), [0, 1, 0, 0]) && ventana.igual(o.map(x => x.actual), [false, true, false, false]), "  con la marca en la actual de la tarea (General)");
+                ventana.comprobar(m !== null && m.y >= 0 && m.y + m.height <= cal.height && m.x >= 0 && m.x + m.width <= cal.width && ventana.todos("scrollCategorias").length === 0, "  dentro del calendario y sin scroll (caben)", m ? Math.round(m.x) + "," + Math.round(m.y) + " " + Math.round(m.height) : "");
+                ventana.comprobar(ventana.hoja().height === ventana.alturaHoja, "  y la hoja no cambia de alto");
+                ventana.captura("20-hoja-categoria-lista");
+            }],
+        [200, () => {
+                ventana.escapesFuera = 0;
+                ev.keyClick(Qt.Key_Escape, Qt.NoModifier, -1);
+            }],
+        [450, () => {
+                ventana.comprobar(!cal.menuCatAbierto && cal.hojaModo === "editar" && ventana.hoja() !== null && ventana.escapesFuera === 0 && ventana.todos("categoriaOpcion").length === 0, "Escape con la lista abierta cierra solo la lista: la hoja sigue y Escape no sube a la isla", ventana.escapesFuera + " escapes fuera");
+                ventana.abrirCategorias();
+            }],
+        [450, () => {
+                ventana.comprobar(cal.menuCatAbierto, "(la lista, abierta otra vez)");
+                ventana.dia0 = cal.elegido;
+                ventana.clicDia("2026-10-27");
+            }],
+        [450, () => {
+                ventana.comprobar(!cal.menuCatAbierto && cal.hojaModo === "editar" && ventana.hoja().seccion === "general" && cal.elegido === ventana.dia0, "pulsar fuera de la lista (en un día) la cierra y no hace nada más: ni cambia de día ni cierra la hoja", cal.menuCatAbierto + " " + cal.hojaModo + " " + cal.elegido);
+                ventana.abrirCategorias();
+            }],
+        [450, () => ventana.clicEn(ventana.todos("categoriaOpcion")[2])],
+        [450, () => {
+                const c = ventana.unoHoja("categoriaControl");
+                ventana.comprobar(!cal.menuCatAbierto && ventana.hoja().seccion === "homelab" && c.nombre === "Homelab" && Qt.colorEqual(c.tinta, "#33b679"), "elegir otra la pone en el control (nombre y color) y cierra la lista", ventana.hoja().seccion);
+                ventana.comprobar(ventana.hoja().height === ventana.alturaHoja && cal.implicitHeight === ventana.altoIsla, "  sin cambiar el alto de la hoja ni el de la isla");
+                ventana.abrirCategorias();
+            }],
+        [450, () => {
+                const o = ventana.todos("categoriaOpcion");
+                ventana.comprobar(ventana.igual(o.map(x => x.actual), [false, false, true, false]) && ventana.igual(o.map(x => ventana.hijos(x, "marcaCategoria").length), [0, 0, 1, 0]), "al reabrirla, la actual es la elegida (solo una)");
+                ventana.clicEn(o[1]);
+            }],
+        [450, () => {
+                ventana.comprobar(ventana.hoja().seccion === "general" && ventana.unoHoja("categoriaControl").nombre === "General", "  y elegir la de antes la vuelve a poner");
+                ev.keyClick(Qt.Key_Return, Qt.NoModifier, -1);
+            }],
+        [300, () => ventana.leerRegistro()],
+        [300, () => {
+                ventana.comprobar(cal.hojaModo === "" && ventana.posts() === ventana.posts0, "elegir otra y volver a la misma no manda nada: guardar solo cierra la hoja", ventana.posts() - ventana.posts0 + " escrituras");
+                ventana.clicEn(ventana.tituloDe("Clase de yoga"));
+            }],
+        [300, () => ventana.abrirCategorias()],
+        [450, () => ventana.clicEn(ventana.todos("categoriaOpcion")[2])],
+        [450, () => ev.keyClick(Qt.Key_Return, Qt.NoModifier, -1)],
+        [500, () => ventana.leerRegistro()],
+        [300, () => {
+                const r = ventana.ultima();
+                ventana.comprobar(ventana.posts() === ventana.posts0 + 1 && r.metodo === "POST" && /^\/api\/tareas\/n\d+$/.test(r.ruta) && ventana.mismo(r.cuerpo, {
+                    seccion: "homelab"
+                }), "cambiar solo la categoría manda solo { seccion } a POST /api/tareas/{id}", JSON.stringify(r.cuerpo));
+                const n = ventana.porTitulo("Clase de yoga");
+                ventana.comprobar(cal.hojaModo === "" && n !== null && n.seccionId === "homelab" && ventana.etiquetaDe("Clase de yoga") === "Homelab" && Qt.colorEqual(ventana.barraDe("Clase de yoga").color, "#33b679"), "  y la fila pasa a «Homelab», con su barrita verde", ventana.etiquetaDe("Clase de yoga"));
+                ventana.clicEn(ventana.tituloDe("Clase de yoga"));
+            }],
+        [300, () => {
+                ventana.comprobar(ventana.unoHoja("categoriaControl").nombre === "Homelab", "al editarla otra vez, la categoría que se enseña es la nueva (Homelab)");
+                ventana.abrirCategorias();
+            }],
+        [450, () => {
+                const o = ventana.todos("categoriaOpcion");
+                ventana.comprobar(ventana.igual(o.map(x => x.actual), [false, false, true, false]), "  y la actual de la lista, también");
+                ventana.clicEn(o[3]);
+                ventana.ajustar({
+                    fallos: [
+                        {
+                            estado: 422,
+                            error: "Sección desconocida."
+                        }
+                    ]
+                });
+            }],
+        [450, () => ev.keyClick(Qt.Key_Return, Qt.NoModifier, -1)],
+        [500, () => {
+                ventana.comprobar(cal.hojaModo === "editar" && !cal.guardando && ventana.hoja().seccion === "tfg" && ventana.textoDe("avisoHoja") === "Sección desconocida.", "si el panel rechaza el cambio de categoría, la hoja se queda con la elegida y el porqué", ventana.textoDe("avisoHoja"));
+                ventana.comprobar(ventana.porTitulo("Clase de yoga").seccionId === "homelab", "  y la tarea vuelve a su categoría de antes");
+                ventana.comprobar(ventana.unoHoja("categoriaControl").nombre === "Proyecto de fin de ciclo" && ventana.unoHoja("categoriaControl").width > 80, "  (con el nombre largo, cortado dentro del control)");
+                ventana.captura("20b-hoja-categoria-422");
+            }],
+        [300, () => ev.keyClick(Qt.Key_Escape, Qt.NoModifier, -1)],
+        [300, () => ventana.dobleClicDia("2026-10-30")],
+        [300, () => {
+                const c = ventana.unoHoja("categoriaControl");
+                ventana.comprobar(cal.hojaModo === "nueva" && c !== null && c.nombre === "General", "una hoja nueva trae elegida la categoría de siempre (General)");
+                ventana.titulo().text = "Reunión del proyecto";
+                ventana.abrirCategorias();
+            }],
+        [450, () => {
+                ventana.prioIntacta = ventana.hoja().prioridad === "medium";
+                ventana.clicEn(ventana.todos("categoriaOpcion")[3]);
+            }],
+        [450, () => {
+                ventana.comprobar(ventana.prioIntacta && ventana.hoja().prioridad === "medium" && ventana.hoja().seccion === "tfg", "elegir en la lista no toca lo que hay debajo de ella (la prioridad sigue media)", ventana.hoja().prioridad);
+                ev.keyClick(Qt.Key_Return, Qt.NoModifier, -1);
+            }],
+        [500, () => ventana.leerRegistro()],
+        [300, () => {
+                const r = ventana.ultima();
+                ventana.comprobar(r.metodo === "POST" && r.ruta === "/api/tareas" && ventana.mismo(r.cuerpo, {
+                    seccion: "tfg",
+                    texto: "Reunión del proyecto",
+                    area: "",
+                    fecha: "2026-10-30",
+                    prioridad: "medium",
+                    claude_off: false
+                }), "crear con otra categoría manda esa seccion en el POST", JSON.stringify(r.cuerpo));
+                ventana.comprobar(cal.hojaModo === "" && ventana.etiquetaDe("Reunión del proyecto") === "Proyecto de fin de ciclo" && Qt.colorEqual(ventana.barraDe("Reunión del proyecto").color, "#8e24aa"), "  y la tarea sale en esa categoría, con su color", ventana.etiquetaDe("Reunión del proyecto"));
                 ventana.clicEn(ventana.tituloDe("Clase de yoga"));
             }],
         // Eliminar, en la hoja de editar: dos pulsaciones.
@@ -1716,7 +1894,236 @@ FloatingWindow {
             }],
         [300, () => {
                 ventana.comprobar(cal.hojaModo === "editar" && ventana.unoHoja("eliminarHoja") === null && !cal.hojaBorrable, "las entregas de Aules (área «Clase») son de solo lectura: la hoja no tiene «Eliminar»");
+                ventana.comprobar(ventana.todos("categoriaOpcion").length === 0 && ventana.unoHoja("categoriasHoja") === null, "  ni selector de categoría: la de Aules es fija");
                 ev.keyClick(Qt.Key_Escape, Qt.NoModifier, -1);
+            }],
+        // «Clase» como categoría elegible: una tarea propia movida a Clase
+        // (aules false) sigue con selector y «Eliminar»; con un panel viejo
+        // (sin «aules») Clase no se ofrece y una tarea de Clase es de Aules.
+        [300, () => {
+                ventana.comprobar(cliente.categorias.map(c => c.id).indexOf("clase") === 0 && cliente.categorias.map(c => c.id).indexOf("en-pausa") < 0, "con el panel nuevo (manda «aules»), Clase se ofrece como categoría y En pausa no");
+                ventana.comprobar(Qt.colorEqual(cliente.categorias[0].color, Formato.COLOR_CLASE), "  y con el violeta de Clase, que su sección no trae", cliente.categorias[0].color);
+                ventana.comprobar(ventana.porTitulo("MIA: Tarea quinta").aules === true && ventana.porTitulo("Revisar el informe").aules === false, "  y cada tarea lleva si es de Aules (la entrega sí, las propias no)");
+                ventana.ajustar({
+                    mover: {
+                        g1: "clase"
+                    }
+                });
+            }],
+        [300, () => cliente.refrescar(true)],
+        [900, () => {
+                const n = ventana.porTitulo("Revisar el informe");
+                ventana.comprobar(n.seccionId === "clase" && n.aules === false && ventana.etiquetaDe("Revisar el informe") === "Clase" && Qt.colorEqual(ventana.barraDe("Revisar el informe").color, Formato.COLOR_CLASE), "una tarea propia movida a Clase sale en Clase con el violeta, y no es de Aules");
+                ventana.clicEn(ventana.tituloDe("Revisar el informe"));
+            }],
+        [300, () => {
+                ventana.comprobar(cal.hojaModo === "editar" && cal.hojaBorrable && ventana.unoHoja("eliminarHoja") !== null && ventana.unoHoja("categoriasHoja") !== null, "  al editarla tiene «Eliminar» y selector de categoría (no es de Aules)");
+                const c = ventana.unoHoja("categoriaControl");
+                ventana.comprobar(c.nombre === "Clase" && Qt.colorEqual(c.tinta, Formato.COLOR_CLASE), "  con «Clase» y su violeta en el control", c.nombre);
+                ventana.abrirCategorias();
+            }],
+        [450, () => {
+                const o = ventana.todos("categoriaOpcion");
+                ventana.comprobar(o.length > 0 && ventana.hijos(o[0], "etiquetaCategoria")[0].text === "Clase" && o[0].actual, "la lista abre con Clase en primer lugar, y es la actual", o.length + " opciones");
+                ventana.captura("20c-hoja-clase-propia-lista");
+            }],
+        [200, () => ev.keyClick(Qt.Key_Escape, Qt.NoModifier, -1)],
+        [300, () => {
+                ventana.captura("20d-hoja-clase-propia");
+            }],
+        [300, () => ev.keyClick(Qt.Key_Escape, Qt.NoModifier, -1)],
+        [300, () => ventana.clicEn(ventana.tituloDe("MIA: Tarea quinta"))],
+        [300, () => {
+                ventana.comprobar(cal.hojaModo === "editar" && cal.hojaDeAules && !cal.hojaBorrable && ventana.unoHoja("eliminarHoja") === null && ventana.unoHoja("categoriasHoja") === null, "la entrega de Aules (aules true) sigue sin «Eliminar» ni selector, aunque Clase se ofrezca");
+                ev.keyClick(Qt.Key_Escape, Qt.NoModifier, -1);
+                ventana.ajustar({
+                    viejo: true
+                });
+            }],
+        [300, () => cliente.refrescar(true)],
+        [900, () => {
+                ventana.comprobar(cliente.categorias.map(c => c.id).indexOf("clase") < 0 && ventana.porTitulo("MIA: Tarea quinta").aules === undefined, "con un panel viejo (sin «aules») Clase no se ofrece");
+                ventana.clicEn(ventana.tituloDe("Revisar el informe"));
+            }],
+        [300, () => {
+                ventana.comprobar(cal.hojaModo === "editar" && cal.hojaDeAules && ventana.unoHoja("eliminarHoja") === null && ventana.unoHoja("categoriasHoja") === null, "  y, como hoy, toda tarea de categoría «Clase» es de Aules: sin «Eliminar» ni selector");
+                ev.keyClick(Qt.Key_Escape, Qt.NoModifier, -1);
+                ventana.ajustar({
+                    viejo: false
+                });
+            }],
+        [300, () => cliente.refrescar(true)],
+        [900, () => {
+                ventana.comprobar(cliente.categorias.map(c => c.id).indexOf("clase") === 0 && ventana.porTitulo("MIA: Tarea quinta").aules === true, "(y el panel nuevo, otra vez)");
+                ventana.ajustar({
+                    mover: {
+                        g1: "general"
+                    }
+                });
+            }],
+        [300, () => cliente.refrescar(true)],
+        // Las secciones del panel, muchas y con nombres largos: la hoja y la
+        // isla no cambian de alto y nada se sale.
+        [300, () => {
+                // El cliente, sin ninguna sección en la que crear (nada se manda)
+                // o con solo ocultas (Clase y En pausa) y una de verdad.
+                const sec = id => ({ id: id, title: id, tasks: [] });
+                cliente.poner({ sections: [sec("clase"), sec("en-pausa"), sec("proyecto")] }, true);
+                ventana.comprobar(cliente.seccionPorDefecto() === "proyecto", "sin General, lo que se cree no va a una sección oculta (ni En pausa ni Clase)", cliente.seccionPorDefecto());
+                cliente.poner({ sections: [] }, true);
+                let r = null;
+                cliente.crear({
+                    texto: "Algo",
+                    dia: "2026-10-30",
+                    seccion: ""
+                }, ok => r = ok);
+                ventana.comprobar(r === false && cliente.error === "No hay ninguna sección en la que crearla" && !cliente.escribiendo, "sin ninguna sección en la que crearla no se manda nada y se dice por qué", cliente.error);
+                ventana.leerRegistro();
+            }],
+        [300, () => {
+                ventana.ajustar({
+                    secciones: [["homelab", "Homelab", "#33b679"], ["tfg", "Proyecto de fin de ciclo", "#8e24aa"], ["l1", "Sistemas informáticos y redes locales de la oficina", "#039be5"], ["l2", "Programación de servicios y procesos del módulo", "#f6bf26"], ["l3", "Empresa e iniciativa emprendedora (EIE)", "#616161"], ["l4", "Inglés técnico para el ciclo formativo", "#f4511e"], ["l5", "Prácticas en empresa (FCT) y memoria final", "#0b8043"]]
+                });
+            }],
+        [300, () => cliente.refrescar(true)],
+        [900, () => {
+                ventana.comprobar(cliente.categorias.length === 9 && cliente.seccionPorDefecto() === "general", "con ocho secciones en el panel (y Clase), la hoja las ofrece las nueve", String(cliente.categorias.length));
+                ventana.clicDia("2026-10-22");
+            }],
+        [300, () => ventana.clicEn(ventana.tituloDe("Llamar al taller"))],
+        [300, () => {
+                const h = ventana.hoja();
+                const g = ventana.unoHoja("guardarHoja");
+                const q = g.mapToItem(cal, 0, g.height);
+                ventana.comprobar(cal.hojaModo === "editar" && ventana.unoHoja("categoriaControl").nombre === "General" && h.height === ventana.alturaHoja && cal.implicitHeight === ventana.altoIsla, "con ocho secciones la hoja y la isla miden lo mismo que con tres", h.height + " / " + ventana.alturaHoja);
+                ventana.comprobar(q.y <= cal.height && ventana.igual(ventana.desbordes(), []), "  y Guardar y Eliminar siguen dentro de la isla, sin salirse por la derecha", Math.round(q.y) + " de " + Math.round(cal.height) + " " + ventana.desbordes().join(" | "));
+                ventana.captura("21-hoja-8-secciones");
+            }],
+        [300, () => ventana.abrirCategorias()],
+        [450, () => {
+                const l = ventana.uno("listaCategorias");
+                const m = ventana.uno("menuCategorias");
+                ventana.comprobar(l !== null && l.count === 9 && l.contentHeight > l.height && ventana.todos("scrollCategorias").length === 1, "la lista de nueve (ocho y Clase) tiene scroll (y la rayita lo dice)", l ? l.count + " / " + Math.round(l.contentHeight) + " > " + Math.round(l.height) : "");
+                ventana.comprobar(m !== null && m.height <= 6 * 24 + 12 && m.y >= 0 && m.y + m.height <= cal.height && m.x >= 0 && m.x + m.width <= cal.width, "  de un alto razonable y dentro del calendario", m ? Math.round(m.y) + " " + Math.round(m.height) : "");
+                ventana.comprobar(ventana.hoja().height === ventana.alturaHoja, "  sin cambiar el alto de la hoja");
+                ventana.captura("21b-lista-8-secciones");
+            }],
+        [300, () => {
+                const l = ventana.uno("listaCategorias");
+                l.contentY = l.contentHeight - l.height;
+            }],
+        [300, () => {
+                const l = ventana.uno("listaCategorias");
+                const o = ventana.todos("categoriaOpcion").find(x => ventana.hijos(x, "etiquetaCategoria")[0].text === "Prácticas en empresa (FCT) y memoria final");
+                const q = o ? o.mapToItem(l, 0, 0) : null;
+                ventana.comprobar(o !== null && q.y >= 0 && q.y + o.height <= l.height + 0.5, "al bajar la lista se llega a la última", q ? String(Math.round(q.y)) : "");
+                ventana.clicEn(o);
+            }],
+        [450, () => {
+                const c = ventana.unoHoja("categoriaControl");
+                ventana.comprobar(ventana.hoja().seccion === "l5" && c.nombre === "Prácticas en empresa (FCT) y memoria final" && c.x + c.width <= c.parent.width + 0.5 && ventana.hoja().height === ventana.alturaHoja, "elegir la última pone su nombre largo en el control, cortado, y la hoja no cambia", ventana.hoja().seccion);
+                ventana.comprobar(ventana.igual(ventana.desbordes(), []), "  y nada se sale por la derecha", ventana.desbordes().join(" | "));
+                ventana.ajustar({
+                    fallos: [
+                        {
+                            estado: 422,
+                            error: "La sección de destino ya no existe en tus notas; recarga el panel y vuelve a elegir una categoría de la lista antes de guardar otra vez."
+                        }
+                    ]
+                });
+                ventana.captura("22-hoja-8-secciones-elegida");
+            }],
+        [300, () => ev.keyClick(Qt.Key_Return, Qt.NoModifier, -1)],
+        [500, () => {
+                const a = ventana.unoHoja("avisoHoja");
+                const e = ventana.unoHoja("eliminarHoja");
+                const g = ventana.unoHoja("guardarHoja");
+                const q = g.mapToItem(cal, 0, g.height);
+                ventana.comprobar(cal.hojaModo === "editar" && a.text.indexOf("La sección de destino") === 0 && a.mapToItem(cal, 0, a.height).y <= e.mapToItem(cal, 0, 0).y + 0.5 && a.width > 200 && a.contentHeight <= a.height + 0.5, "un error largo del panel se parte en líneas, en su línea y entero, sin montarse sobre «Eliminar»", Math.round(a.width) + " de ancho, " + Math.round(a.contentHeight) + " de alto");
+                ventana.comprobar(q.y <= cal.height && ventana.igual(ventana.desbordes(), []), "  ni empuja los botones fuera de la isla", Math.round(q.y) + " de " + Math.round(cal.height));
+                ventana.captura("23-hoja-editar-error-largo");
+            }],
+        [300, () => ev.keyClick(Qt.Key_Escape, Qt.NoModifier, -1)],
+        // Una tarea en una sección que no se ofrece (En pausa).
+        [300, () => {
+                ventana.ajustar({
+                    mover: {
+                        g2: "en-pausa"
+                    }
+                });
+            }],
+        [300, () => cliente.refrescar(true)],
+        [900, () => {
+                ventana.leerRegistro();
+                ventana.clicEn(ventana.tituloDe("Llamar al taller"));
+            }],
+        [300, () => {
+                const c = ventana.unoHoja("categoriaControl");
+                ventana.comprobar(cal.hojaModo === "editar" && ventana.unoHoja("categoriasHoja") !== null && c !== null && c.nombre === "En pausa", "una tarea en una sección que no se ofrece (En pausa) enseña su categoría igual", c ? c.nombre : "sin control");
+                ventana.posts0 = ventana.posts();
+                ventana.clicEn(ventana.enHoja("prioridadPunto")[0]);
+                ventana.captura("24-hoja-en-pausa");
+            }],
+        [300, () => {
+                ventana.abrirCategorias();
+            }],
+        [450, () => {
+                const o = ventana.todos("categoriaOpcion");
+                ventana.comprobar(o.length > 0 && o.every(x => !x.actual) && ventana.hoja().seccion === "en-pausa", "  y en la lista no hay ninguna marcada como la actual");
+                ev.keyClick(Qt.Key_Escape, Qt.NoModifier, -1);
+            }],
+        [450, () => ev.keyClick(Qt.Key_Return, Qt.NoModifier, -1)],
+        [500, () => ventana.leerRegistro()],
+        [300, () => {
+                const r = ventana.ultima();
+                ventana.comprobar(ventana.posts() === ventana.posts0 + 1 && ventana.mismo(r.cuerpo, {
+                    prioridad: "highest"
+                }) && ventana.porTitulo("Llamar al taller").seccionId === "en-pausa", "cambiar otra cosa de ella no manda seccion: solo { prioridad } y sigue en pausa", JSON.stringify(r.cuerpo));
+            }],
+        // Con una sola categoría y que sea la actual, no hay nada que elegir.
+        [300, () => {
+                // Con un panel viejo, que no ofrece Clase.
+                ventana.ajustar({
+                    secciones: [],
+                    viejo: true
+                });
+            }],
+        [300, () => cliente.refrescar(true)],
+        [900, () => {
+                ventana.comprobar(cliente.categorias.length === 1, "con una sola sección en el panel (General)", String(cliente.categorias.length));
+                ventana.clicEn(ventana.tituloDe("Llamar al taller"));
+            }],
+        [300, () => {
+                ventana.comprobar(cal.hojaModo === "editar" && ventana.unoHoja("categoriasHoja") !== null, "  la tarea de una sección oculta sí ve el control (puede pasarse a General)");
+                ev.keyClick(Qt.Key_Escape, Qt.NoModifier, -1);
+            }],
+        [300, () => {
+                ventana.clicDia("2026-10-30");
+            }],
+        [300, () => {
+                ventana.clicEn(ventana.tituloDe("Revisar el informe"));
+            }],
+        [300, () => {
+                ventana.comprobar(cal.hojaModo === "editar" && ventana.unoHoja("categoriasHoja") === null && ventana.todos("categoriaOpcion").length === 0, "  y la tarea de General, con General como única, no ve ninguno");
+                ev.keyClick(Qt.Key_Escape, Qt.NoModifier, -1);
+            }],
+        [300, () => ventana.dobleClicDia("2026-10-30")],
+        [300, () => {
+                ventana.comprobar(cal.hojaModo === "nueva" && ventana.unoHoja("categoriasHoja") === null, "  ni la hoja de una nueva (se crea en General)");
+                ev.keyClick(Qt.Key_Escape, Qt.NoModifier, -1);
+                ventana.ajustar({
+                    secciones: [["homelab", "Homelab", "#33b679"], ["tfg", "Proyecto de fin de ciclo", "#8e24aa"]],
+                    viejo: false,
+                    mover: {
+                        g2: "general"
+                    }
+                });
+            }],
+        [300, () => cliente.refrescar(true)],
+        [900, () => ventana.leerRegistro()],
+        [300, () => {
+                ventana.gets0 = ventana.registro.filter(x => x.metodo === "GET").length;
+                ventana.comprobar(cliente.categorias.length === 4 && cliente.estado === "conectado", "(las secciones del panel, como estaban)");
             }],
         [300, () => {
                 ventana.dobleClicDia("2026-10-23");
@@ -1736,7 +2143,7 @@ FloatingWindow {
             }],
         [300, () => {
                 const gets = ventana.registro.filter(x => x.metodo === "GET").length;
-                ventana.comprobar(gets === 1 && ventana.registro.every(x => x.auth), "al abrirla otra vez no se relee (lo que hay es reciente), y todo fue con credenciales", gets + " lecturas");
+                ventana.comprobar(gets === ventana.gets0 && ventana.registro.every(x => x.auth), "al abrirla otra vez no se relee (lo que hay es reciente), y todo fue con credenciales", gets + " lecturas");
                 shellFalso.tareas = null;
                 shellFalso.agenda = null;
             }],
