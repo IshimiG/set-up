@@ -29,8 +29,7 @@
 //     vencida, hecha: bool,
 //     area: el área de la tarea ("Clase" en las entregas de Aules) o "",
 //     seccion: el título de su sección, color: el de la sección, "#rrggbb"
-//     o "", colorPropio: el que se le ha puesto a la tarea, "#rrggbb" o ""
-//     (sin él, la tarea va con el del calendario) }
+//     o "" (la categoría de la tarea: ver categoria y colorCategoria) }
 //
 // Es lo mismo que el panel lleva a los calendarios «Clase» y «Personal» de
 // Google: las tareas con fecha de 00 Inicio. Para más adelante queda leer las
@@ -113,23 +112,20 @@ function normalizarHora(texto) {
     return dos(h) + ":" + dos(min);
 }
 
-// Los colores que se le pueden poner a una tarea desde la barra: los once de
-// los eventos de Google Calendar, en el orden de su colorId (del 1 al 11) y
-// con sus nombres, porque las tareas con fecha acaban en Google. Sin color
-// (""), la tarea va con el del calendario.
-var PALETA = [
-    { color: "#7986cb", nombre: "Lavanda" },
-    { color: "#33b679", nombre: "Salvia" },
-    { color: "#8e24aa", nombre: "Uva" },
-    { color: "#e67c73", nombre: "Flamenco" },
-    { color: "#f6bf26", nombre: "Plátano" },
-    { color: "#f4511e", nombre: "Mandarina" },
-    { color: "#039be5", nombre: "Pavo real" },
-    { color: "#616161", nombre: "Grafito" },
-    { color: "#3f51b5", nombre: "Arándano" },
-    { color: "#0b8043", nombre: "Albahaca" },
-    { color: "#d50000", nombre: "Tomate" }
-];
+// El color de «Clase», la categoría de las entregas de Aules: la sección
+// «Clase» del panel no trae color propio, y la barra la pinta siempre con este
+// (el único sitio donde se fija). Un violeta, que no se parece a ningún color de prioridad (Theme.prio*).
+var COLOR_CLASE = "#a78bfa";
+
+// La categoría de un evento: su nombre ("Clase" para las entregas de Aules;
+// si no, su sección, o su área si no hay sección) y su color ("#rrggbb", o ""
+// si la sección no lo tiene: sin barrita).
+function categoria(e) {
+    if (e.origen === "clase" || e.area === "Clase")
+        return { nombre: "Clase", color: COLOR_CLASE };
+    var nombre = e.seccion !== "" ? e.seccion : (e.area || "");
+    return { nombre: nombre, color: COLOR.test(e.color || "") ? e.color : "" };
+}
 
 // "HH:MM" movida `minutos` (puede ser negativo), sin pasar de 00:00 ni de
 // 23:59; "" si la hora no vale.
@@ -151,8 +147,8 @@ function titulo(plano) {
 
 // La agenda de las tareas de Api.qml (api.tareas, ya normalizadas: secciones
 // con sus tareas, cada una con vence, plano, hecha, vencida, prioridad y
-// efectiva, y si las tiene, horaInicio y horaFin, "HH:MM", y colorPropio,
-// "#rrggbb": las time_start, time_end y color del panel). Solo entran las que
+// efectiva, y si las tiene, horaInicio y horaFin, "HH:MM": las time_start y
+// time_end del panel). Solo entran las que
 // tienen fecha. Una pareja de horas que no vale cuenta como todo el día. null
 // si no hay tareas que enseñar (sin cargar, o el panel no tiene las tareas
 // activadas).
@@ -179,7 +175,6 @@ function deTareas(tareas, conectado, actualizado) {
             var inicio = String(t.horaInicio || "");
             var fin = String(t.horaFin || "");
             var conHora = inicio !== "" && motivoHoras(inicio, fin) === "";
-            var propio = String(t.colorPropio || "");
             eventos.push({
                 // El id de la tarea en el panel (para moverla de día desde el
                 // calendario); las que no lo tienen no se pueden mover.
@@ -195,8 +190,7 @@ function deTareas(tareas, conectado, actualizado) {
                 hecha: hecha,
                 area: String(t.area || "").replace(/\s+/g, " ").trim().slice(0, 80),
                 seccion: String(s.titulo || ""),
-                color: COLOR.test(s.color || "") ? s.color : "",
-                colorPropio: COLOR.test(propio) ? propio.toLowerCase() : ""
+                color: COLOR.test(s.color || "") ? s.color : ""
             });
         }
     }
@@ -239,8 +233,7 @@ function limpio(e) {
         hecha: e.hecha === true,
         area: String(e.area || ""),
         seccion: String(e.seccion || ""),
-        color: COLOR.test(String(e.color || "")) ? String(e.color) : "",
-        colorPropio: COLOR.test(String(e.colorPropio || "")) ? String(e.colorPropio) : ""
+        color: COLOR.test(String(e.color || "")) ? String(e.color) : ""
     };
 }
 

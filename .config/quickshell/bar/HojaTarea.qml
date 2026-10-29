@@ -12,14 +12,14 @@ import "shared/AgendaFormato.js" as Formato
 //   Nueva tarea                              vie 30 oct  ✕
 //   [ Título                                            ]
 //   Todo el día  (●  )               De [09:00] a [10:00]
-//   Color · Color del calendario
-//   ◯  ●  ●  ●  ●  ●  ●  ●  ●  ●  ●  ●
 //   Prioridad  ● ● ◉ ● ●  Media                         󱚧
-//   (por qué no se puede guardar)      [Cancelar] [Guardar]
+//   [Eliminar] (por qué no se puede guardar)   [Cancelar] [Guardar]
 //
-// Las horas solo se ven, y solo cuentan, sin «Todo el día». El primer color,
-// el hueco, es el del calendario: la tarea sin color propio. La prioridad
-// elegida, pulsada otra vez, se quita.
+// Las horas solo se ven, y solo cuentan, sin «Todo el día». La prioridad
+// elegida, pulsada otra vez, se quita. «Eliminar» solo está al editar una
+// tarea que se puede borrar (no las de Aules); la primera pulsación pide
+// confirmación («¿Eliminar?»), la segunda emite eliminar, y la confirmación
+// se retira sola a los 4 s o al tocar cualquier otra cosa.
 //
 // Solo pinta y valida: lo que se manda al panel lo decide CalendarPanel con
 // lo que sale por guardar(). Intro guarda desde cualquier campo, Escape
@@ -33,7 +33,7 @@ FocusScope {
     // El día de la tarea, "2026-10-30".
     required property string dia
     // Con qué se abre: { texto, horaInicio y horaFin ("HH:MM", o "" las dos:
-    // todo el día), color ("#rrggbb", o "": el del calendario), prioridad (la
+    // todo el día), prioridad (la
     // del panel, de "highest" a "lowest", o ""), claudeOff }.
     required property var inicial
     // Las cinco prioridades, de la más alta a la más baja: { valor, nombre,
@@ -45,16 +45,21 @@ FocusScope {
     property string error: ""
     // Hay panel al que mandarla.
     property bool conPanel: true
+    // Se puede borrar (y se enseña «Eliminar»): editando, y no una de Aules.
+    property bool borrable: false
 
-    // valores: { texto, horaInicio, horaFin, color, prioridad, claudeOff }.
+    // valores: { texto, horaInicio, horaFin, prioridad, claudeOff }.
     signal guardar(var valores)
+    // Confirmado «Eliminar».
+    signal eliminar
     signal cancelar
     // Algo ha cambiado (para que se vaya el error del panel).
     signal tocada
 
     // Lo que se está editando. El texto y las horas están en sus campos.
     property bool todoElDia: true
-    property string color: ""
+    // Esperando la segunda pulsación de «Eliminar».
+    property bool confirmando: false
     property string prioridad: ""
     property bool claudeOff: false
     // Se ha intentado guardar: desde entonces se dice también si falta el
@@ -74,22 +79,6 @@ FocusScope {
     // panel, lo que está mal o que no hay panel.
     readonly property string aviso: hoja.error !== "" ? hoja.error : hoja.motivoHoras !== "" ? hoja.motivoHoras : hoja.intentado && hoja.texto === "" ? "Falta el título" : !hoja.conPanel && !hoja.ocupada ? "Sin conexión con el panel" : ""
 
-    // Los colores: el del calendario y la paleta; si la tarea traía uno que
-    // no es de la paleta, también ese, al final, para poder dejarlo.
-    readonly property var colores: {
-        const l = [{
-                color: "",
-                nombre: "Color del calendario"
-            }].concat(Formato.PALETA);
-        const suyo = String((hoja.inicial && hoja.inicial.color) || "");
-        if (suyo !== "" && !Formato.PALETA.some(c => c.color === suyo))
-            l.push({
-                color: suyo,
-                nombre: "Otro (" + suyo + ")"
-            });
-        return l;
-    }
-    readonly property string nombreColor: (hoja.colores.find(c => c.color === hoja.color) || hoja.colores[0]).nombre
     readonly property string nombrePrioridad: (hoja.prioridades.find(p => p.valor === hoja.prioridad) || {
             etiqueta: "Sin prioridad"
         }).etiqueta
@@ -104,7 +93,6 @@ FocusScope {
         hoja.todoElDia = !i.horaInicio;
         campoInicio.text = i.horaInicio || "09:00";
         campoFin.text = i.horaFin || Formato.sumarMinutos(campoInicio.text, 60);
-        hoja.color = String(i.color || "");
         hoja.prioridad = String(i.prioridad || "");
         hoja.claudeOff = i.claudeOff === true;
     }
@@ -122,7 +110,6 @@ FocusScope {
             texto: hoja.texto,
             horaInicio: hoja.horaInicio,
             horaFin: hoja.horaFin,
-            color: hoja.color,
             prioridad: hoja.prioridad,
             claudeOff: hoja.claudeOff
         };
@@ -139,10 +126,37 @@ FocusScope {
         return f ? hoja.diasSemana[f.getDay()] + " " + Formato.diaCorto(hoja.dia) : "";
     }
 
-    onTodoElDiaChanged: hoja.tocada()
-    onColorChanged: hoja.tocada()
-    onPrioridadChanged: hoja.tocada()
-    onClaudeOffChanged: hoja.tocada()
+    onTodoElDiaChanged: {
+        hoja.confirmando = false;
+        hoja.tocada();
+    }
+    onConfirmandoChanged: if (hoja.confirmando)
+        confirmacion.restart()
+    onPrioridadChanged: {
+        hoja.confirmando = false;
+        hoja.tocada();
+    }
+    onClaudeOffChanged: {
+        hoja.confirmando = false;
+        hoja.tocada();
+    }
+
+    Timer {
+        id: confirmacion
+        interval: 4000
+        onTriggered: hoja.confirmando = false
+    }
+
+    function pedirEliminar() {
+        if (!hoja.borrable || hoja.ocupada || !hoja.conPanel)
+            return;
+        if (!hoja.confirmando) {
+            hoja.confirmando = true;
+            return;
+        }
+        hoja.confirmando = false;
+        hoja.eliminar();
+    }
 
     // Intro guarda y Escape cancela, estén donde estén (los campos de texto
     // dejan pasar las dos teclas). Escape no llega así a la isla, que se
@@ -261,13 +275,11 @@ FocusScope {
         }
     }
 
-    // Un punto que se elige: un color o una prioridad. Elegido lleva un aro;
-    // vacío (el color del calendario) es solo el canto.
+    // Un punto que se elige: una prioridad. Elegido lleva un aro.
     component Punto: Item {
         id: punto
 
         property color tinta: Theme.text
-        property bool vacio: false
         property bool elegido: false
         property string nombre: ""
         signal pulsado
@@ -291,9 +303,7 @@ FocusScope {
             width: 12
             height: 12
             radius: 6
-            color: punto.vacio ? "transparent" : punto.tinta
-            border.width: punto.vacio ? 1.5 : 0
-            border.color: Theme.muted
+            color: punto.tinta
             scale: puntoHover.hovered && !punto.elegido ? 1.2 : 1
 
             Behavior on scale {
@@ -325,6 +335,8 @@ FocusScope {
 
         property string texto
         property bool principal: false
+        // Pide confirmación: en el rojo de «máxima».
+        property bool peligro: false
         property bool activo: true
         property bool pulsable: boton.activo
         signal pulsado
@@ -334,7 +346,7 @@ FocusScope {
         radius: 8
         color: Qt.rgba(1, 1, 1, !boton.activo ? 0.04 : boton.principal ? (botonHover.hovered ? 0.24 : 0.16) : (botonHover.hovered ? 0.08 : 0))
         border.width: 1
-        border.color: boton.principal && boton.activo ? Qt.rgba(1, 1, 1, 0.3) : Theme.rule
+        border.color: boton.peligro ? Theme.prioMaxima : boton.principal && boton.activo ? Qt.rgba(1, 1, 1, 0.3) : Theme.rule
 
         Behavior on color {
             ColorAnimation {
@@ -347,7 +359,7 @@ FocusScope {
 
             anchors.centerIn: parent
             text: boton.texto
-            color: !boton.activo ? Theme.faint : boton.principal || botonHover.hovered ? Theme.strong : Theme.text
+            color: !boton.activo ? Theme.faint : boton.peligro ? Theme.prioMaxima : boton.principal || botonHover.hovered ? Theme.strong : Theme.text
             font.family: Theme.font
             font.pixelSize: 11
             font.bold: boton.principal
@@ -578,42 +590,6 @@ FocusScope {
             }
         }
 
-        // El color.
-        Text {
-            objectName: "colorHoja"
-            text: "Color · " + hoja.nombreColor
-            color: Theme.muted
-            font.family: Theme.font
-            font.pixelSize: 10
-        }
-
-        // Repartidos a lo ancho de la hoja.
-        Item {
-            id: filaColores
-
-            readonly property real paso: (filaColores.width - 20) / Math.max(1, hoja.colores.length - 1)
-
-            Layout.fillWidth: true
-            implicitHeight: 20
-
-            Repeater {
-                model: hoja.colores
-
-                Punto {
-                    required property var modelData
-                    required property int index
-
-                    objectName: "colorPunto"
-                    x: index * filaColores.paso
-                    tinta: modelData.color !== "" ? modelData.color : Theme.text
-                    vacio: modelData.color === ""
-                    nombre: modelData.nombre
-                    elegido: hoja.color === modelData.color
-                    onPulsado: hoja.color = modelData.color
-                }
-            }
-        }
-
         // La prioridad y el 🚫🤖.
         RowLayout {
             Layout.fillWidth: true
@@ -736,6 +712,15 @@ FocusScope {
                 color: hoja.error !== "" || hoja.motivoHoras !== "" || hoja.intentado && hoja.texto === "" ? Theme.prioMaxima : Theme.faint
                 font.family: Theme.font
                 font.pixelSize: 10
+            }
+
+            Boton {
+                objectName: "eliminarHoja"
+                visible: hoja.borrable
+                texto: hoja.confirmando ? "¿Eliminar?" : "Eliminar"
+                peligro: hoja.confirmando
+                activo: hoja.conPanel && !hoja.ocupada
+                onPulsado: hoja.pedirEliminar()
             }
 
             Boton {
