@@ -127,6 +127,7 @@ estado = {
         # Proyectos con su color: los de la hoja del calendario («Categoría»).
         {"id": "homelab", "title": "Homelab", "emoji": "", "color": "#33b679", "tasks": []},
         {"id": "tfg", "title": "Proyecto de fin de ciclo", "emoji": "", "color": "#8e24aa", "tasks": []},
+        {"id": "repaso", "title": "Repaso de pendientes (27/10)", "emoji": "", "color": "", "tasks": []},
         {"id": "en-pausa", "title": "En pausa", "emoji": "", "color": "", "tasks": []},
     ],
 }

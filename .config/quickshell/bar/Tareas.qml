@@ -114,9 +114,11 @@ Scope {
     }
 
     // «Clase» sin color en el panel lleva el violeta fijo de las entregas.
+    // Las secciones «Repaso de pendientes (…)» son texto de 00 Inicio, no
+    // proyectos: no se ofrecen como categoría.
     function categoriasDe(crudas) {
         const nuevo = cli.panelNuevo(crudas);
-        return ((crudas && crudas.sections) || []).filter(s => s.id !== "en-pausa" && (nuevo || s.id !== "clase")).map(s => ({
+        return ((crudas && crudas.sections) || []).filter(s => s.id !== "en-pausa" && !/^repaso de pendientes/i.test(String(s.title || s.id)) && (nuevo || s.id !== "clase")).map(s => ({
                     id: String(s.id),
                     nombre: String(s.title || s.id),
                     color: /^#[0-9a-fA-F]{6}$/.test(s.color || "") ? s.color : (s.id === "clase" ? Formato.COLOR_CLASE : "")
