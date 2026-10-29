@@ -388,13 +388,27 @@ FloatingWindow {
         return ventana.todos("filaAgenda");
     }
 
+    // La categoría de cada fila (a la derecha) y su detalle (la hora, «vencida»…).
     function etiquetas() {
         return ventana.filas().map(f => ventana.hijos(f, "etiquetaFila")[0].text);
+    }
+
+    function detalles() {
+        return ventana.filas().map(f => {
+            const d = ventana.hijos(f, "detalleFila")[0];
+            return d ? d.text : "";
+        });
     }
 
     function textoDe(nombre) {
         const t = ventana.uno(nombre);
         return t ? t.text : null;
+    }
+
+    // El texto de un botón de la hoja (Boton.texto), o null si no se ve.
+    function textoBoton(nombre) {
+        const b = ventana.unoHoja(nombre);
+        return b ? b.texto : null;
     }
 
     function igual(a, b) {
@@ -450,15 +464,26 @@ FloatingWindow {
         return ventana.hijos(ventana.filaDe(titulo), "tituloFila")[0];
     }
 
+    // La categoría de una fila, a la derecha.
     function etiquetaDe(titulo) {
         const f = ventana.filaDe(titulo);
-        return f ? ventana.hijos(f, "etiquetaFila")[0].text : null;
+        const e = f ? ventana.hijos(f, "etiquetaFila")[0] : null;
+        return e ? e.text : null;
     }
 
-    // La barrita del color propio de una fila (esté a la vista o no).
+    // Lo que va antes de la categoría: la hora, «vencida»… ("" si nada).
+    function detalleDe(titulo) {
+        const f = ventana.filaDe(titulo);
+        if (!f)
+            return null;
+        const d = ventana.hijos(f, "detalleFila")[0];
+        return d ? d.text : "";
+    }
+
+    // La barrita del color de la categoría de una fila.
     function barraDe(titulo) {
         const f = ventana.filaDe(titulo);
-        return f ? ventana.buscar(f, "colorFila")[0] : null;
+        return f ? ventana.buscar(f, "categoriaBarra")[0] : null;
     }
 
     // --- La hoja de una tarea ---
@@ -694,16 +719,14 @@ FloatingWindow {
                                     plano: "Con hora",
                                     vence: "2026-10-30",
                                     horaInicio: "09:00",
-                                    horaFin: "10:30",
-                                    colorPropio: "#039BE5"
+                                    horaFin: "10:30"
                                 },
                                 {
                                     id: "b",
                                     plano: "Al revés",
                                     vence: "2026-10-30",
                                     horaInicio: "11:00",
-                                    horaFin: "10:00",
-                                    colorPropio: "rojo"
+                                    horaFin: "10:00"
                                 },
                                 {
                                     id: "c",
@@ -730,11 +753,11 @@ FloatingWindow {
                 }, true, null);
                 const por = {};
                 d.eventos.forEach(e => por[e.id] = e);
-                ventana.comprobar(por.a.todoElDia === false && por.a.hora === "09:00" && por.a.horaFin === "10:30" && por.a.colorPropio === "#039be5" && por.a.color === "#4a90e2", "una tarea con horas y color propio los lleva (el color, en minúsculas), aparte del de su sección");
-                ventana.comprobar(por.b.todoElDia && por.b.hora === "" && por.b.horaFin === "" && por.b.colorPropio === "" && por.c.todoElDia && por.c.hora === "" && por.e.todoElDia && por.e.horaFin === "", "  unas horas que no valen (el fin antes, o sin fin) son todo el día, y un color que no vale no está");
+                ventana.comprobar(por.a.todoElDia === false && por.a.hora === "09:00" && por.a.horaFin === "10:30" && por.a.color === "#4a90e2" && !("colorPropio" in por.a), "una tarea con horas las lleva, y su color es el de su sección (no hay color propio por tarea)");
+                ventana.comprobar(por.b.todoElDia && por.b.hora === "" && por.b.horaFin === "" && por.c.todoElDia && por.c.hora === "" && por.e.todoElDia && por.e.horaFin === "", "  unas horas que no valen (el fin antes, o sin fin) son todo el día");
                 const a = Formato.leer(JSON.stringify(d));
                 const x = a.porDia["2026-10-30"].find(e => e.id === "a");
-                ventana.comprobar(x.horaFin === "10:30" && x.colorPropio === "#039be5" && x.hora === "09:00" && !x.todoElDia, "  y pasan igual por el fichero");
+                ventana.comprobar(x.horaFin === "10:30" && x.color === "#4a90e2" && x.hora === "09:00" && !x.todoElDia, "  y pasan igual por el fichero");
                 ventana.comprobar(ventana.igual(Formato.delDia(a, "2026-10-30", "2026-10-21").map(e => e.id), ["b", "c", "e", "d", "a"]), "  en el día, lo de todo el día primero y lo que tiene hora, por su hora", Formato.delDia(a, "2026-10-30", "2026-10-21").map(e => e.id).join(" "));
                 const r = Formato.leer(JSON.stringify({
                     formato: 1,
@@ -742,17 +765,20 @@ FloatingWindow {
                             todoElDia: false,
                             hora: "10:00",
                             horaFin: "09:00",
-                            colorPropio: "#12"
+                            color: "#12"
                         }), ventana.ev1("2026-10-30", "y", {
                             horaFin: "10:00"
                         })]
                 }));
-                ventana.comprobar(r.eventos[0].horaFin === "" && r.eventos[0].colorPropio === "" && r.eventos[1].horaFin === "", "  al leer el fichero, un fin que no va después de la hora (o sin hora) y un color roto se quitan");
+                ventana.comprobar(r.eventos[0].horaFin === "" && r.eventos[0].color === "" && r.eventos[1].horaFin === "", "  al leer el fichero, un fin que no va después de la hora (o sin hora) y un color roto se quitan");
                 ventana.comprobar(Formato.motivoHoras("", "") === "" && Formato.motivoHoras("09:00", "10:00") === "" && Formato.motivoHoras("09:00", "") === "La hora de fin no es hh:mm" && Formato.motivoHoras("", "10:00") === "La hora de inicio no es hh:mm" && Formato.motivoHoras("10:00", "10:00") === "El fin tiene que ir después del inicio" && Formato.motivoHoras("24:00", "25:00") === "La hora de inicio no es hh:mm" && Formato.motivoHoras("09:00", "9:60") === "La hora de fin no es hh:mm", "las horas: las dos o ninguna, en hh:mm y el fin después del inicio");
                 const n = ["9", "930", "0930", "9:5", "23:59", "12", "24", "9:60", "abc", ""].map(t => Formato.normalizarHora(t));
                 ventana.comprobar(ventana.igual(n, ["09:00", "09:30", "09:30", "09:05", "23:59", "12:00", "24", "9:60", "abc", ""]), "lo que se teclea en una hora se entiende: «9» son las 09:00 y «930», las 09:30", n.join(" "));
                 ventana.comprobar(Formato.sumarMinutos("09:00", 60) === "10:00" && Formato.sumarMinutos("23:30", 60) === "23:59" && Formato.sumarMinutos("00:10", -15) === "00:00" && Formato.sumarMinutos("x", 15) === "", "sumar minutos a una hora no pasa de 00:00 ni de 23:59");
-                ventana.comprobar(Formato.PALETA.length === 11 && Formato.PALETA.every(c => /^#[0-9a-f]{6}$/.test(c.color) && c.nombre !== ""), "la paleta: once colores con nombre, en #rrggbb y minúsculas, como los quiere el panel");
+                ventana.comprobar(Formato.PALETA === undefined && Formato.COLOR_CLASE === "#a78bfa" && /^#[0-9a-f]{6}$/.test(Formato.COLOR_CLASE), "ya no hay paleta de colores por tarea; el color de «Clase» está en un solo sitio (COLOR_CLASE)");
+                const cat = e => Formato.categoria(Object.assign({ origen: "tarea", area: "", seccion: "", color: "" }, e));
+                ventana.comprobar(ventana.igual(cat({ origen: "clase", seccion: "Clase" }), { nombre: "Clase", color: "#a78bfa" }) && ventana.igual(cat({ area: "Clase", seccion: "Otra", color: "#112233" }), { nombre: "Clase", color: "#a78bfa" }), "la categoría de una entrega de Aules (origen o área «Clase») es «Clase», con el color fijo, aunque la sección traiga otro");
+                ventana.comprobar(ventana.igual(cat({ seccion: "Trabajo", color: "#4a90e2" }), { nombre: "Trabajo", color: "#4a90e2" }) && ventana.igual(cat({ seccion: "Casa" }), { nombre: "Casa", color: "" }) && ventana.igual(cat({ seccion: "Casa", color: "rojo" }), { nombre: "Casa", color: "" }) && cat({ area: "Taller" }).nombre === "Taller", "  la de cualquier otra es su sección y el color de la sección; sin color o con uno roto, sin barrita; sin sección, el área");
             }],
 
         // --- El fichero: el cajón lo escribe, la barra lo lee ---
@@ -874,8 +900,12 @@ FloatingWindow {
                 ventana.comprobar(ventana.uno("agendaDia") !== null && ventana.textoDe("tituloDia") === "Hoy", "debajo, la lista de hoy");
                 const f = ventana.filas();
                 const et = ventana.etiquetas();
-                ventana.comprobar(f.length === 3 && et[0] === "venció 19 oct" && et[1] === "Clase" && et[2] === "Casa", "  con lo vencido de antes delante, la entrega de Aules y lo hecho al final", f.length + " filas: " + et.join(", "));
-                ventana.comprobar(f.length === 3 && Qt.colorEqual(ventana.hijos(f[0], "etiquetaFila")[0].color, Theme.prioMaxima) && ventana.hijos(f[2], "tituloFila")[0].font.strikeout, "  la vencida en rojo y la hecha tachada");
+                const det = ventana.detalles();
+                ventana.comprobar(f.length === 3 && det[0] === "venció 19 oct" && et[0] === "Trabajo" && et[1] === "Clase" && et[2] === "Trabajo", "  con lo vencido de antes delante, la entrega de Aules y lo hecho al final, cada una con su categoría a la derecha", f.length + " filas: " + det.join(", ") + " / " + et.join(", "));
+                const b0 = ventana.buscar(f[0], "categoriaBarra")[0];
+                const b1 = ventana.buscar(f[1], "categoriaBarra")[0];
+                ventana.comprobar(f.length === 3 && b0.color.a === 0 && Qt.colorEqual(b1.color, Formato.COLOR_CLASE) && b0.width === 3, "  y a la izquierda, la barrita con el color de la categoría: sin color (la sección no lo trae) y el fijo de Clase");
+                ventana.comprobar(f.length === 3 && Qt.colorEqual(ventana.hijos(f[0], "detalleFila")[0].color, Theme.prioMaxima) && ventana.hijos(f[2], "tituloFila")[0].font.strikeout, "  la vencida en rojo y la hecha tachada");
                 ventana.comprobar(ventana.uno("sinConexion") === null && ventana.uno("masFilas") === null && ventana.uno("diaVacio") === null, "  sin avisos de más");
                 ventana.alto0 = cal.implicitHeight;
                 ventana.captura("2-hoy");
@@ -897,11 +927,11 @@ FloatingWindow {
             }],
         [200, () => ventana.clicDia("2026-10-19")],
         [300, () => {
-                ventana.comprobar(ventana.textoDe("tituloDia") === "Lunes 19 de octubre" && ventana.igual(ventana.etiquetas(), ["vencida"]), "un día pasado: su tarea sin hacer, marcada como vencida", ventana.etiquetas().join(", "));
+                ventana.comprobar(ventana.textoDe("tituloDia") === "Lunes 19 de octubre" && ventana.igual(ventana.detalles(), ["vencida"]), "un día pasado: su tarea sin hacer, marcada como vencida", ventana.etiquetas().join(", "));
                 ventana.clicDia("2026-10-22");
             }],
         [300, () => {
-                ventana.comprobar(ventana.textoDe("tituloDia") === "Mañana" && ventana.igual(ventana.etiquetas(), ["10:30"]), "mañana: una reunión con hora lleva la hora", ventana.etiquetas().join(", "));
+                ventana.comprobar(ventana.textoDe("tituloDia") === "Mañana" && ventana.igual(ventana.detalles(), ["10:30"]), "mañana: una reunión con hora lleva la hora", ventana.etiquetas().join(", "));
                 ventana.clicDia("2026-10-28");
             }],
         [300, () => {
@@ -1086,7 +1116,7 @@ FloatingWindow {
             }],
         [500, () => {
                 ventana.comprobar(lector.datos !== null && ventana.puntosDe("2026-10-21").length === 1 && ventana.puntosDe("2026-10-19").length === 1, "del cajón al calendario: las tareas del panel salen como puntos");
-                ventana.comprobar(ventana.igual(ventana.etiquetas(), ["venció 19 oct", "Clase"]), "  y la lista de hoy, con la entrega de Aules", ventana.etiquetas().join(", "));
+                ventana.comprobar(ventana.igual(ventana.detalles(), ["venció 19 oct", ""]) && ventana.igual(ventana.etiquetas(), ["Trabajo", "Clase"]), "  y la lista de hoy, con la entrega de Aules", ventana.detalles().join(", ") + " / " + ventana.etiquetas().join(", "));
                 ventana.captura("6-del-cajon");
             }],
         [200, () => {
@@ -1114,7 +1144,7 @@ FloatingWindow {
                 const g2 = ventana.porId(d, "g2");
                 const g3 = ventana.porId(d, "g3");
                 ventana.comprobar(cliente.estado === "conectado" && d !== null && d.eventos.length === 4, "con el llavero (de mentira) lee las tareas del panel falso", cliente.estado + ", " + (d ? d.eventos.length : "sin datos"));
-                ventana.comprobar(g3 !== null && !g3.todoElDia && g3.hora === "16:00" && g3.horaFin === "17:00" && g3.colorPropio === "#039be5" && ventana.porId(d, "g1").todoElDia && ventana.porId(d, "g1").colorPropio === "", "  con las horas (time_start, time_end) y el color de cada tarea");
+                ventana.comprobar(g3 !== null && !g3.todoElDia && g3.hora === "16:00" && g3.horaFin === "17:00" && ventana.porId(d, "g1").todoElDia && g3.color === "#e67c73" && !("colorPropio" in g3), "  con las horas (time_start, time_end) y el color de su sección; el color suelto de la tarea (color) no entra");
                 ventana.comprobar(g3 !== null && g3.texto.indexOf("**") > 0 && g3.titulo.indexOf("**") < 0, "  y su texto tal cual, con el Markdown, aparte del título, que va sin él");
                 ventana.comprobar(c1 !== null && c1.claudeOff === true && ventana.porId(d, "g1").claudeOff === false, "  cada evento lleva su 🚫🤖 (claudeOff)");
                 ventana.comprobar(g2 !== null && g2.prioridadPropia === "baja" && g2.prioridad === "maxima", "  y la prioridad que tiene puesta, además de la de hoy", g2 ? g2.prioridadPropia + " / " + g2.prioridad : "");
@@ -1152,7 +1182,7 @@ FloatingWindow {
                 cliente.crear({
                     texto: "Algo",
                     dia: "2026-10-30",
-                    color: "rojo"
+                    prioridad: "urgente"
                 }, ok => {
                     rh.push(ok);
                     errores.push(cliente.error);
@@ -1164,8 +1194,8 @@ FloatingWindow {
                     color: "#12345"
                 }, ok => rh.push(ok));
                 cliente.cambiar("g1", {}, ok => rh.push(ok));
-                ventana.comprobar(ventana.igual(rh, [false, false, false, false, false, false]) && !cliente.escribiendo, "  ni unas horas al revés o sin pareja, ni un color roto, ni una edición vacía");
-                ventana.comprobar(ventana.igual(errores, ["El fin tiene que ir después del inicio", "El color va en #rrggbb"]), "  y el cliente dice por qué", errores.join(" | "));
+                ventana.comprobar(ventana.igual(rh, [false, false, false, false, false, false]) && !cliente.escribiendo, "  ni unas horas al revés o sin pareja, ni una prioridad que no existe, ni un color (ya no se manda: una edición solo con color queda vacía), ni una edición vacía");
+                ventana.comprobar(ventana.igual(errores, ["El fin tiene que ir después del inicio", "Prioridad no válida"]), "  y el cliente dice por qué", errores.join(" | "));
                 ventana.leerRegistro();
             }],
         [300, () => {
@@ -1184,13 +1214,13 @@ FloatingWindow {
         [300, () => {
                 const h = ventana.hoja();
                 const t = ventana.titulo();
-                const colores = ventana.enHoja("colorPunto");
                 const prios = ventana.enHoja("prioridadPunto");
                 ventana.comprobar(cal.hojaModo === "nueva" && h !== null && t !== null && t.activeFocus, "doble clic en un día abre la hoja «Nueva tarea», con el teclado en el título");
                 ventana.comprobar(ventana.textoDe("tituloHoja") === "Nueva tarea" && ventana.textoDe("diaHoja") === "vie 30 oct" && cal.elegido === "2026-10-30", "  para ese día, que pasa a ser el elegido", ventana.textoDe("diaHoja"));
                 ventana.comprobar(ventana.uno("agendaDia") === null, "  en el sitio de la lista del día, que no se ve mientras");
                 ventana.comprobar(h !== null && h.todoElDia && ventana.unoHoja("horasHoja") === null && ventana.uno("todoElDia").activo, "  de todo el día, y sin las horas a la vista");
-                ventana.comprobar(colores.length === 12 && colores[0].vacio && colores[0].elegido && colores.filter(c => c.elegido).length === 1 && ventana.textoDe("colorHoja") === "Color · Color del calendario", "  con doce colores: el del calendario, elegido, y la paleta", ventana.textoDe("colorHoja"));
+                ventana.comprobar(ventana.enHoja("colorPunto").length === 0 && ventana.unoHoja("colorHoja") === null && !("color" in h), "  sin selector de color (ya no hay color propio por tarea)");
+                ventana.comprobar(ventana.unoHoja("eliminarHoja") === null, "  y sin «Eliminar», que solo está al editar");
                 ventana.comprobar(prios.length === 5 && ventana.igual(prios.map(p => p.elegido), [false, false, true, false, false]) && ventana.textoDe("prioridadHoja") === "Media" && !ventana.uno("claudeOffHoja").activo, "  prioridad media y el 🚫🤖 apagado");
                 ventana.comprobar(!ventana.uno("guardarHoja").activo && ventana.textoDe("avisoHoja") === "", "  sin título no se puede guardar, pero no se regaña antes de intentarlo");
                 ev.keyClick(Qt.Key_P, Qt.NoModifier, -1);
@@ -1226,14 +1256,12 @@ FloatingWindow {
                 ventana.comprobar(ventana.textoDe("avisoHoja") === "La hora de fin no es hh:mm" && !ventana.uno("guardarHoja").activo, "una hora que no existe tampoco", ventana.textoDe("avisoHoja"));
                 ventana.campoHora("horaInicio").text = "9";
                 ventana.campoHora("horaFin").text = "1030";
-                ventana.clicEn(ventana.enHoja("colorPunto")[7]);
                 ventana.clicEn(ventana.enHoja("prioridadPunto")[1]);
                 ventana.clicEn(ventana.uno("claudeOffHoja"));
             }],
         [300, () => {
                 const h = ventana.hoja();
                 ventana.comprobar(ventana.textoDe("avisoHoja") === "" && ventana.uno("guardarHoja").activo && h.horaInicio === "09:00" && h.horaFin === "10:30", "«9» y «1030» valen: de 09:00 a 10:30", h.horaInicio + "–" + h.horaFin);
-                ventana.comprobar(h.color === "#039be5" && ventana.textoDe("colorHoja") === "Color · Pavo real" && ventana.enHoja("colorPunto")[7].elegido && !ventana.enHoja("colorPunto")[0].elegido, "elegir un color lo marca y dice su nombre", ventana.textoDe("colorHoja"));
                 ventana.comprobar(h.prioridad === "high" && ventana.textoDe("prioridadHoja") === "Alta" && h.claudeOff && ventana.uno("claudeOffHoja").activo, "  y la prioridad y el 🚫🤖 se eligen en la misma hoja");
                 ventana.comprobar(ventana.titulo().activeFocus, "  sin que el título pierda el teclado");
                 ventana.captura("11c-hoja-lista");
@@ -1245,14 +1273,16 @@ FloatingWindow {
             }],
         [800, () => {
                 const b = ventana.barraDe("Clase de yoga");
+                const rojo = Qt.color("#e67c73");
                 ventana.comprobar(!cal.guardando && cal.hojaModo === "" && ventana.hoja() === null, "  al contestar, la hoja se cierra");
                 ventana.comprobar(ventana.uno("agendaDia") !== null && ventana.textoDe("avisoMover") === "Añadida al 30 oct", "  vuelve la lista del día, y avisa", ventana.textoDe("avisoMover"));
-                ventana.comprobar(ventana.etiquetaDe("Clase de yoga") === "09:00–10:30", "  la tarea sale con su hora en vez del área", ventana.etiquetaDe("Clase de yoga"));
-                ventana.comprobar(b !== null && b.visible && Qt.colorEqual(b.color, "#039be5") && b.width > 0 && b.height > 8, "  y una barrita con su color");
-                ventana.comprobar(ventana.barraDe("Revisar el informe") !== null && !ventana.barraDe("Revisar el informe").visible, "  (las que no tienen color propio, sin barrita)");
+                ventana.comprobar(ventana.detalleDe("Clase de yoga") === "09:00–10:30" && ventana.etiquetaDe("Clase de yoga") === "General", "  la tarea sale con su hora y, a la derecha, su categoría", ventana.detalleDe("Clase de yoga") + " / " + ventana.etiquetaDe("Clase de yoga"));
+                ventana.comprobar(b !== null && b.visible && Qt.colorEqual(b.color, rojo) && b.width > 0 && b.height > 8, "  y una barrita con el color de esa categoría (el de la sección General)");
+                const bc = ventana.barraDe("MIA: Tarea quinta");
+                ventana.comprobar(ventana.etiquetaDe("MIA: Tarea quinta") === "Clase" && bc !== null && Qt.colorEqual(bc.color, Formato.COLOR_CLASE) && ventana.detalleDe("MIA: Tarea quinta") === "", "  la entrega de Aules, categoría «Clase» con el color fijo de Clase, sin hora");
                 ventana.comprobar(ventana.igual(ventana.titulos(), ["Revisar el informe", "MIA: Tarea quinta", "Clase de yoga", "Tutoría de FOL"]), "  las del día, las de todo el día primero y las que tienen hora, por su hora");
-                ventana.comprobar(ventana.etiquetaDe("Tutoría de FOL") === "16:00–17:00" && Qt.colorEqual(ventana.barraDe("Tutoría de FOL").color, "#039be5"), "  (la que trae el panel con hora y color, igual)");
-                ventana.captura("11d-fila-hora-color");
+                ventana.comprobar(ventana.detalleDe("Tutoría de FOL") === "16:00–17:00" && ventana.etiquetaDe("Tutoría de FOL") === "General" && Qt.colorEqual(ventana.barraDe("Tutoría de FOL").color, rojo), "  (la que trae el panel con hora, igual: el color es el de la categoría, no el suelto de la tarea)");
+                ventana.captura("11d-fila-hora-categoria");
                 ventana.leerRegistro();
             }],
         [300, () => {
@@ -1266,11 +1296,10 @@ FloatingWindow {
                     prioridad: "high",
                     claude_off: true,
                     hora_inicio: "09:00",
-                    hora_fin: "10:30",
-                    color: "#039be5"
-                }), "  y el cuerpo exacto: el texto, el día, la prioridad, el 🚫🤖, las dos horas y el color", Object.keys(r.cuerpo || {}).sort().join(","));
+                    hora_fin: "10:30"
+                }), "  y el cuerpo exacto: el texto, el día, la prioridad, el 🚫🤖 y las dos horas, sin color", Object.keys(r.cuerpo || {}).sort().join(","));
                 const n = ventana.porTitulo("Clase de yoga");
-                ventana.comprobar(n !== null && n.id !== "" && n.hora === "09:00" && n.horaFin === "10:30" && n.colorPropio === "#039be5" && n.prioridadPropia === "alta" && n.claudeOff === true, "  y vuelve del panel con su id y todo eso");
+                ventana.comprobar(n !== null && n.id !== "" && n.hora === "09:00" && n.horaFin === "10:30" && n.prioridadPropia === "alta" && n.claudeOff === true, "  y vuelve del panel con su id y todo eso");
                 ventana.ajustar({
                     retraso: 0
                 });
@@ -1278,21 +1307,21 @@ FloatingWindow {
             }],
         [300, () => {
                 const h = ventana.hoja();
-                ventana.comprobar(h !== null && ventana.titulo().text === "" && h.todoElDia && h.color === "" && h.prioridad === "medium" && !h.claudeOff, "otra hoja nueva empieza de cero");
+                ventana.comprobar(h !== null && ventana.titulo().text === "" && h.todoElDia && h.prioridad === "medium" && !h.claudeOff, "otra hoja nueva empieza de cero");
                 ventana.titulo().text = "Comprar pilas";
                 ventana.filas0 = cliente.datos.eventos.length;
                 ev.keyClick(Qt.Key_Return, Qt.NoModifier, -1);
             }],
         [400, () => {
-                ventana.comprobar(cal.hojaModo === "" && cliente.datos.eventos.length === ventana.filas0 + 1 && ventana.etiquetaDe("Comprar pilas") === "General" && !ventana.barraDe("Comprar pilas").visible, "una de todo el día y sin color sale con su sección y sin barrita", ventana.etiquetaDe("Comprar pilas"));
+                ventana.comprobar(cal.hojaModo === "" && cliente.datos.eventos.length === ventana.filas0 + 1 && ventana.etiquetaDe("Comprar pilas") === "General" && ventana.detalleDe("Comprar pilas") === "" && Qt.colorEqual(ventana.barraDe("Comprar pilas").color, "#e67c73"), "una de todo el día sale con su sección a la derecha y la barrita de su color", ventana.etiquetaDe("Comprar pilas"));
                 ventana.leerRegistro();
             }],
         [300, () => {
                 const r = ventana.ultima();
                 const c = r.cuerpo || {};
-                ventana.comprobar(ventana.igual(Object.keys(c).sort(), ["area", "claude_off", "fecha", "prioridad", "seccion", "texto"]) && c.seccion === "general" && c.texto === "Comprar pilas" && c.area === "" && c.fecha === "2026-10-30" && c.prioridad === "medium" && c.claude_off === false, "  con el cuerpo de siempre (sin horas ni color): la sección, el texto, el día, sin área, prioridad media y el 🚫🤖 apagado", Object.keys(c).sort().join(","));
+                ventana.comprobar(ventana.igual(Object.keys(c).sort(), ["area", "claude_off", "fecha", "prioridad", "seccion", "texto"]) && c.seccion === "general" && c.texto === "Comprar pilas" && c.area === "" && c.fecha === "2026-10-30" && c.prioridad === "medium" && c.claude_off === false, "  con el cuerpo de siempre (sin horas): la sección, el texto, el día, sin área, prioridad media y el 🚫🤖 apagado", Object.keys(c).sort().join(","));
                 const n = ventana.porTitulo("Comprar pilas");
-                ventana.comprobar(n !== null && n.id !== "" && n.claudeOff === false && n.prioridadPropia === "media" && n.todoElDia && n.colorPropio === "", "  y vuelve con su id, prioridad media, sin 🚫🤖, de todo el día y sin color");
+                ventana.comprobar(n !== null && n.id !== "" && n.claudeOff === false && n.prioridadPropia === "media" && n.todoElDia, "  y vuelve con su id, prioridad media, sin 🚫🤖 y de todo el día");
                 ventana.dobleClicDia("2026-10-30");
             }],
         [300, () => {
@@ -1506,7 +1535,7 @@ FloatingWindow {
                 const h = ventana.hoja();
                 const t = ventana.titulo();
                 ventana.comprobar(cal.hojaModo === "editar" && h !== null && t.activeFocus && ventana.textoDe("tituloHoja") === "Editar tarea" && ventana.textoDe("diaHoja") === "vie 30 oct", "pulsar el título de una tarea abre la hoja «Editar tarea», con el teclado en el título");
-                ventana.comprobar(t.text === "Revisar el informe" && h.todoElDia && h.color === "" && h.prioridad === "high" && !h.claudeOff && ventana.uno("guardarHoja").activo, "  rellena con lo suyo: el título, de todo el día, sin color, prioridad alta y sin 🚫🤖");
+                ventana.comprobar(t.text === "Revisar el informe" && h.todoElDia && h.prioridad === "high" && !h.claudeOff && ventana.uno("guardarHoja").activo, "  rellena con lo suyo: el título, de todo el día, prioridad alta y sin 🚫🤖");
                 ventana.comprobar(ventana.uno("agendaDia") === null, "  también en el sitio de la lista");
                 ventana.captura("16-hoja-editar");
                 ventana.leerRegistro();
@@ -1536,7 +1565,7 @@ FloatingWindow {
             }],
         [700, () => {
                 ventana.comprobar(cal.hojaModo === "" && ventana.textoDe("avisoMover") === "Guardada", "  al contestar, se cierra y avisa", ventana.textoDe("avisoMover"));
-                ventana.comprobar(ventana.etiquetaDe("Revisar el informe") === "11:00–12:15" && Qt.colorEqual(ventana.colorPunto("Revisar el informe"), Theme.prioBaja), "  la fila lleva la hora nueva, y el punto, la prioridad", ventana.etiquetaDe("Revisar el informe"));
+                ventana.comprobar(ventana.detalleDe("Revisar el informe") === "11:00–12:15" && Qt.colorEqual(ventana.colorPunto("Revisar el informe"), Theme.prioBaja), "  la fila lleva la hora nueva, y el punto, la prioridad", ventana.detalleDe("Revisar el informe"));
                 ventana.comprobar(ventana.igual(ventana.titulos(), ["MIA: Tarea quinta", "Clase de yoga", "Revisar el informe", "Tutoría de FOL"]), "  y se coloca por su hora");
                 ventana.leerRegistro();
             }],
@@ -1555,18 +1584,17 @@ FloatingWindow {
         [300, () => {
                 const h = ventana.hoja();
                 ventana.comprobar(h !== null && ventana.titulo().text === "Tutoría de **FOL**" && !h.todoElDia && ventana.campoHora("horaInicio").text === "16:00" && ventana.campoHora("horaFin").text === "17:00", "una con hora la trae, y el texto, el de la nota, con su Markdown");
-                ventana.comprobar(h !== null && h.color === "#039be5" && ventana.textoDe("colorHoja") === "Color · Pavo real" && ventana.enHoja("colorPunto")[7].elegido && h.prioridad === "high", "  y su color, elegido en la paleta", ventana.textoDe("colorHoja"));
+                ventana.comprobar(h !== null && h.prioridad === "high" && ventana.enHoja("colorPunto").length === 0, "  y su prioridad, sin selector de color aunque el panel guarde uno suelto en la tarea");
                 ventana.captura("17-hoja-editar-hora");
             }],
         [200, () => {
                 ventana.clicEn(ventana.uno("todoElDia"));
-                ventana.clicEn(ventana.enHoja("colorPunto")[0]);
                 ventana.titulo().text = "Tutoría de **FOL** con tutora";
                 ev.keyClick(Qt.Key_Return, Qt.NoModifier, -1);
             }],
         [400, () => {
                 const b = ventana.barraDe("Tutoría de FOL con tutora");
-                ventana.comprobar(cal.hojaModo === "" && ventana.etiquetaDe("Tutoría de FOL con tutora") === "General" && b !== null && !b.visible, "dejarla de todo el día y con el color del calendario le quita la hora y la barrita", ventana.etiquetaDe("Tutoría de FOL con tutora"));
+                ventana.comprobar(cal.hojaModo === "" && ventana.etiquetaDe("Tutoría de FOL con tutora") === "General" && ventana.detalleDe("Tutoría de FOL con tutora") === "" && b !== null && Qt.colorEqual(b.color, "#e67c73"), "dejarla de todo el día le quita la hora y le deja la barrita de su categoría", ventana.etiquetaDe("Tutoría de FOL con tutora"));
                 ventana.leerRegistro();
             }],
         [300, () => {
@@ -1574,27 +1602,26 @@ FloatingWindow {
                 ventana.comprobar(r.ruta === "/api/tareas/g3" && ventana.mismo(r.cuerpo, {
                     texto: "Tutoría de **FOL** con tutora",
                     hora_inicio: "",
-                    hora_fin: "",
-                    color: ""
-                }), "  con el texto nuevo, las dos horas vacías y el color vacío, y nada más", Object.keys(r.cuerpo || {}).sort().join(","));
+                    hora_fin: ""
+                }), "  con el texto nuevo y las dos horas vacías, y nada más (ni rastro de color)", Object.keys(r.cuerpo || {}).sort().join(","));
                 ventana.ajustar({
                     fallos: [
                         {
                             estado: 422,
-                            error: "El color debe ser #rrggbb."
+                            error: "Prioridad no válida."
                         }
                     ]
                 });
             }],
         [200, () => ventana.clicEn(ventana.tituloDe("Clase de yoga"))],
         [300, () => {
-                ventana.clicEn(ventana.enHoja("colorPunto")[11]);
+                ventana.clicEn(ventana.enHoja("prioridadPunto")[4]);
                 ev.keyClick(Qt.Key_Return, Qt.NoModifier, -1);
             }],
         [400, () => {
                 const h = ventana.hoja();
-                ventana.comprobar(cal.hojaModo === "editar" && h !== null && h.color === "#d50000" && !cal.guardando && ventana.textoDe("avisoHoja") === "El color debe ser #rrggbb.", "si el panel rechaza una edición, la hoja se queda con lo elegido y el porqué", ventana.textoDe("avisoHoja"));
-                ventana.comprobar(ventana.porTitulo("Clase de yoga").colorPropio === "#039be5", "  y la tarea vuelve a como estaba");
+                ventana.comprobar(cal.hojaModo === "editar" && h !== null && h.prioridad === "lowest" && !cal.guardando && ventana.textoDe("avisoHoja") === "Prioridad no válida.", "si el panel rechaza una edición, la hoja se queda con lo elegido y el porqué", ventana.textoDe("avisoHoja"));
+                ventana.comprobar(ventana.porTitulo("Clase de yoga").prioridadPropia === "alta", "  y la tarea vuelve a como estaba");
                 ventana.captura("18-hoja-editar-422");
             }],
         [200, () => ventana.clicDia("2026-10-29")],
@@ -1624,6 +1651,74 @@ FloatingWindow {
                 cal.forceActiveFocus();
                 ev.keyClick(Qt.Key_Escape, Qt.NoModifier, -1);
                 ventana.comprobar(ventana.escapesFuera === 1, "  (sin hoja, Escape sí sigue hacia arriba: la comprobación de antes vale)", ventana.escapesFuera + " escapes fuera");
+                cal.elegido = "2026-10-30";
+                ventana.clicEn(ventana.tituloDe("Clase de yoga"));
+            }],
+        // Eliminar, en la hoja de editar: dos pulsaciones.
+        [300, () => {
+                const e = ventana.unoHoja("eliminarHoja");
+                ventana.comprobar(cal.hojaModo === "editar" && e !== null && ventana.textoBoton("eliminarHoja") === "Eliminar", "editando una tarea, la hoja tiene el botón «Eliminar»");
+                ventana.captura("19-hoja-eliminar");
+                ventana.clicEn(e);
+            }],
+        [300, () => {
+                ventana.comprobar(ventana.textoBoton("eliminarHoja") === "¿Eliminar?" && ventana.hoja().confirmando && cal.hojaModo === "editar", "la primera pulsación pide confirmar y no borra nada");
+                ventana.captura("19b-hoja-eliminar-confirmar");
+                ventana.leerRegistro();
+            }],
+        [300, () => {
+                ventana.comprobar(ventana.registro.filter(x => x.metodo === "DELETE").length === 0 && ventana.porTitulo("Clase de yoga") !== null, "  (ninguna petición DELETE, y la tarea sigue)");
+                ventana.clicEn(ventana.unoHoja("prioridadPunto"));
+            }],
+        [300, () => {
+                ventana.comprobar(!ventana.hoja().confirmando && ventana.textoBoton("eliminarHoja") === "Eliminar", "tocar otra cosa de la hoja retira la confirmación");
+                ventana.clicEn(ventana.unoHoja("eliminarHoja"));
+            }],
+        [4600, () => {
+                ventana.comprobar(!ventana.hoja().confirmando && ventana.textoBoton("eliminarHoja") === "Eliminar", "y sin pulsar nada, se retira sola a los pocos segundos");
+                ventana.ajustar({
+                    fallos: [
+                        {
+                            estado: 500,
+                            error: ""
+                        }
+                    ]
+                });
+                ventana.clicEn(ventana.unoHoja("eliminarHoja"));
+            }],
+        [300, () => {
+                ventana.clicEn(ventana.unoHoja("eliminarHoja"));
+            }],
+        [500, () => {
+                ventana.comprobar(cal.hojaModo === "editar" && !cal.guardando && ventana.textoDe("avisoHoja") === "No se pudo eliminar la tarea (HTTP 500)" && ventana.porTitulo("Clase de yoga") !== null, "si el panel no la borra, la hoja se queda con el porqué y la tarea sigue", ventana.textoDe("avisoHoja"));
+                ventana.ajustar({
+                    retraso: 400
+                });
+                ventana.clicEn(ventana.unoHoja("eliminarHoja"));
+            }],
+        [300, () => ventana.clicEn(ventana.unoHoja("eliminarHoja"))],
+        [150, () => {
+                ventana.comprobar(cal.guardando && ventana.hoja() !== null && ventana.hoja().ocupada && ventana.porTitulo("Clase de yoga") !== null, "la segunda pulsación manda el borrado y espera al panel (no es optimista: la tarea sigue hasta que contesta)");
+            }],
+        [700, () => {
+                ventana.comprobar(cal.hojaModo === "" && ventana.hoja() === null && ventana.porTitulo("Clase de yoga") === null && ventana.filaDe("Clase de yoga") === null, "  al contestar, la hoja se cierra y la tarea ya no está en la lista");
+                ventana.comprobar(ventana.textoDe("avisoMover") === "Eliminada", "  y avisa", ventana.textoDe("avisoMover"));
+                ventana.ajustar({
+                    retraso: 0
+                });
+                ventana.leerRegistro();
+            }],
+        [300, () => {
+                const dels = ventana.registro.filter(x => x.metodo === "DELETE");
+                const r = dels[dels.length - 1] || {};
+                ventana.comprobar(dels.length === 2 && /^\/api\/tareas\/n\d+$/.test(r.ruta) && r.auth === true && r.cuerpo === null, "  con DELETE /api/tareas/{id}, sin cuerpo y con las credenciales (el intento fallido, y este)", dels.length + " DELETE, " + r.ruta);
+                ventana.clicEn(ventana.tituloDe("MIA: Tarea quinta"));
+            }],
+        [300, () => {
+                ventana.comprobar(cal.hojaModo === "editar" && ventana.unoHoja("eliminarHoja") === null && !cal.hojaBorrable, "las entregas de Aules (área «Clase») son de solo lectura: la hoja no tiene «Eliminar»");
+                ev.keyClick(Qt.Key_Escape, Qt.NoModifier, -1);
+            }],
+        [300, () => {
                 ventana.dobleClicDia("2026-10-23");
             }],
         [300, () => {

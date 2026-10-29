@@ -5,10 +5,10 @@ import "shared/AgendaFormato.js" as Formato
 
 // El cliente mínimo del panel del NUC para el calendario: lee las tareas con
 // fecha (GET /api/tareas), crea una para un día (POST /api/tareas, con sus
-// horas y su color si los tiene) y cambia una de día, de prioridad o su 🚫🤖
+// horas si las tiene) y cambia una de día, de prioridad o su 🚫🤖
 // «Claude no la hace» (POST /api/tareas/{id} con { fecha }, { prioridad } o
-// { claude_off }), o lo que se haya tocado en la hoja de editarla (cambiar():
-// el texto, las horas, el color, la prioridad y el 🚫🤖). Es el equivalente
+// { claude_off }), la borra (DELETE /api/tareas/{id}) o lo que se haya tocado en la hoja de editarla (cambiar():
+// el texto, las horas, la prioridad y el 🚫🤖). Es el equivalente
 // reducido de lo que hace homelab/Api.qml, que es otro proceso de qs y no se
 // comparte: el cajón sigue siendo quien escribe el fichero de la agenda, y
 // esto solo se usa mientras el calendario está abierto.
@@ -28,7 +28,7 @@ import "shared/AgendaFormato.js" as Formato
 // mover).
 //
 // datos tiene el mismo formato que bar/Agenda.qml (shared/AgendaFormato.js, con
-// el id de cada evento, sus horas y su color propio) y tres campos más en cada
+// el id de cada evento, sus horas) y tres campos más en cada
 // evento, que el fichero no lleva: claudeOff, prioridadPropia y texto (abajo,
 // en agendaDe); null mientras no se haya podido leer nada.
 Scope {
@@ -100,8 +100,8 @@ Scope {
     }
 
     // De la respuesta de /api/tareas a la agenda del calendario. Las horas
-    // (time_start y time_end) y el color de cada tarea pasan por
-    // AgendaFormato.deTareas como horaInicio, horaFin y colorPropio. Cada
+    // (time_start y time_end) de cada tarea pasan por
+    // AgendaFormato.deTareas como horaInicio y horaFin. Cada
     // evento con id lleva además lo que el calendario necesita para editarlo y
     // el fichero de la agenda no lleva (shared/AgendaFormato.js lo quitaría al
     // leerlo): claudeOff, el 🚫🤖 «Claude no la hace»; prioridadPropia, la que
@@ -139,8 +139,7 @@ Scope {
                             efectiva: cli.nombrePrio[t.effective] || "",
                             area: String(t.area || ""),
                             horaInicio: String(t.time_start || ""),
-                            horaFin: String(t.time_end || ""),
-                            colorPropio: String(t.color || "")
+                            horaFin: String(t.time_end || "")
                         };
                     })
                 }));
@@ -293,7 +292,7 @@ Scope {
     }
 
     // Por qué no se puede mandar un cuerpo de POST (con los nombres del panel:
-    // texto, prioridad, hora_inicio y hora_fin, color), o "". Lo mismo que
+    // texto, prioridad, hora_inicio y hora_fin), o "". Lo mismo que
     // rechazaría el panel; la hoja del calendario ya no deja llegar aquí nada
     // de esto, pero el cliente no se fía.
     function motivoDe(cuerpo) {
@@ -306,8 +305,6 @@ Scope {
             if (m !== "")
                 return m;
         }
-        if ("color" in cuerpo && cuerpo.color !== "" && !/^#[0-9a-f]{6}$/.test(cuerpo.color))
-            return "El color va en #rrggbb";
         return "";
     }
 
@@ -315,8 +312,7 @@ Scope {
     // y sin área. `d`: { texto, dia ("2026-10-30") y, si se quiere,
     // prioridad (la del panel; media si no se dice, "" sin ninguna), claudeOff
     // (apagado si no se dice), horaInicio y horaFin ("HH:MM", las dos o
-    // ninguna: todo el día) y color ("#rrggbb"; sin él, el del calendario) }.
-    // Las horas y el color solo van en el cuerpo si los hay. No es optimista:
+    // ninguna: todo el día) }. Las horas solo van en el cuerpo si las hay. No es optimista:
     // la tarea aparece cuando el panel contesta con la lista nueva, que ya la
     // lleva con su id. alAcabar(ok) al terminar; si no, error dice por qué.
     function crear(d, alAcabar) {
@@ -341,9 +337,6 @@ Scope {
             cuerpo.hora_inicio = inicio;
             cuerpo.hora_fin = final;
         }
-        const color = String(d.color || "").toLowerCase();
-        if (color !== "")
-            cuerpo.color = color;
         const motivo = cli.motivoDe(cuerpo);
         if (!cli.puedeEscribir || motivo !== "" || !/^\d{4}-\d\d-\d\d$/.test(dia) || seccion === "") {
             if (motivo !== "")
@@ -367,7 +360,7 @@ Scope {
     // Lo que se ha tocado en la hoja de editar la tarea `id`, de una vez:
     // `c` lleva solo lo que cambia, de { texto, prioridad (la del panel, o ""
     // para quitarla), claudeOff, horaInicio y horaFin (las dos juntas; "" las
-    // dos para dejarla de todo el día), color ("" para quitarlo) }. Lo que no
+    // dos para dejarla de todo el día) }. Lo que no
     // trae no se toca ni se manda. Optimista, como mover.
     function cambiar(id, c, alAcabar) {
         c = c || {};
@@ -382,8 +375,6 @@ Scope {
             cuerpo.hora_inicio = String(c.horaInicio || "");
             cuerpo.hora_fin = String(c.horaFin || "");
         }
-        if ("color" in c)
-            cuerpo.color = String(c.color || "").toLowerCase();
         const motivo = Object.keys(cuerpo).length === 0 ? "No hay nada que cambiar" : cli.motivoDe(cuerpo);
         if (motivo !== "") {
             p.error = motivo;
@@ -405,9 +396,32 @@ Scope {
                 t.time_start = cuerpo.hora_inicio;
                 t.time_end = cuerpo.hora_fin;
             }
-            if ("color" in cuerpo)
-                t.color = cuerpo.color;
         }, "No se pudo guardar la tarea", alAcabar);
+    }
+
+    // Borra la tarea `id` (DELETE /api/tareas/{id}). No es optimista, como
+    // crear: la tarea se va cuando el panel contesta con la lista nueva. Sin
+    // cuerpo. alAcabar(ok) al terminar; si no, error dice por qué.
+    function eliminar(id, alAcabar) {
+        const fin = ok => {
+            if (alAcabar)
+                alAcabar(ok);
+        };
+        if (!cli.puedeEscribir || !id) {
+            fin(false);
+            return;
+        }
+        p.error = "";
+        p.escribiendo = true;
+        cli.pedir("DELETE", "/api/tareas/" + encodeURIComponent(id), undefined, (estado, respuesta) => {
+            p.escribiendo = false;
+            if (cli.aceptada(estado, respuesta)) {
+                fin(true);
+                return;
+            }
+            cli.rechazada(estado, respuesta, "No se pudo eliminar la tarea");
+            fin(false);
+        });
     }
 
     // Lo común de mover, la prioridad, el 🚫🤖 y la hoja: cambia la tarea `id` en una

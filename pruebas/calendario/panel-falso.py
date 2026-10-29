@@ -1,13 +1,14 @@
 #!/usr/bin/env python3
 # Un panel del homelab falso para pruebas/calendario/prueba.sh: lo justo de
 # /api/tareas para que bar/Tareas.qml lea, cree, mueva y cambie la prioridad,
-# el 🚫🤖, el texto, las horas o el color de una tarea de verdad, por HTTP, sin
-# el NUC.
+# el 🚫🤖, el texto o las horas de una tarea, y la borre, de verdad, por HTTP,
+# sin el NUC.
 #
 # Sigue el contrato del panel: cada tarea trae time_start y time_end ("HH:MM";
 # "" las dos, todo el día) y color ("#rrggbb" o ""); al crear se pueden mandar
 # hora_inicio, hora_fin y color, y al editar también (ausente = no se toca;
-# "" = quitar). Las horas van siempre en pareja y el fin después del inicio;
+# "" = quitar). DELETE /api/tareas/{id} la borra y contesta con la lista nueva
+# (409 si ya no está). Cada sección trae su color ("#rrggbb" o ""). Las horas van siempre en pareja y el fin después del inicio;
 # si no, 422 con el motivo. Nada se aplica si algo del cuerpo no vale.
 #
 #   panel-falso.py <fichero del puerto> <fichero de la contraseña>
@@ -109,14 +110,14 @@ estado = {
     # Clase va primero: una tarea creada en el calendario tiene que ir a
     # General, no a la primera sección.
     "sections": [
-        {"id": "clase", "title": "Clase", "emoji": "", "tasks": [
+        {"id": "clase", "title": "Clase", "emoji": "", "color": "", "tasks": [
             tarea("c1", "MIA: Tarea quinta", "2026-10-30", "", "Clase", True)]},
-        {"id": "general", "title": "General", "emoji": "", "tasks": [
+        {"id": "general", "title": "General", "emoji": "", "color": "#e67c73", "tasks": [
             tarea("g1", "Revisar el informe", "2026-10-30", "low"),
             tarea("g2", "Llamar al taller", "2026-10-22", "low"),
-            # Con hora y color propio, como las pone la hoja del calendario.
+            # Con hora; el color suelto de la tarea ya no lo usa la barra.
             tarea("g3", "Tutoría de **FOL**", "2026-10-30", "high", "", False, "16:00", "17:00", "#039be5")]},
-        {"id": "en-pausa", "title": "En pausa", "emoji": "", "tasks": []},
+        {"id": "en-pausa", "title": "En pausa", "emoji": "", "color": "", "tasks": []},
     ],
 }
 registro = []
@@ -177,6 +178,15 @@ def editar(id, q):
     return 200, None
 
 
+def borrar(id):
+    for s in estado["sections"]:
+        for t in s["tasks"]:
+            if t["id"] == id:
+                s["tasks"].remove(t)
+                return 200, None
+    return 409, {"error": "La tarea ha cambiado en tus notas; recarga."}
+
+
 class Manejador(BaseHTTPRequestHandler):
     def log_message(self, *args):
         pass
@@ -215,8 +225,9 @@ class Manejador(BaseHTTPRequestHandler):
         auth = self.autorizado()
         with cerrojo:
             registro.append({"metodo": metodo, "ruta": ruta, "cuerpo": cuerpo, "auth": auth})
-            retraso = ajustes["retraso"] if metodo == "POST" else 0
-            fallo = ajustes["fallos"].pop(0) if metodo == "POST" and ajustes["fallos"] else None
+            escribe = metodo in ("POST", "DELETE")
+            retraso = ajustes["retraso"] if escribe else 0
+            fallo = ajustes["fallos"].pop(0) if escribe and ajustes["fallos"] else None
         if not auth:
             return self.contestar(401, {"error": "No autorizado"})
         if retraso:
@@ -230,9 +241,11 @@ class Manejador(BaseHTTPRequestHandler):
                 codigo, error = crear(cuerpo or {})
             elif metodo == "POST" and ruta.startswith("/api/tareas/"):
                 codigo, error = editar(ruta[len("/api/tareas/"):], cuerpo or {})
+            elif metodo == "DELETE" and ruta.startswith("/api/tareas/"):
+                codigo, error = borrar(ruta[len("/api/tareas/"):])
             else:
                 codigo, error = 404, {"error": "No existe"}
-            if codigo == 200 and metodo == "POST":
+            if codigo == 200 and metodo != "GET":
                 estado["version"] = "v%d" % (len(registro) + 1)
             respuesta = json.loads(json.dumps(estado)) if codigo == 200 else error
         self.contestar(codigo, respuesta)
@@ -242,6 +255,9 @@ class Manejador(BaseHTTPRequestHandler):
 
     def do_POST(self):
         self.atender("POST")
+
+    def do_DELETE(self):
+        self.atender("DELETE")
 
 
 def main():
