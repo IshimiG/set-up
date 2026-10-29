@@ -321,10 +321,20 @@ ShellRoot {
     // La agenda del calendario: las tareas con fecha y las entregas de Aules
     // del panel del homelab, que deja el cajón en un fichero (Agenda.qml).
     // null sin ella.
-    readonly property var agenda: lectorAgenda.datos
+    // Con el panel al alcance (Tareas.qml, que lo lee al abrir el calendario y
+    // deja mover tareas), lo suyo; si no, lo que dejó el cajón en el fichero.
+    readonly property var agenda: clienteTareas.datos ?? lectorAgenda.datos
+
+    // El cliente del panel para editar tareas desde el calendario (mover de día,
+    // crear, prioridad y «Claude no la hace»).
+    readonly property var tareas: clienteTareas
 
     Agenda {
         id: lectorAgenda
+    }
+
+    Tareas {
+        id: clienteTareas
     }
 
     // --- Lo de cada equipo -------------------------------------------------

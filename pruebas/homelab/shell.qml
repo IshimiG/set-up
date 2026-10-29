@@ -89,6 +89,7 @@ FloatingWindow {
         Cajon {
             id: cajon
             anchors.fill: parent
+            anchoPantalla: 1440
             shell: falso
         }
     }
@@ -102,6 +103,13 @@ FloatingWindow {
         api: apiFalsa
         zona: envoltura
         shell: falso
+    }
+
+    // Los pasos del orden de las secciones (PasosOrden.qml, al lado).
+    PasosOrden {
+        id: pasosOrden
+        v: ventana
+        zona: envoltura
     }
 
     property var fallos: []
@@ -193,6 +201,7 @@ FloatingWindow {
     }
 
     property string idInicio: ""
+    property var asa: null
 
     // Tareas.qml, esté a la vista o no (con el cajón cerrado no se ve).
     function ui() {
@@ -277,6 +286,17 @@ FloatingWindow {
 
     function igual(a, b) {
         return JSON.stringify(a) === JSON.stringify(b);
+    }
+
+    property var claseGuardada: null
+
+    function contenidoRaiz() {
+        let r = null;
+        ventana.recorrer(cajon, it => {
+            if (it.objectName === "contenido")
+                r = it;
+        });
+        return r;
     }
 
     function seccion(id) {
@@ -366,6 +386,7 @@ FloatingWindow {
 
     property real px: 0
     readonly property int py: 450
+    property real qy: 0
 
     // Un arrastre de «dx» píxeles en «n» pasos, uno cada «ms».
     function arrastre(dx, n, ms) {
@@ -386,6 +407,7 @@ FloatingWindow {
     }
 
     readonly property var pasos: [].concat(
+        pasosOrden.pasos,
         [[300, () => ev.mouseMove(envoltura, 350, 450, -1, Qt.NoButton, Qt.NoModifier)]],
         [[300, () => {
             ventana.comprobar(!cajon.asoma, "en medio de la pantalla no asoma");
@@ -707,7 +729,7 @@ FloatingWindow {
         }]],
         // Detalles de una fila, y fijar.
         [[300, () => {
-            ventana.clicFila("Cambiar los discos del NAS", "r");
+            ventana.clicFila("Cambiar los discos del NAS", ventana.filaDe("Cambiar los discos del NAS", "r") ? "r" : "a");
         }]],
         [[700, () => {
             const f = ventana.filaDe("Cambiar los discos del NAS", "r");
@@ -1547,8 +1569,9 @@ FloatingWindow {
         [[600, () => ventana.seccion("finanzas")]],
         [[700, () => {
             ventana.comprobar(ventana.uno("seccionFinanzas") !== null && apiFalsa.lecturasFinanzas === 1, "la tira lleva a Finanzas, que se lee la primera vez que se mira", String(apiFalsa.lecturasFinanzas));
-            ventana.comprobar(ventana.tiene("OCTUBRE 2026") && ventana.tiene("Gastos") && ventana.tiene("Ingresos"), "el resumen del mes, con su nombre");
-            ventana.comprobar(ventana.uno("gastosMes").text === "770,42 €" && ventana.uno("ingresosMes").text === "1.850,00 €" && ventana.uno("patrimonio").text === "12.345,67 €", "con el cajón desplegado salen los euros, con formato de aquí", ventana.uno("gastosMes").text + " | " + ventana.uno("ingresosMes").text + " | " + ventana.uno("patrimonio").text);
+            ventana.comprobar(ventana.tiene("OCTUBRE 2026") && ventana.tiene("PATRIMONIO") && ventana.tiene("FLUJO DEL MES"), "el resumen del mes, con su nombre");
+            const tp = ventana.uno("tarjetaPatrimonio"), tf = ventana.uno("tarjetaFlujo");
+            ventana.comprobar(tp !== null && tf !== null && tf.detalle === "Ingresos 1.850,00 € · gastos 770,42 €" && tf.valor === "1.079,58 €" && tp.valor === "12.345,67 €", "con el cajón desplegado salen los euros, con formato de aquí", tp && tf ? tf.detalle + " | " + tf.valor + " | " + tp.valor : "");
             ventana.comprobar(ventana.tiene("41 % de la meta") && ventana.tiene("un 23 % menos que septiembre"), "  el % de la meta y la comparación con el mes anterior");
             ventana.comprobar(ventana.tiene("Mercadona") && ventana.tiene("-45,23 €") && ventana.tiene("20 oct") && !ventana.tiene("Gasolina"), "los movimientos del mes, los de la primera página");
             ventana.comprobar(ventana.uno("masFinanzas") !== null && ventana.uno("finanzasWeb") !== null, "  con «Cargar más» y «Abrir en la web»");
@@ -1563,14 +1586,16 @@ FloatingWindow {
             falso.abierto = true;
         }]],
         [[700, () => {
-            ventana.comprobar(ventana.uno("gastosMes").text === "770,42 €", "al volver a desplegar, otra vez los euros");
+            ventana.comprobar(ventana.uno("tarjetaPatrimonio").valor === "12.345,67 €" && ventana.uno("tarjetaFlujo").detalle === "Ingresos 1.850,00 € · gastos 770,42 €", "al volver a desplegar, otra vez los euros");
             ventana.clic(ventana.uno("masFinanzas"));
         }]],
         [[300, () => {
             ventana.comprobar(apiFalsa.masFinanzasPedidas === 1 && ventana.tiene("Gasolina") && ventana.tiene("Seguro") && ventana.uno("masFinanzas") === null, "«Cargar más» trae los de antes y se quita");
-            // El formulario: validaciones del cajón, sin llamar al NUC.
-            ventana.clic(ventana.uno("apuntarEfectivo"));
+            // El formulario (plegado de entrada): se despliega y valida, sin llamar al NUC.
+            ventana.comprobar(ventana.uno("formEfectivo") === null, "el formulario de efectivo empieza plegado");
+            ventana.clic(ventana.uno("alternarEfectivo"));
         }]],
+        [[700, () => ventana.clic(ventana.uno("apuntarEfectivo"))]],
         [[200, () => {
             ventana.comprobar(apiFalsa.efectivos.length === 0 && ventana.uno("errorForm") !== null && ventana.uno("errorForm").text.indexOf("importe") >= 0, "un importe vacío no sale hacia el NUC y lo dice", ventana.uno("errorForm") ? ventana.uno("errorForm").text : "");
             ventana.uno("campoImporte").texto = "12,50";
@@ -1599,7 +1624,7 @@ FloatingWindow {
         }]],
         [[400, () => {
             ventana.comprobar(apiFalsa.efectivos.length === 3 && ventana.textoAviso() === "Gasto en efectivo apuntado" && !/\d/.test(ventana.textoAviso()), "apuntado: el aviso no lleva ninguna cantidad", ventana.textoAviso());
-            ventana.comprobar(ventana.tiene("Cafetería") && ventana.tiene("-12,50 €") && ventana.uno("campoImporte").texto === "" && ventana.uno("errorForm") === null && ventana.uno("gastosMes").text === "782,92 €", "  el movimiento sale, el formulario se vacía y el resumen se pone al día", ventana.uno("gastosMes").text);
+            ventana.comprobar(ventana.tiene("Cafetería") && ventana.tiene("-12,50 €") && ventana.uno("campoImporte").texto === "" && ventana.uno("errorForm") === null && ventana.uno("tarjetaFlujo").detalle === "Ingresos 1.850,00 € · gastos 782,92 €", "  el movimiento sale, el formulario se vacía y el resumen se pone al día", ventana.uno("tarjetaFlujo").detalle);
             ventana.captura("29-finanzas-efectivo");
             // Sin el permiso de Trade Republic: el aviso se queda, el botón no.
             apiFalsa.permisos = { acciones_docker: true, login_traderepublic: false };
@@ -1739,7 +1764,202 @@ FloatingWindow {
             ventana.comprobar(ventana.uno("seccionRevisiones") === null && ventana.uno("seccionTareas") !== null, "el paso «Ir a Tareas» cambia de sección");
             ventana.seccion("inicio");
         }]],
+        // =====================================================================
+        // Tareas: arrastrar, edición desde el detalle y avisos del móvil
+        // =====================================================================
+        [[50, () => ventana.seccion("tareas")]],
+        [[600, () => ventana.clic(ventana.uno("vista-plazo"))]],
+        [[300, () => {
+            ventana.comprobar(ventana.uno("actualizarTareas") !== null, "Tareas tiene el botón de actualizar");
+            ventana.comprobar(ventana.uno("verCalendario") === null && ventana.cualquiera("calendarioLateral") === null && ventana.uno("tituloMes") === null, "el cajón ya no tiene calendario (es el de la isla)");
+            // Arrastrar una fila (por su asa) a un destino de la tira de días.
+            const f = ventana.filaDe("Cambiar los discos del NAS", "r") || ventana.filaDe("Cambiar los discos del NAS", "a");
+            ventana.traer(f);
+            ventana.asa = ventana.hijo(f, f.ctx === "r" ? "asaFila" : "asaTarjeta");
+            ventana.escrituras0 = apiFalsa.escrituras.length;
+            const p = ventana.asa.mapToItem(envoltura, ventana.asa.width / 2, ventana.asa.height / 2);
+            ventana.px = p.x;
+            ventana.qy = p.y;
+            ev.mousePress(envoltura, p.x, p.y, Qt.LeftButton, Qt.NoModifier, -1);
+        }]],
+        [[100, () => ev.mouseMove(envoltura, ventana.px + 8, ventana.qy - 10, -1, Qt.LeftButton, Qt.NoModifier)]],
+        [[100, () => ev.mouseMove(envoltura, ventana.px + 30, ventana.qy + 40, -1, Qt.LeftButton, Qt.NoModifier)]],
+        [[600, () => {
+            const d = ventana.uno("destinoDia-3");
+            const q = d.mapToItem(envoltura, d.width / 2, d.height / 2);
+            ventana.px = q.x;
+            ventana.qy = q.y;
+            ev.mouseMove(envoltura, q.x, q.y, -1, Qt.LeftButton, Qt.NoModifier);
+        }]],
+        [[300, () => {
+            ventana.comprobar(ventana.ui().arrastrada !== null && ventana.ui().arrastrada.plano === "Cambiar los discos del NAS", "arrastrando por el asa se lleva la tarea");
+            ventana.comprobar(ventana.uno("tiraDias").visible, "al arrastrar baja la tira de días");
+            ventana.captura("15-tareas-arrastre");
+            ev.mouseRelease(envoltura, ventana.px, ventana.qy, Qt.LeftButton, Qt.NoModifier, -1);
+        }]],
+        [[600, () => {
+            ventana.comprobar(ventana.ultima().op === "editar" && ventana.igual(ventana.ultima().cuerpo, { fecha: "2026-10-23" }), "soltar sobre un día de la tira le pone esa fecha", ventana.ultimaJSON());
+            ventana.comprobar(ventana.ui().arrastrada === null, "  y el arrastre acaba");
+        }]],
+        // A «+1 s»: una semana desde hoy (20 oct → 27 oct).
+        [[100, () => {
+            const f = ventana.filaDe("Cambiar los discos del NAS", "r") || ventana.filaDe("Cambiar los discos del NAS", "a");
+            ventana.traer(f);
+            const a = ventana.hijo(f, f.ctx === "r" ? "asaFila" : "asaTarjeta");
+            const p = a.mapToItem(envoltura, a.width / 2, a.height / 2);
+            ev.mousePress(envoltura, p.x, p.y, Qt.LeftButton, Qt.NoModifier, -1);
+            ventana.px = p.x;
+            ventana.qy = p.y;
+        }]],
+        [[100, () => ev.mouseMove(envoltura, ventana.px + 8, ventana.qy - 10, -1, Qt.LeftButton, Qt.NoModifier)]],
+        [[100, () => ev.mouseMove(envoltura, ventana.px + 30, ventana.qy + 40, -1, Qt.LeftButton, Qt.NoModifier)]],
+        [[600, () => {
+            const d = ventana.uno("destinoSemana");
+            const q = d.mapToItem(envoltura, d.width / 2, d.height / 2);
+            ventana.px = q.x;
+            ventana.qy = q.y;
+            ev.mouseMove(envoltura, q.x, q.y, -1, Qt.LeftButton, Qt.NoModifier);
+        }]],
+        [[300, () => ev.mouseRelease(envoltura, ventana.px, ventana.qy, Qt.LeftButton, Qt.NoModifier, -1)]],
+        [[600, () => ventana.comprobar(ventana.ultima().op === "editar" && ventana.igual(ventana.ultima().cuerpo, { fecha: "2026-10-27" }), "soltar sobre «+1 s» la mueve una semana desde hoy", ventana.ultimaJSON())]],
+        // Edición desde el detalle: claude_off, fecha, prioridad, proyecto.
+        [[100, () => {
+            ventana.clicFila("Cambiar los discos del NAS", ventana.filaDe("Cambiar los discos del NAS", "r") ? "r" : "a");
+        }]],
+        [[600, () => {
+            const c = ventana.uno("claudeOff");
+            ventana.comprobar(c !== null, "el detalle tiene el interruptor «Claude no la hace»");
+            ventana.traer(c);
+            ventana.clic(c);
+        }]],
+        [[500, () => {
+            ventana.comprobar(ventana.ultima().op === "editar" && ventana.igual(ventana.ultima().cuerpo, { claudeOff: true }), "el interruptor manda claudeOff: true", ventana.ultimaJSON());
+            ventana.clic(ventana.uno("panelPrioridad"));
+        }]],
+        [[600, () => ventana.clic(ventana.uno("prio-alta"))]],
+        [[500, () => {
+            ventana.comprobar(ventana.igual(ventana.ultima().cuerpo, { prioridad: "alta" }), "el botón de prioridad cambia la prioridad", ventana.ultimaJSON());
+            ventana.clic(ventana.uno("panelFecha"));
+        }]],
+        [[600, () => {
+            ventana.captura("t17-detalle-fecha");
+            ventana.clic(ventana.uno("fecha-sin"));
+        }]],
+        [[500, () => {
+            ventana.comprobar(ventana.igual(ventana.ultima().cuerpo, { fecha: "" }), "el botón de fecha puede quitarla", ventana.ultimaJSON());
+            ventana.clic(ventana.uno("panelProyecto"));
+        }]],
+        [[600, () => ventana.clic(ventana.uno("proy-clase"))]],
+        [[500, () => {
+            ventana.comprobar(ventana.igual(ventana.ultima().cuerpo, { seccion: "clase" }), "el botón de proyecto mueve la tarea", ventana.ultimaJSON());
+            ventana.comprobar(ventana.uno("tiraDias") !== null ? !ventana.uno("tiraDias").visible : true, "la tira de días no se ve si no se arrastra");
+        }]],
+        // El aviso del móvil.
+        [[100, () => apiFalsa.confirmaciones = [{ id: "m1", tipo: "confirmar_envio", titulo: "Enviar el parte a Juanjo", detalle: "parte-semana.pdf", pendiente: true }]]],
+        [[800, () => {
+            ventana.comprobar(ventana.uno("avisoEnviar") !== null && ventana.tiene("Enviar el parte a Juanjo"), "un aviso confirmar_envio enseña la tarjeta con Enviar y No enviar");
+            ventana.captura("16-tareas-aviso-movil");
+            ventana.clic(ventana.uno("avisoEnviar"));
+        }]],
+        [[600, () => {
+            ventana.comprobar(ventana.igual(apiFalsa.respuestasAviso, [{ id: "m1", envio: true }]), "«Enviar» responde envio: true", JSON.stringify(apiFalsa.respuestasAviso));
+            ventana.comprobar(ventana.uno("avisoEnviar") === null, "  y la tarjeta se va");
+            apiFalsa.confirmaciones = [{ id: "m2", tipo: "confirmar_envio", titulo: "Otro", detalle: "", pendiente: true }];
+        }]],
+        [[800, () => ventana.clic(ventana.uno("avisoNoEnviar"))]],
+        [[600, () => ventana.comprobar(ventana.igual(apiFalsa.respuestasAviso[1], { id: "m2", envio: false }), "«No enviar» responde envio: false", JSON.stringify(apiFalsa.respuestasAviso))]],
+        // =====================================================================
+        // Clase: las tareas de Aules (Tareas con soloArea: "Clase")
+        // =====================================================================
+        [[100, () => ventana.seccion("clase")]],
+        [[900, () => {
+            const t = ventana.uno("tareasClase");
+            ventana.comprobar(t !== null && t.soloArea === "Clase", "Clase lleva debajo Tareas con soloArea «Clase»");
+            ventana.comprobar(ventana.uno("botonAules") !== null && ventana.hijo(t, "botonAnadir") !== null, "  bajo el botón de Aules, con su fila de añadir");
+            const planos = ventana.filasDe(t).map(f => f.t.plano);
+            ventana.comprobar(planos.indexOf("Entrega de prueba con fecha") >= 0, "soloArea: sale la tarea de área Clase", JSON.stringify(planos));
+            ventana.comprobar(planos.indexOf("Leer el tema 4") < 0 && planos.indexOf("Cambiar los discos del NAS") < 0 && planos.indexOf("Revisar la copia de seguridad") < 0, "  y ninguna de otras áreas", JSON.stringify(planos));
+            ventana.comprobar(ventana.hijo(t, "tarjetaAhora") === null && ventana.hijo(t, "ahoraVacio") === null && ventana.hijo(t, "vista-plazo") === null && ventana.hijo(t, "vista-proyecto") === null, "  sin «Ahora» ni vistas");
+            let tira = null;
+            ventana.recorrer(t, it => { if (it.objectName === "tiraDias") tira = it; });
+            ventana.comprobar(tira !== null, "  y con la tira de días para arrastrar");
+            ventana.captura("t19-clase-tareas");
+            const c = ventana.hijo(t, "campoNueva");
+            c.enfocar();
+            c.texto = "Entrega nueva de Aules";
+        }]],
+        [[100, () => {
+            ventana.escrituras0 = apiFalsa.escrituras.length;
+            ventana.tecla(Qt.Key_Return);
+        }]],
+        [[400, () => {
+            ventana.comprobar(ventana.igual(ventana.ultima().cuerpo, { seccion: "clase", texto: "Entrega nueva de Aules", prioridad: "media", area: "Clase" }), "soloArea: lo que se añade lleva el área y va a la sección Clase", ventana.ultimaJSON());
+            ventana.comprobar(ventana.filasDe(ventana.uno("tareasClase")).some(f => f.t.plano === "Entrega nueva de Aules"), "  y sale en la lista");
+        }]],
+        [[100, () => {
+            const t = ventana.uno("tareasClase");
+            const f = ventana.filasDe(t).find(x => x.t.plano === "Entrega de prueba con fecha");
+            ventana.escrituras0 = apiFalsa.escrituras.length;
+            ventana.clic(ventana.hijo(f, "casillaFila") || f);
+        }]],
+        [[500, () => ventana.comprobar(apiFalsa.escrituras.length > ventana.escrituras0, "soloArea: marcar una fila escribe en el panel", String(apiFalsa.escrituras.length - ventana.escrituras0))]],
+        [[100, () => ventana.seccion("inicio")]],
         [[50, () => ventana.comprobar(ventana.textos().indexOf("€") < 0, "no aparece ningún € en todo el texto del cajón")]],
+        // =====================================================================
+        // Secciones perezosas (SeccionPerezosa.qml): se crean al mirarlas, se
+        // descargan al rato, y el esqueleto sale sólo con carga lenta
+        // =====================================================================
+        [[50, () => {
+            const c = ventana.contenidoRaiz();
+            c.retardoDescarga = 500;
+            c.retardoEsqueleto = 150;
+            ventana.seccion("clase");
+        }]],
+        [[700, () => {
+            ventana.comprobar(ventana.cualquiera("seccionClase") !== null && ventana.cualquiera("seccionClase").visible, "perezosa: al mirar Clase, existe y se ve");
+            ventana.seccion("inicio");
+        }]],
+        [[200, () => {
+            ventana.comprobar(ventana.cualquiera("seccionClase") !== null && !ventana.cualquiera("seccionClase").visible, "perezosa: al dejarla sigue viva, escondida, un rato");
+        }]],
+        [[1500, () => {
+            ventana.comprobar(ventana.cualquiera("seccionClase") === null, "perezosa: pasado el retardo, Clase se descarga");
+            ventana.comprobar(ventana.cualquiera("seccionTareas") === null && ventana.cualquiera("seccionFinanzas") === null && ventana.cualquiera("seccionRevisiones") === null, "perezosa: las demás secciones también están descargadas, sólo existe Inicio");
+            ventana.comprobar(ventana.uno("desplazableInicio") !== null, "perezosa: Inicio existe y se ve");
+        }]],
+        // Carga lenta (los datos tardan): sale el esqueleto, y desaparece al llegar.
+        [[50, () => {
+            ventana.claseGuardada = apiFalsa.clase;
+            apiFalsa.clase = null;
+            ventana.seccion("clase");
+        }]],
+        [[500, () => {
+            ventana.comprobar(ventana.uno("esqueleto") !== null, "esqueleto: con los datos tardando más de 150 ms, sale");
+            ventana.comprobar(ventana.uno("esqueletoCabecera") !== null && ventana.uno("esqueletoFilas") !== null, "esqueleto: lleva cabecera y tarjetas");
+            apiFalsa.clase = ventana.claseGuardada;
+        }]],
+        [[200, () => {
+            ventana.comprobar(ventana.uno("esqueleto") === null && ventana.uno("seccionClase") !== null, "esqueleto: al llegar los datos se va y se ve la sección");
+            ventana.seccion("inicio");
+        }]],
+        // Carga rápida (los datos llegan antes de 150 ms): no sale nunca.
+        [[1500, () => {
+            ventana.comprobar(ventana.cualquiera("seccionClase") === null, "esqueleto: (Clase descargada otra vez antes de la prueba rápida)");
+            ventana.claseGuardada = apiFalsa.clase;
+            apiFalsa.clase = null;
+            ventana.seccion("clase");
+        }]],
+        [[40, () => {
+            apiFalsa.clase = ventana.claseGuardada;
+        }]],
+        [[60, () => {
+            ventana.comprobar(ventana.uno("esqueleto") === null, "esqueleto: con los datos a los 40 ms, no sale");
+        }]],
+        [[500, () => {
+            ventana.comprobar(ventana.uno("esqueleto") === null && ventana.uno("seccionClase") !== null, "esqueleto: tampoco después, y la sección se ve");
+            ventana.seccion("inicio");
+            ventana.contenidoRaiz().retardoDescarga = 45000;
+        }]],
         [[300, () => {
             console.log("Resultado: " + (ventana.hechas - ventana.fallos.length) + " de " + ventana.hechas + " bien" + (ventana.fallos.length ? "; fallan: " + ventana.fallos.join(" | ") : ""));
             Qt.quit();

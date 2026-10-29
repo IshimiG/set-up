@@ -361,6 +361,15 @@ hl.bind(
 	)
 )
 
+-- El abecedario ruso (quickshell/alfabeto). Mismo interruptor que el lanzador:
+-- si el proceso no está, se arranca ya abierto.
+hl.bind(
+	mainMod .. " + Y",
+	hl.dsp.exec_cmd(
+		"qs -c alfabeto ipc call alfabeto toggle >/dev/null 2>&1 || ALFABETO_ABRIR=1 qs -c alfabeto -d --no-duplicate"
+	)
+)
+
 -- Move focus with mainMod + arrow keys
 hl.bind(mainMod .. " + left", hl.dsp.focus({ direction = "left" }))
 hl.bind(mainMod .. " + right", hl.dsp.focus({ direction = "right" }))
@@ -504,14 +513,16 @@ local resizeSteps = {
 
 for _, resize in ipairs(resizeSteps) do
 	-- Ancho: ' ensancha hacia la izquierda, ¡ estrecha.
+	-- Con el cajón del homelab abierto, estas teclas cambian su ancho (el script
+	-- decide); si no, redimensionan la ventana como siempre.
 	hl.bind(
 		mainMod .. resize.mods .. " + apostrophe",
-		hl.dsp.window.resize({ x = -resize.step, y = 0, relative = true }),
+		hl.dsp.exec_cmd(os.getenv("HOME") .. "/.config/hypr/scripts/cajon-ancho.sh " .. resize.step),
 		{ repeating = true }
 	)
 	hl.bind(
 		mainMod .. resize.mods .. " + exclamdown",
-		hl.dsp.window.resize({ x = resize.step, y = 0, relative = true }),
+		hl.dsp.exec_cmd(os.getenv("HOME") .. "/.config/hypr/scripts/cajon-ancho.sh -" .. resize.step),
 		{ repeating = true }
 	)
 
@@ -576,6 +587,16 @@ hl.window_rule({
 hl.layer_rule({
 	name = "launcher-anim",
 	match = { namespace = "^launcher$" },
+	no_anim = true,
+	blur = true,
+	ignore_alpha = 0.5,
+})
+
+-- El abecedario ruso: igual que el lanzador, la tarjeta se anima sola y el
+-- desenfoque se mantiene bajo el cristal.
+hl.layer_rule({
+	name = "alfabeto-anim",
+	match = { namespace = "^alfabeto$" },
 	no_anim = true,
 	blur = true,
 	ignore_alpha = 0.5,

@@ -49,7 +49,14 @@ choca.
   y los lenguajes que se usan (TypeScript, SQL, Docker, Java, Angular…).
 - `.config/quickshell/`: `bar` (barra, isla, notificaciones y el calendario,
   que marca las tareas con fecha y las entregas de Aules: se las deja el cajón
-  del homelab en `$XDG_RUNTIME_DIR/escritorio-agenda.json`), `launcher`
+  del homelab en `$XDG_RUNTIME_DIR/escritorio-agenda.json`; con el panel al
+  alcance, una hoja crea una tarea con doble clic en un día y la edita al
+  pulsar su título: título, todo el día o de una hora a otra, prioridad y
+  🚫🤖; la hoja de editar tiene «Eliminar», con confirmación de dos pulsaciones
+  y sin él en las tareas de Aules. Cada fila de la lista del día lleva una
+  barrita con el color de su categoría (la sección de la tarea; «Clase», en un
+  violeta fijo, para Aules) y a la derecha el nombre de esa categoría; el punto
+  es la prioridad), `launcher`
   (SUPER+SPACE), `reminder` (SUPER+R), `updates`, `homelab` (el panel del
   homelab: el cajón que sale del centro del borde derecho, o con SUPER+H, con
   los datos del panel del NUC; cada equipo entra con su usuario, y la contraseña
@@ -79,8 +86,10 @@ choca.
 - `pruebas/calendario/prueba.sh`: prueba sin pantalla de la agenda del
   calendario: el formato (`shared/AgendaFormato.js`), el fichero que escribe el
   cajón y lee la barra (en un `$XDG_RUNTIME_DIR` de prueba) y el
-  `CalendarPanel.qml` con sus puntos, la lista del día y los clics
-  (`--guardar` deja las capturas).
+  `CalendarPanel.qml` con sus puntos, la lista del día, los clics y la hoja
+  de crear, editar, eliminar tareas y el color por categoría (`--guardar` deja las capturas). Levanta un panel
+  falso (`panel-falso.py`, con las horas, el color de cada sección y el
+  borrado del contrato de `/api/tareas`), así que necesita `python3`.
 
 ## Instalación
 

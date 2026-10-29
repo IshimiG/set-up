@@ -33,7 +33,9 @@ import Quickshell.Io
 // están en el llavero, guardados por el usuario con
 //   secret-tool store --label="Panel del homelab" servicio homelab-panel usuario <equipo>
 // Lo común no nombra ningún equipo, así que el usuario sale del propio
-// llavero: «secret-tool search» da los atributos del elemento. La contraseña
+// llavero: «secret-tool search --all» da los atributos de los elementos. Si hay
+// varios se prueban en orden (primero HOMELAB_PANEL_USUARIO, si está; «movil»
+// el último) hasta que el panel acepte uno. La contraseña
 // se lee una vez, con «secret-tool lookup», y se queda en memoria. Nunca va en
 // la línea de órdenes (curl la lee de la entrada estándar, con -K -), ni en un
 // log, ni en un console.log.
@@ -219,6 +221,13 @@ Scope {
     // Algo que decirle al usuario en una línea (un conflicto, un fallo de
     // escritura); la interfaz lo enseña un rato. error es true si es un fallo.
     signal aviso(string texto, bool error)
+
+    // Avisos del móvil (/api/avisos/movil): los que esperan respuesta del
+    // usuario, p. ej. {tipo "confirmar_envio"}. Cada uno es { id, tipo, titulo,
+    // detalle, pendiente, datos } y desaparece al contestarlo.
+    readonly property var avisosMovil: p.avisosMovil
+    // Solo los de tipo confirmar_envio que siguen sin contestar.
+    readonly property var confirmaciones: p.avisosMovil.filter(a => a.tipo === "confirmar_envio" && a.pendiente)
     // Cómo acabó una acción de Docker (evento «result»), de este cajón o de
     // cualquier otro cliente: { tipo ("contenedor" o "stack"), objetivo,
     // accion, ok, error, salida }. También sale como aviso.
@@ -281,6 +290,7 @@ Scope {
             api.cargarHabitos();
         if (viejo(p.claseCargada) || (p.clase && p.clase.ejecutando))
             api.cargarClase();
+        api.cargarAvisosMovil();
     }
 
     // POST /api/alerts/seen. La alerta queda vista en «alertas» en cuanto el
@@ -345,6 +355,9 @@ Scope {
         // Del llavero. La contraseña solo sale de aquí hacia la entrada
         // estándar de curl y hacia la cabecera de cada petición.
         property string usuarioLlavero: ""
+        // Los usuarios del llavero, en el orden en que se prueban.
+        property var candidatos: []
+        property int indiceCandidato: 0
         property string clave: ""
         property bool leyendo: false
         // Sube cada vez que se vuelven a leer las credenciales: las respuestas
@@ -389,6 +402,7 @@ Scope {
         property string tareasError: ""
         property bool tareasObsoletas: false
         property bool escribiendoTarea: false
+        property var avisosMovil: []
         property int secTareas: 0
         property var habitos: null
         property var habitosCargados: null
@@ -450,28 +464,54 @@ Scope {
         p.conexion = "conectando";
         api.olvidarVivo();
         // La salida normal de «search» lleva la contraseña: se tira a
-        // /dev/null sin leerla. Los atributos salen por la de errores.
-        api.ejecutar(["sh", "-c", "secret-tool search servicio homelab-panel 2>&1 >/dev/null"], (codigo, texto) => {
-            const m = /^attribute\.usuario = (.+)$/m.exec(texto);
-            if (codigo !== 0 || !m) {
+        // /dev/null sin leerla. Los atributos salen por la de errores. Con
+        // --all salen todos los elementos, y no se elige el primero que
+        // devuelva el llavero: el orden no es fijo.
+        api.ejecutar(["sh", "-c", "secret-tool search --all servicio homelab-panel 2>&1 >/dev/null"], (codigo, texto) => {
+            const usuarios = [];
+            const re = /^attribute\.usuario = (.+)$/gm;
+            let m;
+            while ((m = re.exec(texto)) !== null) {
+                const u = m[1].trim();
+                if (u !== "" && usuarios.indexOf(u) < 0)
+                    usuarios.push(u);
+            }
+            if (codigo !== 0 || usuarios.length === 0) {
                 p.leyendo = false;
                 api.sinCredenciales(codigo !== 0 ? api.primeraLinea(texto) : "");
                 return;
             }
-            const usuario = m[1].trim();
-            api.ejecutar(["secret-tool", "lookup", "servicio", "homelab-panel", "usuario", usuario], (codigo2, clave) => {
-                p.leyendo = false;
-                // Guardada desde una tubería («echo … | secret-tool store»),
-                // la contraseña lleva el salto de línea del final.
-                clave = clave.replace(/\r?\n$/, "");
-                if (codigo2 !== 0 || clave === "") {
-                    api.sinCredenciales("");
-                    return;
-                }
-                p.usuarioLlavero = usuario;
-                p.clave = clave;
-                api.conectar();
-            });
+            p.candidatos = api.ordenarCandidatos(usuarios);
+            p.indiceCandidato = 0;
+            api.leerClave();
+        });
+    }
+
+    // El orden en que se prueban los usuarios del llavero: el que fija
+    // HOMELAB_PANEL_USUARIO, si está; después los demás, con «movil» (el de la
+    // app del móvil, que sólo ve) el último, y si el panel no acepta uno se
+    // pasa al siguiente.
+    function ordenarCandidatos(usuarios) {
+        const fijado = Quickshell.env("HOMELAB_PANEL_USUARIO") || "";
+        const rango = u => u === fijado ? 0 : (u === "movil" ? 2 : 1);
+        return usuarios.map((u, i) => ({ u: u, i: i })).sort((a, b) => rango(a.u) - rango(b.u) || a.i - b.i).map(x => x.u);
+    }
+
+    // Lee la contraseña del candidato en curso y conecta con ella.
+    function leerClave() {
+        const usuario = p.candidatos[p.indiceCandidato];
+        api.ejecutar(["secret-tool", "lookup", "servicio", "homelab-panel", "usuario", usuario], (codigo2, clave) => {
+            p.leyendo = false;
+            // Guardada desde una tubería («echo … | secret-tool store»),
+            // la contraseña lleva el salto de línea del final.
+            clave = clave.replace(/\r?\n$/, "");
+            if (codigo2 !== 0 || clave === "") {
+                api.sinCredenciales("");
+                return;
+            }
+            p.usuarioLlavero = usuario;
+            p.clave = clave;
+            api.conectar();
         });
     }
 
@@ -483,6 +523,19 @@ Scope {
 
     // Caddy no acepta el usuario o la contraseña. Tampoco se reintenta solo.
     function noAutorizado() {
+        if (p.leyendo)
+            return;
+        // Si el llavero tiene otro usuario, se prueba antes de rendirse.
+        if (p.indiceCandidato + 1 < p.candidatos.length) {
+            p.indiceCandidato++;
+            p.leyendo = true;
+            p.generacion++;
+            api.parar();
+            p.clave = "";
+            api.olvidarVivo();
+            api.leerClave();
+            return;
+        }
         api.parar();
         p.conexion = "no-autorizado";
         p.error = "El panel no acepta el usuario «" + p.usuarioLlavero + "» con la contraseña del llavero";
@@ -603,7 +656,7 @@ Scope {
         };
     }
 
-    readonly property var eventosConocidos: ["state", "alerts", "tareas", "clase", "result", "journal"]
+    readonly property var eventosConocidos: ["state", "alerts", "tareas", "clase", "result", "journal", "aviso_movil"]
 
     function bloque(texto) {
         if (p.parado)
@@ -629,6 +682,9 @@ Scope {
             return;
         case "tareas":
             api.eventoTareas(d);
+            return;
+        case "aviso_movil":
+            api.eventoAvisoMovil(d);
             return;
         case "clase":
             api.eventoClase(d);
@@ -1184,7 +1240,9 @@ Scope {
                         texto: String(x.text || ""),
                         hecha: !!x.done
                     })),
-            fijada: !!t.pinned
+            fijada: !!t.pinned,
+            // «Claude no la hace»: si el NUC aún no lo devuelve, false.
+            claudeOff: t.claude_off === true
         };
     }
 
@@ -1301,7 +1359,80 @@ Scope {
         const cuerpo = Object.assign({}, cambios);
         if ("prioridad" in cuerpo)
             cuerpo.prioridad = api.prioServidor[cuerpo.prioridad] || "";
+        // claudeOff (bool) viaja como claude_off; ausente, el NUC no la toca.
+        if ("claudeOff" in cuerpo) {
+            cuerpo.claude_off = !!cuerpo.claudeOff;
+            delete cuerpo.claudeOff;
+        }
         api.escribirTarea("POST", "/api/tareas/" + encodeURIComponent(id), cuerpo, "No se pudo guardar la tarea", alAcabar);
+    }
+
+    // --- Avisos del móvil -----------------------------------------------------
+    function avisoMovilDe(a) {
+        if (!a || typeof a !== "object" || a.id === undefined || a.id === null)
+            return null;
+        return {
+            id: String(a.id),
+            tipo: String(a.tipo || a.type || ""),
+            titulo: String(a.titulo || a.title || ""),
+            detalle: String(a.detalle || a.texto || a.mensaje || a.detail || ""),
+            pendiente: a.respondido !== true && a.respuesta === undefined && a.answered !== true,
+            datos: a
+        };
+    }
+
+    // Pone o sustituye un aviso en la lista; uno ya contestado se quita.
+    function ponerAvisoMovil(a) {
+        const x = api.avisoMovilDe(a);
+        if (!x)
+            return;
+        const resto = p.avisosMovil.filter(y => y.id !== x.id);
+        p.avisosMovil = x.pendiente ? resto.concat([x]) : resto;
+    }
+
+    // Evento SSE «aviso_movil»: el aviso entero, o { aviso }.
+    function eventoAvisoMovil(d) {
+        api.ponerAvisoMovil(d && d.aviso ? d.aviso : d);
+    }
+
+    // GET /api/avisos/movil: los pendientes (por si se perdió algún evento).
+    function cargarAvisosMovil() {
+        const gen = p.generacion;
+        api.pedir("GET", "/api/avisos/movil", undefined, (estado, texto) => {
+            if (gen !== p.generacion || estado !== 200)
+                return;
+            const d = api.leerJSON({
+                estado: estado,
+                texto: texto
+            });
+            const lista = Array.isArray(d) ? d : (d && Array.isArray(d.avisos) ? d.avisos : null);
+            if (!lista)
+                return;
+            p.avisosMovil = lista.map(api.avisoMovilDe).filter(x => x !== null && x.pendiente);
+        });
+    }
+
+    // POST /api/avisos/movil/{id}/respuesta { envio }.
+    function responderAvisoMovil(id, envio, alAcabar) {
+        const gen = p.generacion;
+        api.pedir("POST", "/api/avisos/movil/" + encodeURIComponent(id) + "/respuesta", {
+            envio: !!envio
+        }, (estado, texto) => {
+            if (gen !== p.generacion)
+                return;
+            if (estado === 200 || estado === 204 || estado === 404 || estado === 409) {
+                p.avisosMovil = p.avisosMovil.filter(y => y.id !== String(id));
+                if (alAcabar)
+                    alAcabar(true);
+            } else {
+                if (estado === 401)
+                    api.noAutorizado();
+                else
+                    api.aviso("No se pudo contestar el aviso" + api.porQue(estado, texto), true);
+                if (alAcabar)
+                    alAcabar(false);
+            }
+        });
     }
 
     // Una escritura a la vez. alAcabar(ok) al terminar, o al momento con false
@@ -2596,7 +2727,14 @@ Scope {
         property var datos: null
         property int sec: 0
         property var tr: null
+        property var nom: null
+        property int secNom: 0
     }
+
+    // Las nóminas del año, de GET /api/finanzas/nominas, o null sin leer:
+    //   { año, n, neto (suma del año), ultima: { mes, liquido } o null,
+    //     meses: [{ mes ("2026-09"), neto }] }
+    readonly property var nominasFinanzas: pf.nom
 
     function finanzasViejas() {
         return !pf.datos || !pf.datos.cargado || Date.now() - pf.datos.cargado.getTime() > api.inicioVale;
@@ -2609,6 +2747,7 @@ Scope {
             concepto: String(m.concepto || ""),
             importe: Number(m.importe) || 0,
             categoria: String(m.categoria || ""),
+            categoriaId: Number(m.categoria_id) || 0,
             cuenta: String(m.cuenta || "")
         };
     }
@@ -2645,6 +2784,23 @@ Scope {
                         }))
             },
             ingresos: Number(d.ingresos) || 0,
+            cuentas: (d.cuentas || []).map(c => ({
+                        id: Number(c.id) || 0,
+                        nombre: String(c.nombre || ""),
+                        banco: String(c.banco || ""),
+                        tipo: String(c.tipo || ""),
+                        saldo: c.saldo === null || c.saldo === undefined ? null : Number(c.saldo),
+                        cartera: c.cartera === null || c.cartera === undefined ? null : Number(c.cartera),
+                        efectivo: c.efectivo === null || c.efectivo === undefined ? null : Number(c.efectivo)
+                    })),
+            meses: (a.meses || []).map(m => ({
+                        mes: String(m.mes || ""),
+                        ingresos: Number(m.ingresos) || 0,
+                        gastos: Number(m.gastos) || 0,
+                        ahorro: Number(m.ahorro) || 0,
+                        conDatos: m.con_datos === true,
+                        parcial: m.parcial === true
+                    })),
             patrimonio: Number(a.patrimonio) || 0,
             meta: Number(a.meta) || 0,
             porcentaje: isFinite(a.porcentaje) ? Number(a.porcentaje) : 0,
@@ -2797,6 +2953,65 @@ Scope {
         } catch (e) {
             return "";
         }
+    }
+
+    // Cambia la categoría de un movimiento (sin crear regla). alAcabar(ok,
+    // error). Se vuelve a leer el mes para que los totales cuadren.
+    function categorizarMovimiento(id, categoria, alAcabar) {
+        if (p.clave === "" || p.conexion !== "conectado") {
+            alAcabar(false, "No hay conexión con el NUC.");
+            return;
+        }
+        const gen = p.generacion;
+        api.pedir("POST", "/api/finanzas/movimientos/" + id + "/categoria", {
+            categoria_id: categoria
+        }, (estado, texto) => {
+            if (gen !== p.generacion)
+                return;
+            if (estado === 200) {
+                api.cargarFinanzas();
+                alAcabar(true, "");
+            } else if (estado === 401) {
+                api.noAutorizado();
+            } else {
+                alAcabar(false, api.primeraLinea(api.mensajeError(texto)) || "No se pudo cambiar la categoría" + api.porQue(estado, ""));
+            }
+        });
+    }
+
+    // Las nóminas del año (solo lectura). Fallar no molesta: la tarjeta
+    // simplemente no sale.
+    function cargarNominasFinanzas() {
+        if (p.clave === "")
+            return;
+        const gen = p.generacion;
+        const sec = ++pf.secNom;
+        api.pedir("GET", "/api/finanzas/nominas", undefined, (estado, texto) => {
+            if (gen !== p.generacion || sec !== pf.secNom)
+                return;
+            if (estado === 401) {
+                api.noAutorizado();
+                return;
+            }
+            const d = api.leerJSON({
+                estado: estado,
+                texto: texto
+            });
+            if (!d || d.ready !== true)
+                return;
+            const meses = (d.meses || []).map(m => ({
+                        mes: String(m.mes || ""),
+                        neto: (m.nominas || []).reduce((t, n) => t + (Number(n.liquido) || 0), 0)
+                    }));
+            const con = meses.filter(m => m.neto > 0);
+            pf.nom = {
+                año: Number(d["año"]) || 0,
+                n: Number((d.totales || {}).n) || 0,
+                neto: Number((d.totales || {}).neto) || 0,
+                ultima: con.length ? con[con.length - 1] : null,
+                meses: meses
+            };
+        });
     }
 
     // El estado de la sesión de Trade Republic. Si el NUC dice que su prueba

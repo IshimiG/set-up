@@ -25,9 +25,11 @@
 //             "tarea" (cualquier otra tarea con fecha),
 //     prioridad: "maxima", "alta", "media", "baja", "minima", "pausa" o "",
 //     todoElDia: true, hora: "HH:mm" o "" (todo el día),
+//     horaFin: "HH:mm" (después de hora) o "" (todo el día, o sin fin),
 //     vencida, hecha: bool,
 //     area: el área de la tarea ("Clase" en las entregas de Aules) o "",
-//     seccion: el título de su sección, color: "#rrggbb" o "" }
+//     seccion: el título de su sección, color: el de la sección, "#rrggbb"
+//     o "" (la categoría de la tarea: ver categoria y colorCategoria) }
 //
 // Es lo mismo que el panel lleva a los calendarios «Clase» y «Personal» de
 // Google: las tareas con fecha de 00 Inicio. Para más adelante queda leer las
@@ -41,6 +43,8 @@ var FORMATO = 1;
 var NOMBRE = "escritorio-agenda.json";
 var DIA = /^\d{4}-\d\d-\d\d$/;
 var HORA = /^\d\d:\d\d$/;
+// Una hora que existe, de 00:00 a 23:59: la que acepta el panel.
+var HORA_VALIDA = /^([01]\d|2[0-3]):[0-5]\d$/;
 var COLOR = /^#[0-9a-fA-F]{6}$/;
 var PRIORIDADES = ["maxima", "alta", "media", "baja", "minima", "pausa"];
 var ORIGENES_TAREA = ["tarea", "clase"];
@@ -71,6 +75,67 @@ function fechaDe(dia) {
     return m ? new Date(+m[1], +m[2] - 1, +m[3]) : null;
 }
 
+// --- Las horas de una tarea ---------------------------------------------------
+// Una tarea es de todo el día o va de una hora a otra: las dos horas van
+// siempre en pareja, la de fin después de la de inicio. Es la regla del panel
+// (hora_inicio y hora_fin en /api/tareas), y la hoja de la barra no deja
+// guardar nada que él fuera a rechazar.
+
+// Por qué no vale una pareja de horas ("HH:MM"), o "" si vale. Las dos
+// vacías también valen: es todo el día.
+function motivoHoras(inicio, fin) {
+    inicio = String(inicio || "");
+    fin = String(fin || "");
+    if (inicio === "" && fin === "")
+        return "";
+    if (!HORA_VALIDA.test(inicio))
+        return "La hora de inicio no es hh:mm";
+    if (!HORA_VALIDA.test(fin))
+        return "La hora de fin no es hh:mm";
+    if (fin <= inicio)
+        return "El fin tiene que ir después del inicio";
+    return "";
+}
+
+// Lo que se teclea en un campo de hora, a "HH:MM" si se entiende: «9» son las
+// 09:00, «930» y «0930» las 09:30, «9:5» las 09:05. Lo que no se entiende
+// vuelve tal cual (y motivoHoras dirá por qué no vale).
+function normalizarHora(texto) {
+    var t = String(texto || "").trim();
+    var m = /^(\d{1,2}):(\d{1,2})$/.exec(t) || /^(\d{1,2})()$/.exec(t) || /^(\d{1,2})(\d\d)$/.exec(t);
+    if (!m)
+        return t;
+    var h = +m[1];
+    var min = m[2] === "" ? 0 : +m[2];
+    if (h > 23 || min > 59)
+        return t;
+    return dos(h) + ":" + dos(min);
+}
+
+// El color de «Clase», la categoría de las entregas de Aules: la sección
+// «Clase» del panel no trae color propio, y la barra la pinta siempre con este
+// (el único sitio donde se fija). Un violeta, que no se parece a ningún color de prioridad (Theme.prio*).
+var COLOR_CLASE = "#a78bfa";
+
+// La categoría de un evento: su nombre ("Clase" para las entregas de Aules;
+// si no, su sección, o su área si no hay sección) y su color ("#rrggbb", o ""
+// si la sección no lo tiene: sin barrita).
+function categoria(e) {
+    if (e.origen === "clase" || e.area === "Clase")
+        return { nombre: "Clase", color: COLOR_CLASE };
+    var nombre = e.seccion !== "" ? e.seccion : (e.area || "");
+    return { nombre: nombre, color: COLOR.test(e.color || "") ? e.color : "" };
+}
+
+// "HH:MM" movida `minutos` (puede ser negativo), sin pasar de 00:00 ni de
+// 23:59; "" si la hora no vale.
+function sumarMinutos(hora, minutos) {
+    if (!HORA_VALIDA.test(String(hora || "")))
+        return "";
+    var n = Math.max(0, Math.min(23 * 60 + 59, +hora.slice(0, 2) * 60 + +hora.slice(3) + minutos));
+    return dos(Math.floor(n / 60)) + ":" + dos(n % 60);
+}
+
 // --- Del lado del cajón ---------------------------------------------------------
 
 // El título de una tarea: el texto sin Markdown (el «plano» de Api.qml), en una
@@ -82,8 +147,11 @@ function titulo(plano) {
 
 // La agenda de las tareas de Api.qml (api.tareas, ya normalizadas: secciones
 // con sus tareas, cada una con vence, plano, hecha, vencida, prioridad y
-// efectiva). Solo entran las que tienen fecha. null si no hay tareas que
-// enseñar (sin cargar, o el panel no tiene las tareas activadas).
+// efectiva, y si las tiene, horaInicio y horaFin, "HH:MM": las time_start y
+// time_end del panel). Solo entran las que
+// tienen fecha. Una pareja de horas que no vale cuenta como todo el día. null
+// si no hay tareas que enseñar (sin cargar, o el panel no tiene las tareas
+// activadas).
 function deTareas(tareas, conectado, actualizado) {
     if (!tareas || tareas.habilitado === false)
         return null;
@@ -104,13 +172,20 @@ function deTareas(tareas, conectado, actualizado) {
             var texto = titulo(t.plano || t.texto);
             if (texto === "")
                 continue;
+            var inicio = String(t.horaInicio || "");
+            var fin = String(t.horaFin || "");
+            var conHora = inicio !== "" && motivoHoras(inicio, fin) === "";
             eventos.push({
+                // El id de la tarea en el panel (para moverla de día desde el
+                // calendario); las que no lo tienen no se pueden mover.
+                id: String(t.id || ""),
                 dia: dia,
                 titulo: texto,
                 origen: s.id === "clase" ? "clase" : "tarea",
                 prioridad: PRIORIDADES.indexOf(prio) >= 0 ? prio : "",
-                todoElDia: true,
-                hora: "",
+                todoElDia: !conHora,
+                hora: conHora ? inicio : "",
+                horaFin: conHora ? fin : "",
                 vencida: !hecha && !!t.vencida,
                 hecha: hecha,
                 area: String(t.area || "").replace(/\s+/g, " ").trim().slice(0, 80),
@@ -143,13 +218,17 @@ function limpio(e) {
         return null;
     var prio = String(e.prioridad || "");
     var hora = String(e.hora || "");
+    var fin = String(e.horaFin || "");
+    var todoElDia = e.todoElDia !== false || !HORA.test(hora);
     return {
+        id: String(e.id || ""),
         dia: String(e.dia),
         titulo: titulo.slice(0, 300),
         origen: String(e.origen || "tarea"),
         prioridad: PRIORIDADES.indexOf(prio) >= 0 ? prio : "",
-        todoElDia: e.todoElDia !== false || !HORA.test(hora),
+        todoElDia: todoElDia,
         hora: HORA.test(hora) ? hora : "",
+        horaFin: !todoElDia && HORA.test(fin) && fin > hora ? fin : "",
         vencida: e.vencida === true,
         hecha: e.hecha === true,
         area: String(e.area || ""),
