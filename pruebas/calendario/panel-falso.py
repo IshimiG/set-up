@@ -23,7 +23,11 @@
 #   GET  /__registro  lo que se le ha pedido a /api, en orden: [{ metodo,
 #                     ruta, cuerpo, auth }]
 #   POST /__ajustes   { retraso: ms antes de contestar a una escritura,
-#                     fallos: [{ estado, error }] para las siguientes }
+#                     fallos: [{ estado, error }] para las siguientes,
+#                     secciones: [[id, título, color]] las secciones que hay
+#                     entre General y En pausa (las tareas de las que se
+#                     quitan pasan a General), mover: { id de tarea: id de
+#                     sección } }
 #
 # No escribe nada en ningún log: ni los textos de las tareas ni la contraseña.
 import base64
@@ -130,6 +134,37 @@ siguiente = [0]
 clave = ""
 
 
+def poner_secciones(lista):
+    """Las secciones de entre General y En pausa pasan a ser `lista`."""
+    if lista is None:
+        return
+    fijas = ("clase", "general", "en-pausa")
+    general = next(s for s in estado["sections"] if s["id"] == "general")
+    previas = {s["id"]: s for s in estado["sections"] if s["id"] not in fijas}
+    nuevas = []
+    for id, titulo, color in lista:
+        s = previas.pop(id, None) or {"id": id, "title": titulo, "emoji": "", "color": color, "tasks": []}
+        s["title"], s["color"] = titulo, color
+        nuevas.append(s)
+    for s in previas.values():
+        general["tasks"].extend(s["tasks"])
+    clase, pausa = estado["sections"][0], estado["sections"][-1]
+    estado["sections"] = [clase, general] + nuevas + [pausa]
+
+
+def mover(q):
+    """Lleva cada tarea de `q` a su sección, sin pasar por la API."""
+    for id, destino in (q or {}).items():
+        t = buscar(id)
+        d = next((s for s in estado["sections"] if s["id"] == destino), None)
+        if t is None or d is None:
+            continue
+        for s in estado["sections"]:
+            if t in s["tasks"]:
+                s["tasks"].remove(t)
+        d["tasks"].append(t)
+
+
 def buscar(id):
     for s in estado["sections"]:
         for t in s["tasks"]:
@@ -234,7 +269,10 @@ class Manejador(BaseHTTPRequestHandler):
                 return self.contestar(200, registro)
         if ruta == "/__ajustes":
             with cerrojo:
-                ajustes.update(cuerpo or {})
+                cuerpo = dict(cuerpo or {})
+                poner_secciones(cuerpo.pop("secciones", None))
+                mover(cuerpo.pop("mover", None))
+                ajustes.update(cuerpo)
             return self.contestar(200, {})
         auth = self.autorizado()
         with cerrojo:

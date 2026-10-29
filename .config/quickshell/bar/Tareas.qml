@@ -49,7 +49,10 @@ Scope {
     // Las categorías que se pueden elegir en la hoja, en el orden del panel:
     // { id, nombre, color ("#rrggbb" o "") }. No salen «Clase» (las entregas
     // de Aules, que son de solo lectura y que el panel rellena solo) ni «En
-    // pausa» (la tarea se iría del calendario y de la isla, que no la cuenta).
+    // pausa» (es un aparcamiento, no una categoría de trabajo: no se elige al
+    // crear). Las tareas que ya están en pausa siguen saliendo en el
+    // calendario de la barra (AgendaFormato.deTareas las deja con la
+    // prioridad «pausa»); la hoja de una de ellas enseña su categoría igual.
     readonly property var categorias: cli.categoriasDe(p.crudas)
 
     property string baseUrl: (Quickshell.env("HOMELAB_PANEL_URL") || "https://panel.lab.ishimi.es").replace(/\/+$/, "")
@@ -177,10 +180,10 @@ Scope {
 
     // La sección en la que entra una tarea creada desde el calendario: la
     // misma que el cajón cuando no se elige (General, o la primera que no
-    // esté en pausa).
+    // sea una oculta: ni En pausa ni Clase).
     function seccionPorDefecto() {
         const ss = (p.crudas && p.crudas.sections) || [];
-        const s = ss.find(x => x.id === "general") || ss.find(x => x.id !== "en-pausa") || ss[0];
+        const s = ss.find(x => x.id === "general") || ss.find(x => x.id !== "en-pausa" && x.id !== "clase") || ss[0];
         return s ? String(s.id) : "";
     }
 
@@ -341,7 +344,7 @@ Scope {
         };
         d = d || {};
         const dia = String(d.dia || "");
-        const seccion = d.seccion === undefined ? cli.seccionPorDefecto() : String(d.seccion || "");
+        const seccion = String(d.seccion || "") || cli.seccionPorDefecto();
         const cuerpo = {
             seccion: seccion,
             texto: String(d.texto || "").replace(/\s+/g, " ").trim(),
@@ -356,9 +359,9 @@ Scope {
             cuerpo.hora_inicio = inicio;
             cuerpo.hora_fin = final;
         }
-        // Sin ninguna sección no hay nada que decir: no se manda y ya.
-        const motivo = seccion === "" ? "" : cli.motivoDe(cuerpo);
-        if (!cli.puedeEscribir || motivo !== "" || !/^\d{4}-\d\d-\d\d$/.test(dia) || seccion === "") {
+        // Sin ninguna sección en la que crearla, se dice y no se manda.
+        const motivo = seccion === "" ? "No hay ninguna sección en la que crearla" : cli.motivoDe(cuerpo);
+        if (!cli.puedeEscribir || motivo !== "" || !/^\d{4}-\d\d-\d\d$/.test(dia)) {
             if (motivo !== "")
                 p.error = motivo;
             fin(false);

@@ -107,6 +107,7 @@ Item {
             return;
         }
         root.cerrarPrioridad();
+        root.cerrarCategorias();
         root.selectorAnio = root.shown.getFullYear();
         root.selectorAbierto = true;
     }
@@ -142,7 +143,7 @@ Item {
     property string hojaError: ""
     // Las categorías que ofrece la hoja: las del panel, y ninguna para las
     // entregas de Aules (su categoría es fija, como el no poder borrarlas).
-    readonly property var hojaCategorias: root.tareas && Formato.categoria(root.hojaTarea || {}).nombre !== "Clase" ? (root.tareas.categorias ?? []) : []
+    readonly property var hojaCategorias: root.hojaTarea && Formato.categoria(root.hojaTarea).nombre === "Clase" ? [] : (root.tareas?.categorias ?? [])
     // Cuenta las hojas abiertas y cerradas: lo que el panel contesta tarde,
     // con la hoja ya cerrada, va al aviso de la lista y no a otra hoja.
     property int hojaVez: 0
@@ -152,6 +153,8 @@ Item {
 
     // La prioridad: la tarea cuyo menú está abierto (un evento), o null.
     property var menuDe: null
+    // La lista de categorías de la hoja de una tarea, abierta o no.
+    property bool menuCatAbierto: false
 
     // Las del panel, de la más alta a la más baja, con el nombre de su color
     // (Theme.colorPrioridad) y lo que se lee en el menú.
@@ -205,6 +208,7 @@ Item {
             return;
         root.cerrarSelector();
         root.cerrarPrioridad();
+        root.cerrarCategorias();
         root.elegido = dia === root.hoy ? "" : dia;
         if (root.hojaModo === "nueva") {
             root.hojaDia = dia;
@@ -226,14 +230,20 @@ Item {
             return;
         root.cerrarSelector();
         root.cerrarPrioridad();
+        root.cerrarCategorias();
         const conHora = !e.todoElDia && e.hora !== "";
+        // Su categoría tal cual se ve en la fila: por si no se ofrece (En
+        // pausa) y hay que enseñarla igual.
+        const cat = Formato.categoria(e);
         root.abrirHoja("editar", e.dia, e, {
             texto: e.texto || e.titulo,
             horaInicio: conHora ? e.hora : "",
             horaFin: conHora ? (e.horaFin || Formato.sumarMinutos(e.hora, 60)) : "",
             prioridad: root.valorDe(e.prioridadPropia),
             claudeOff: e.claudeOff === true,
-            seccion: e.seccionId || ""
+            seccion: e.seccionId || "",
+            seccionNombre: cat.nombre,
+            seccionColor: cat.color
         });
     }
 
@@ -253,6 +263,7 @@ Item {
         if (root.hojaModo === "")
             return;
         root.hojaVez++;
+        root.cerrarCategorias();
         if (root.tecladoAntes)
             root.tecladoAntes.forceActiveFocus();
         root.tecladoAntes = null;
@@ -362,6 +373,7 @@ Item {
             return;
         }
         root.cerrarSelector();
+        root.cerrarCategorias();
         const q = punto.mapToItem(root, 0, 0);
         const abajo = q.y + punto.height + 4;
         menuPrio.arriba = abajo + menuPrio.height > root.height - 6;
@@ -373,6 +385,38 @@ Item {
 
     function cerrarPrioridad() {
         root.menuDe = null;
+    }
+
+    // La lista de categorías sale encima del control si no cabe debajo (lo
+    // normal: la hoja va al final de la isla), del ancho del control y, si
+    // hay muchas, con scroll.
+    function abrirCategorias(control) {
+        if (root.menuCatAbierto) {
+            root.cerrarCategorias();
+            return;
+        }
+        root.cerrarSelector();
+        root.cerrarPrioridad();
+        const q = control.mapToItem(root, 0, 0);
+        const abajo = q.y + control.height + 4;
+        menuCat.width = Math.min(root.width - 2 * Theme.pad, Math.max(control.width, 220));
+        menuCat.arriba = abajo + menuCat.height > root.height - 6;
+        menuCat.y = menuCat.arriba ? q.y - menuCat.height - 4 : abajo;
+        menuCat.x = Math.min(Math.max(Theme.pad - 6, q.x), root.width - menuCat.width - 6);
+        menuCatLista.positionViewAtBeginning();
+        root.menuCatAbierto = true;
+    }
+
+    function cerrarCategorias() {
+        root.menuCatAbierto = false;
+    }
+
+    // Elegir una la pone en la hoja (no se manda nada hasta Guardar) y cierra.
+    function elegirCategoria(c) {
+        const h = hojaCarga.item;
+        root.cerrarCategorias();
+        if (h)
+            h.seccion = c.id;
     }
 
     function elegirPrioridad(p) {
@@ -480,6 +524,7 @@ Item {
                 root.elegido = "";
                 root.cerrarSelector();
                 root.cerrarPrioridad();
+                root.cerrarCategorias();
                 root.cerrarHoja();
                 root.cancelarArrastre();
             } else if (root.tareas) {
@@ -1301,6 +1346,7 @@ Item {
                     inicial: root.hojaInicial
                     prioridades: root.prioridades
                     categorias: root.hojaCategorias
+                    menuAbierto: root.menuCatAbierto
                     ocupada: root.guardando
                     error: root.hojaError
                     conPanel: root.puedeEscribir || root.guardando
@@ -1309,6 +1355,8 @@ Item {
                     onEliminar: root.eliminarHoja()
                     onCancelar: root.cerrarHoja()
                     onTocada: root.hojaError = ""
+                    onAbrirCategorias: control => root.abrirCategorias(control)
+                    onCerrarMenu: root.cerrarCategorias()
                 }
             }
             onLoaded: {
@@ -1324,7 +1372,7 @@ Item {
         onTriggered: root.aviso = ""
     }
 
-    // --- Lo que flota: el desplegable de mes y año y el menú de prioridades ----
+    // --- Lo que flota: el desplegable de mes y año, el menú de prioridades y la lista de categorías ----
     // Pulsar fuera de ellos (pero dentro del calendario) los cierra; pulsar
     // fuera de la isla la cierra entera, como siempre. Con el desplegable
     // abierto, la cabecera sigue a mano: el chip lo cierra y las flechas
@@ -1333,10 +1381,11 @@ Item {
         anchors.fill: parent
         anchors.topMargin: root.selectorAbierto ? content.y + cabecera.y + cabecera.height : 0
         z: 4
-        enabled: root.selectorAbierto || root.menuDe !== null
+        enabled: root.selectorAbierto || root.menuDe !== null || root.menuCatAbierto
         onPressed: {
             root.cerrarSelector();
             root.cerrarPrioridad();
+            root.cerrarCategorias();
         }
     }
 
@@ -1634,6 +1683,162 @@ Item {
                     }
                 }
             }
+        }
+    }
+
+    // La lista de categorías de la hoja (al pulsar su control). Como menuPrio,
+    // pero con scroll si no caben todas; la actual va en negrita y con la marca.
+    Rectangle {
+        id: menuCat
+
+        // Si sale encima del control (crece desde abajo) o debajo.
+        property bool arriba: true
+        readonly property int alto: 22
+        // Seis filas y a partir de ahí, scroll.
+        readonly property int maxFilas: 6
+
+        objectName: "menuCategorias"
+        z: 5
+        width: 150
+        height: Math.min(root.hojaCategorias.length, menuCat.maxFilas) * (menuCat.alto + 2) - 2 + 12
+        radius: 10
+        color: Theme.glassDense
+        border.width: 1
+        border.color: Qt.rgba(1, 1, 1, 0.18)
+        opacity: 0
+        scale: 0.9
+        transformOrigin: menuCat.arriba ? Item.BottomLeft : Item.TopLeft
+        visible: opacity > 0
+
+        states: State {
+            name: "abierto"
+            when: root.menuCatAbierto
+            PropertyChanges {
+                menuCat.opacity: 1
+                menuCat.scale: 1.0
+            }
+        }
+
+        transitions: [
+            Transition {
+                to: "abierto"
+                NumberAnimation {
+                    properties: "opacity,scale"
+                    duration: 320
+                    easing.type: Easing.OutBack
+                    easing.overshoot: 1.9
+                }
+            },
+            Transition {
+                from: "abierto"
+                NumberAnimation {
+                    properties: "opacity,scale"
+                    duration: 200
+                    easing.type: Easing.InOutQuint
+                }
+            }
+        ]
+
+        MouseArea {
+            anchors.fill: parent
+        }
+
+        ListView {
+            id: menuCatLista
+
+            objectName: "listaCategorias"
+            anchors.fill: parent
+            anchors.margins: 6
+            clip: true
+            spacing: 2
+            boundsBehavior: Flickable.StopAtBounds
+            model: root.hojaCategorias
+
+            delegate: Rectangle {
+                id: opcionCat
+
+                required property var modelData
+
+                readonly property bool actual: hojaCarga.item !== null && hojaCarga.item.seccion === opcionCat.modelData.id
+
+                objectName: "categoriaOpcion"
+                // Dentro de la lista, que a veces tiene scroll.
+                width: ListView.view.width - (menuCatLista.contentHeight > menuCatLista.height ? 6 : 0)
+                height: menuCat.alto
+                radius: 6
+                // Solo el de debajo del puntero lleva lámina: la actual se
+                // marca con la negrita y el visto, para que nunca haya dos
+                // «elegidas» a mitad de una transición.
+                color: Qt.rgba(1, 1, 1, opcionCatArea.containsMouse ? 0.08 : 0)
+
+                Behavior on color {
+                    ColorAnimation {
+                        duration: 120
+                    }
+                }
+
+                Rectangle {
+                    anchors.left: parent.left
+                    anchors.leftMargin: 8
+                    anchors.verticalCenter: parent.verticalCenter
+                    width: 6
+                    height: 6
+                    radius: 3
+                    color: opcionCat.modelData.color !== "" ? opcionCat.modelData.color : Theme.faint
+                }
+
+                Text {
+                    objectName: "etiquetaCategoria"
+                    anchors.left: parent.left
+                    anchors.leftMargin: 22
+                    anchors.right: parent.right
+                    anchors.rightMargin: opcionCat.actual ? 26 : 8
+                    anchors.verticalCenter: parent.verticalCenter
+                    text: opcionCat.modelData.nombre
+                    elide: Text.ElideRight
+                    textFormat: Text.PlainText
+                    color: opcionCat.actual || opcionCatArea.containsMouse ? Theme.strong : Theme.text
+                    font.family: Theme.font
+                    font.pixelSize: 11
+                    font.bold: opcionCat.actual
+                }
+
+                Text {
+                    objectName: "marcaCategoria"
+                    anchors.right: parent.right
+                    anchors.rightMargin: 8
+                    anchors.verticalCenter: parent.verticalCenter
+                    visible: opcionCat.actual
+                    text: "󰄬"
+                    color: Theme.strong
+                    font.family: Theme.font
+                    font.pixelSize: 12
+                }
+
+                // Un MouseArea y no un TapHandler: el TapHandler deja pasar
+                // el toque a lo que haya debajo de la lista (la fila de la
+                // prioridad), y elegir una categoría no puede cambiarla.
+                MouseArea {
+                    id: opcionCatArea
+
+                    anchors.fill: parent
+                    hoverEnabled: true
+                    cursorShape: Qt.PointingHandCursor
+                    onClicked: root.elegirCategoria(opcionCat.modelData)
+                }
+            }
+        }
+
+        // Una rayita a la derecha que dice que hay más abajo (o arriba).
+        Rectangle {
+            objectName: "scrollCategorias"
+            visible: menuCatLista.contentHeight > menuCatLista.height
+            x: parent.width - 6
+            y: 6 + menuCatLista.visibleArea.yPosition * menuCatLista.height
+            width: 2
+            height: Math.max(12, menuCatLista.visibleArea.heightRatio * menuCatLista.height)
+            radius: 1
+            color: Qt.rgba(1, 1, 1, 0.3)
         }
     }
 
