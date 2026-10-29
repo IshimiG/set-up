@@ -1721,7 +1721,7 @@ FloatingWindow {
         [450, () => {
                 const o = ventana.todos("categoriaOpcion");
                 const m = ventana.uno("menuCategorias");
-                ventana.comprobar(cal.menuCatAbierto && ventana.igual(o.map(x => ventana.hijos(x, "etiquetaCategoria")[0].text), ["Clase", "General", "Homelab", "Proyecto de fin de ciclo"]), "pulsar el control abre la lista con las secciones del panel (con «Clase», que el panel nuevo distingue de las de Aules, y sin «En pausa»)", o.length + " opciones");
+                ventana.comprobar(cal.menuCatAbierto && ventana.igual(o.map(x => ventana.hijos(x, "etiquetaCategoria")[0].text), ["Clase", "General", "Homelab", "Proyecto de fin de ciclo"]), "pulsar el control abre la lista con las secciones del panel (con «Clase», que el panel nuevo distingue de las de Aules, y sin «En pausa» ni «Repaso de pendientes», que son texto y no proyectos)", o.length + " opciones");
                 ventana.comprobar(ventana.igual(o.map(x => ventana.hijos(x, "marcaCategoria").length), [0, 1, 0, 0]) && ventana.igual(o.map(x => x.actual), [false, true, false, false]), "  con la marca en la actual de la tarea (General)");
                 ventana.comprobar(m !== null && m.y >= 0 && m.y + m.height <= cal.height && m.x >= 0 && m.x + m.width <= cal.width && ventana.todos("scrollCategorias").length === 0, "  dentro del calendario y sin scroll (caben)", m ? Math.round(m.x) + "," + Math.round(m.y) + " " + Math.round(m.height) : "");
                 ventana.comprobar(ventana.hoja().height === ventana.alturaHoja, "  y la hoja no cambia de alto");
