@@ -571,9 +571,13 @@ Item {
 
         property string texto
         property bool abierto: false
+        // Todos los textos que puede llegar a tener el chip: se mide el más
+        // ancho y el chip ocupa siempre eso, para que no baile con el mes.
+        property var textosPosibles: []
+        property real anchoMaximo: 0
         signal pulsado
 
-        implicitWidth: etiquetaChip.implicitWidth + 16
+        implicitWidth: Math.max(etiquetaChip.implicitWidth, chip.anchoMaximo) + 16
         implicitHeight: 24
         radius: 8
         color: Qt.rgba(1, 1, 1, chip.abierto ? 0.14 : (chipHover.hovered ? 0.08 : 0))
@@ -583,6 +587,18 @@ Item {
         Behavior on color {
             ColorAnimation {
                 duration: 140
+            }
+        }
+
+        Repeater {
+            model: chip.textosPosibles
+
+            Text {
+                visible: false
+                text: modelData + "  󰅀"
+                font: etiquetaChip.font
+                onImplicitWidthChanged: chip.anchoMaximo = Math.max(chip.anchoMaximo, implicitWidth)
+                Component.onCompleted: chip.anchoMaximo = Math.max(chip.anchoMaximo, implicitWidth)
             }
         }
 
@@ -712,6 +728,7 @@ Item {
 
                 objectName: "chipMes"
                 texto: root.mayus(root.loc.monthName(root.shown.getMonth(), Locale.LongFormat)) + " " + root.shown.getFullYear()
+                textosPosibles: Formato.MESES.map(m => root.mayus(m) + " " + root.shown.getFullYear())
                 abierto: root.selectorAbierto
                 onPulsado: root.abrirSelector()
             }
