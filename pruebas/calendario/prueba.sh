@@ -11,8 +11,10 @@
 #     lista del día, el clic, la rueda, el botón de hoy, el desplegable de mes
 #     y año y arrastrar tareas;
 #   - el cliente del panel (bar/Tareas.qml) de verdad, por HTTP, contra un
-#     panel falso (panel-falso.py, al lado) y con el calendario encima: crear
-#     con doble clic, la prioridad, el 🚫🤖 y mover.
+#     panel falso (panel-falso.py, al lado) y con el calendario encima: la
+#     hoja de una tarea (bar/HojaTarea.qml) para crearla con doble clic y
+#     editarla pulsando su título, con sus horas, su color, lo que valida y
+#     el cuerpo exacto de cada POST; la prioridad, el 🚫🤖 y mover.
 # Imprime OK o FALLO por cada comprobación y deja capturas en
 # <carpeta temporal>/capturas. Sale con 1 si algo falla.
 #
@@ -51,7 +53,7 @@ mkdir -p "$tmp/barra" "$tmp/cajon" "$tmp/capturas" "$tmp/bin"
 mkdir -m 700 "$tmp/run"
 cp "$aqui/shell.qml" "$tmp/"
 cp -r "$qs_dir/shared" "$tmp/shared"
-cp "$qs_dir/bar/CalendarPanel.qml" "$qs_dir/bar/Agenda.qml" "$qs_dir/bar/Tareas.qml" "$tmp/barra/"
+cp "$qs_dir/bar/CalendarPanel.qml" "$qs_dir/bar/HojaTarea.qml" "$qs_dir/bar/Agenda.qml" "$qs_dir/bar/Tareas.qml" "$tmp/barra/"
 cp "$qs_dir/homelab/Agenda.qml" "$tmp/cajon/"
 ln -s ../shared "$tmp/barra/shared"
 ln -s ../shared "$tmp/cajon/shared"
@@ -98,7 +100,7 @@ resultado=$(sed -E 's/\x1b\[[0-9;]*m//g' "$tmp/salida.log" | grep -E "qml: " | s
 # Ni el texto de una tarea, ni el JSON de la agenda, ni la contraseña van
 # nunca a un log. La prueba no imprime ninguno, así que en la salida de qs no
 # puede haber ninguno.
-if grep -q -e "Entrega secreta" -e "Informe trimestral" -e "Revisar el informe" -e "Comprar pilas" -e "Tarea quinta" -e "Llamar al taller" -e '"eventos"' "$tmp/salida.log" || grep -q -F -f "$tmp/clave" "$tmp/salida.log"; then
+if grep -q -e "Entrega secreta" -e "Informe trimestral" -e "Revisar el informe" -e "Comprar pilas" -e "Tarea quinta" -e "Llamar al taller" -e "Tutoría" -e "Clase de yoga" -e "Otra cosa" -e "No la quiero" -e '"eventos"' "$tmp/salida.log" || grep -q -F -f "$tmp/clave" "$tmp/salida.log"; then
 	privacidad="FALLO  el texto de una tarea, el JSON de la agenda o la contraseña salen en el log de qs"
 else
 	privacidad="OK     ni el texto de las tareas, ni el JSON, ni la contraseña salen en el log de qs"
