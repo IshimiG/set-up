@@ -30,14 +30,18 @@ import "shared/AgendaFormato.js" as Formato
 //     quien escribe en él), las tareas se editan desde aquí:
 //       · doble clic en un día abre en el sitio de la lista la hoja «Nueva
 //         tarea» (bar/HojaTarea.qml): el título, todo el día o de una hora a
-//         otra, el color, la prioridad (media) y el 🚫🤖 (apagado). Intro
+//         otra, la prioridad (media) y el 🚫🤖 (apagado). Intro
 //         guarda, Escape cancela. Con ella abierta, pulsar otro día la lleva
 //         a ese día;
 //       · pulsar el título de una tarea abre la misma hoja, «Editar tarea»,
 //         con lo suyo, y guardar manda solo lo que ha cambiado. Pulsar un día
-//         la cierra sin guardar;
-//       · en la lista, una tarea con hora lleva su rango («09:00–10:00») en
-//         vez del área, y una con color propio, una barrita de ese color;
+//         la cierra sin guardar. Con «Eliminar» (dos pulsaciones: la segunda
+//         confirma) se borra la tarea, salvo las de Aules, que son de solo
+//         lectura;
+//       · en la lista, cada fila lleva a la izquierda una barrita con el
+//         color de su categoría (su sección; «Clase» en las entregas de
+//         Aules) y a la derecha el nombre de esa categoría; una tarea con
+//         hora lleva además su rango («09:00–10:00»);
 //       · el punto de una tarea, pulsado, abre un menú con las cinco
 //         prioridades;
 //       · el 🚫🤖 del final de la fila («Claude no la hace») se enciende y se
@@ -127,6 +131,8 @@ Item {
     property var hojaTarea: null
     // Con qué se abre (HojaTarea.inicial), para saber al guardar qué cambió.
     property var hojaInicial: null
+    // La tarea de la hoja se puede borrar: no las de Aules (solo lectura).
+    readonly property bool hojaBorrable: root.hojaModo === "editar" && root.hojaTarea !== null && root.hojaTarea.id !== "" && Formato.categoria(root.hojaTarea).nombre !== "Clase"
     // Esperando al panel.
     property bool guardando: false
     // Lo que contestó el panel al no aceptarla.
@@ -202,7 +208,6 @@ Item {
             texto: "",
             horaInicio: "",
             horaFin: "",
-            color: "",
             prioridad: "medium",
             claudeOff: false
         });
@@ -219,7 +224,6 @@ Item {
             texto: e.texto || e.titulo,
             horaInicio: conHora ? e.hora : "",
             horaFin: conHora ? (e.horaFin || Formato.sumarMinutos(e.hora, 60)) : "",
-            color: e.colorPropio || "",
             prioridad: root.valorDe(e.prioridadPropia),
             claudeOff: e.claudeOff === true
         });
@@ -262,13 +266,38 @@ Item {
             c.horaInicio = v.horaInicio;
             c.horaFin = v.horaFin;
         }
-        if (v.color !== ini.color)
-            c.color = v.color;
         if (v.prioridad !== ini.prioridad)
             c.prioridad = v.prioridad;
         if (v.claudeOff !== ini.claudeOff)
             c.claudeOff = v.claudeOff;
         return c;
+    }
+
+    // «Eliminar» confirmado en la hoja de editar: borra la tarea en el panel.
+    // Si el panel no la borra, la hoja se queda abierta con el porqué.
+    function eliminarHoja() {
+        const cli = root.tareas;
+        if (!cli || root.guardando || root.hojaModo !== "editar" || !root.hojaTarea || !root.hojaBorrable)
+            return;
+        const vez = root.hojaVez;
+        root.hojaError = "";
+        root.guardando = true;
+        cli.eliminar(root.hojaTarea.id, ok => {
+            const abierta = vez === root.hojaVez;
+            if (abierta)
+                root.guardando = false;
+            if (!ok) {
+                const motivo = cli.error || "No se pudo eliminar la tarea";
+                if (abierta)
+                    root.hojaError = motivo;
+                else
+                    root.avisar(motivo);
+                return;
+            }
+            if (abierta)
+                root.cerrarHoja();
+            root.avisar("Eliminada");
+        });
     }
 
     // Guardar en la hoja. Una nueva se crea (no es optimista: sale al
@@ -522,17 +551,17 @@ Item {
         return Theme.colorPrioridad(tipo);
     }
 
-    // Lo que va a la derecha de una fila: cuándo venció si es de otro día, la
-    // hora si la tiene («09:00–10:00», o solo la de inicio si no tiene fin), y
-    // si no, su área o su sección («Clase» en las entregas de Aules).
-    function etiqueta(e) {
+    // Lo que va entre el título y la categoría: cuándo venció si es de otro
+    // día, «vencida», o la hora si la tiene («09:00–10:00», o solo la de
+    // inicio si no tiene fin); si no, nada.
+    function detalle(e) {
         if (e.deAntes)
             return "venció " + Formato.diaCorto(e.dia);
         if (Formato.tipo(e, root.hoy) === "vencida")
             return "vencida";
         if (!e.todoElDia && e.hora !== "")
             return e.hora + (e.horaFin ? "–" + e.horaFin : "");
-        return e.area !== "" ? e.area : e.seccion;
+        return "";
     }
 
     // Un botón de texto de la cabecera (el mes y el año) con su flecha de
@@ -1015,6 +1044,10 @@ Item {
                         Layout.preferredHeight: 16
                         spacing: 8
 
+                        // La categoría de la tarea (su sección; «Clase» en las
+                        // entregas de Aules): su color es el de la barrita.
+                        readonly property var categoria: Formato.categoria(fila.modelData)
+
                         // Se puede editar: con el panel al alcance y con id
                         // (lo que viene del fichero del cajón no lo tiene).
                         readonly property bool movible: root.puedeEscribir && fila.modelData.id !== ""
@@ -1055,6 +1088,19 @@ Item {
                         Component.onDestruction: if (dragFila.active)
                             root.cancelarArrastre()
 
+                        // La barrita con el color de la categoría. Sin color
+                        // (una sección que no lo tiene) deja el hueco.
+                        Rectangle {
+                            objectName: "categoriaBarra"
+                            Layout.alignment: Qt.AlignVCenter
+                            Layout.preferredWidth: 3
+                            Layout.preferredHeight: 14
+                            Layout.rightMargin: -3
+                            radius: 1.5
+                            color: fila.categoria.color !== "" ? fila.categoria.color : "transparent"
+                            opacity: fila.modelData.hecha ? 0.45 : 1
+                        }
+
                         // El punto, con el color de la prioridad de hoy. Pulsado
                         // abre el menú de prioridades; la zona que se pulsa es
                         // algo mayor que el punto, que crece un poco al pasar
@@ -1083,21 +1129,6 @@ Item {
                                         easing.overshoot: 1.9
                                     }
                                 }
-                            }
-
-                            // El color propio de la tarea, si lo tiene: una
-                            // barrita a la izquierda del punto, en el margen,
-                            // para no mover el título de sitio.
-                            Rectangle {
-                                objectName: "colorFila"
-                                x: -4
-                                anchors.verticalCenter: parent.verticalCenter
-                                width: 3
-                                height: 14
-                                radius: 1.5
-                                visible: (fila.modelData.colorPropio || "") !== ""
-                                color: fila.modelData.colorPropio || "transparent"
-                                opacity: fila.modelData.hecha ? 0.45 : 1
                             }
 
                             HoverHandler {
@@ -1139,12 +1170,25 @@ Item {
                         }
 
                         Text {
-                            objectName: "etiquetaFila"
-                            Layout.maximumWidth: 110
-                            text: root.etiqueta(fila.modelData)
+                            objectName: "detalleFila"
+                            Layout.maximumWidth: 80
+                            visible: text !== ""
+                            text: root.detalle(fila.modelData)
                             elide: Text.ElideRight
                             textFormat: Text.PlainText
                             color: fila.tipo === "vencida" ? Theme.prioMaxima : Theme.faint
+                            font.family: Theme.font
+                            font.pixelSize: 10
+                        }
+
+                        Text {
+                            objectName: "etiquetaFila"
+                            Layout.maximumWidth: 64
+                            visible: text !== ""
+                            text: fila.categoria.nombre
+                            elide: Text.ElideRight
+                            textFormat: Text.PlainText
+                            color: Theme.faint
                             font.family: Theme.font
                             font.pixelSize: 10
                         }
@@ -1228,7 +1272,9 @@ Item {
                     ocupada: root.guardando
                     error: root.hojaError
                     conPanel: root.puedeEscribir || root.guardando
+                    borrable: root.hojaBorrable
                     onGuardar: valores => root.guardarHoja(valores)
+                    onEliminar: root.eliminarHoja()
                     onCancelar: root.cerrarHoja()
                     onTocada: root.hojaError = ""
                 }
