@@ -8,7 +8,8 @@
 # "" las dos, todo el día) y color ("#rrggbb" o ""); al crear se pueden mandar
 # hora_inicio, hora_fin y color, y al editar también (ausente = no se toca;
 # "" = quitar). DELETE /api/tareas/{id} la borra y contesta con la lista nueva
-# (409 si ya no está). Cada sección trae su color ("#rrggbb" o ""). Las horas van siempre en pareja y el fin después del inicio;
+# (409 si ya no está). Al crear va la sección en «seccion» (422 si no existe) y
+# al editar «seccion» mueve la tarea a otra (422 si no existe). Cada sección trae su color ("#rrggbb" o ""). Las horas van siempre en pareja y el fin después del inicio;
 # si no, 422 con el motivo. Nada se aplica si algo del cuerpo no vale.
 #
 #   panel-falso.py <fichero del puerto> <fichero de la contraseña>
@@ -117,6 +118,9 @@ estado = {
             tarea("g2", "Llamar al taller", "2026-10-22", "low"),
             # Con hora; el color suelto de la tarea ya no lo usa la barra.
             tarea("g3", "Tutoría de **FOL**", "2026-10-30", "high", "", False, "16:00", "17:00", "#039be5")]},
+        # Proyectos con su color: los de la hoja del calendario («Categoría»).
+        {"id": "homelab", "title": "Homelab", "emoji": "", "color": "#33b679", "tasks": []},
+        {"id": "tfg", "title": "Proyecto de fin de ciclo", "emoji": "", "color": "#8e24aa", "tasks": []},
         {"id": "en-pausa", "title": "En pausa", "emoji": "", "color": "", "tasks": []},
     ],
 }
@@ -155,6 +159,11 @@ def editar(id, q):
     t = buscar(id)
     if t is None:
         return 409, {"error": "La tarea ha cambiado en tus notas; recarga."}
+    destino = None
+    if "seccion" in q:
+        destino = next((s for s in estado["sections"] if s["id"] == q["seccion"]), None)
+        if destino is None:
+            return 422, {"error": "Sección desconocida."}
     motivo = ((mal_texto(q) if "texto" in q else None)
               or ("La fecha debe ser AAAA-MM-DD y existir." if q.get("fecha") and not DIA.match(str(q["fecha"])) else None)
               or ("Prioridad no válida." if q.get("prioridad") and q["prioridad"] not in PRIOS else None)
@@ -173,6 +182,11 @@ def editar(id, q):
         _, t["time_start"], t["time_end"] = horas(q)
     if "color" in q:
         t["color"] = str(q["color"]).strip().lower()
+    if destino is not None:
+        for s in estado["sections"]:
+            if t in s["tasks"]:
+                s["tasks"].remove(t)
+        destino["tasks"].append(t)
     t["effective"] = efectiva(t["priority"], t["due"])
     t["dueToday"] = t["due"] == HOY
     return 200, None

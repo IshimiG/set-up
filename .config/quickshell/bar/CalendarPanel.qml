@@ -30,11 +30,14 @@ import "shared/AgendaFormato.js" as Formato
 //     quien escribe en él), las tareas se editan desde aquí:
 //       · doble clic en un día abre en el sitio de la lista la hoja «Nueva
 //         tarea» (bar/HojaTarea.qml): el título, todo el día o de una hora a
-//         otra, la prioridad (media) y el 🚫🤖 (apagado). Intro
+//         otra, la prioridad (media), el 🚫🤖 (apagado) y la categoría (General,
+//         Homelab… las secciones del panel; la de siempre). Intro
 //         guarda, Escape cancela. Con ella abierta, pulsar otro día la lleva
 //         a ese día;
 //       · pulsar el título de una tarea abre la misma hoja, «Editar tarea»,
-//         con lo suyo, y guardar manda solo lo que ha cambiado. Pulsar un día
+//         con lo suyo, y guardar manda solo lo que ha cambiado (también la
+//         categoría, que pasa la tarea a otra sección; las de Aules no la
+//         tienen). Pulsar un día
 //         la cierra sin guardar. Con «Eliminar» (dos pulsaciones: la segunda
 //         confirma) se borra la tarea, salvo las de Aules, que son de solo
 //         lectura;
@@ -137,6 +140,9 @@ Item {
     property bool guardando: false
     // Lo que contestó el panel al no aceptarla.
     property string hojaError: ""
+    // Las categorías que ofrece la hoja: las del panel, y ninguna para las
+    // entregas de Aules (su categoría es fija, como el no poder borrarlas).
+    readonly property var hojaCategorias: root.tareas && Formato.categoria(root.hojaTarea || {}).nombre !== "Clase" ? (root.tareas.categorias ?? []) : []
     // Cuenta las hojas abiertas y cerradas: lo que el panel contesta tarde,
     // con la hoja ya cerrada, va al aviso de la lista y no a otra hoja.
     property int hojaVez: 0
@@ -209,7 +215,8 @@ Item {
             horaInicio: "",
             horaFin: "",
             prioridad: "medium",
-            claudeOff: false
+            claudeOff: false,
+            seccion: root.tareas && root.tareas.seccionPorDefecto ? root.tareas.seccionPorDefecto() : ""
         });
     }
 
@@ -225,7 +232,8 @@ Item {
             horaInicio: conHora ? e.hora : "",
             horaFin: conHora ? (e.horaFin || Formato.sumarMinutos(e.hora, 60)) : "",
             prioridad: root.valorDe(e.prioridadPropia),
-            claudeOff: e.claudeOff === true
+            claudeOff: e.claudeOff === true,
+            seccion: e.seccionId || ""
         });
     }
 
@@ -270,6 +278,8 @@ Item {
             c.prioridad = v.prioridad;
         if (v.claudeOff !== ini.claudeOff)
             c.claudeOff = v.claudeOff;
+        if (v.seccion !== ini.seccion)
+            c.seccion = v.seccion;
         return c;
     }
 
@@ -1290,6 +1300,7 @@ Item {
                     dia: root.hojaDia
                     inicial: root.hojaInicial
                     prioridades: root.prioridades
+                    categorias: root.hojaCategorias
                     ocupada: root.guardando
                     error: root.hojaError
                     conPanel: root.puedeEscribir || root.guardando

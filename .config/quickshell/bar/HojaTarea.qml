@@ -13,10 +13,16 @@ import "shared/AgendaFormato.js" as Formato
 //   [ Título                                            ]
 //   Todo el día  (●  )               De [09:00] a [10:00]
 //   Prioridad  ● ● ◉ ● ●  Media                         󱚧
+//   Categoría  (● General) (● Homelab) (● Otro proyecto)
 //   [Eliminar] (por qué no se puede guardar)   [Cancelar] [Guardar]
 //
 // Las horas solo se ven, y solo cuentan, sin «Todo el día». La prioridad
-// elegida, pulsada otra vez, se quita. «Eliminar» solo está al editar una
+// elegida, pulsada otra vez, se quita. La categoría es la sección de la tarea
+// en el panel: un chip por cada una (con su color; si no caben en una línea,
+// pasan a la siguiente), siempre con una elegida (al crear, la de siempre; al
+// editar, la de la tarea, y si es una que no se ofrece, como En pausa,
+// ninguna hasta que se pulse otra). Sin categorías que ofrecer (las entregas
+// de Aules son de solo lectura) la fila no sale. «Eliminar» solo está al editar una
 // tarea que se puede borrar (no las de Aules); la primera pulsación pide
 // confirmación («¿Eliminar?»), la segunda emite eliminar, y la confirmación
 // se retira sola a los 4 s o al tocar cualquier otra cosa.
@@ -34,11 +40,15 @@ FocusScope {
     required property string dia
     // Con qué se abre: { texto, horaInicio y horaFin ("HH:MM", o "" las dos:
     // todo el día), prioridad (la
-    // del panel, de "highest" a "lowest", o ""), claudeOff }.
+    // del panel, de "highest" a "lowest", o ""), claudeOff, seccion (el id de
+    // la categoría) }.
     required property var inicial
     // Las cinco prioridades, de la más alta a la más baja: { valor, nombre,
     // etiqueta } (las de CalendarPanel).
     required property var prioridades
+    // Las categorías que se ofrecen: { id, nombre, color ("#rrggbb" o "") },
+    // en el orden del panel (Tareas.categorias). Vacía: sin la fila.
+    property var categorias: []
     // Esperando al panel: no se toca nada.
     property bool ocupada: false
     // Lo que contestó el panel al no aceptarla, o "".
@@ -48,7 +58,7 @@ FocusScope {
     // Se puede borrar (y se enseña «Eliminar»): editando, y no una de Aules.
     property bool borrable: false
 
-    // valores: { texto, horaInicio, horaFin, prioridad, claudeOff }.
+    // valores: { texto, horaInicio, horaFin, prioridad, claudeOff, seccion }.
     signal guardar(var valores)
     // Confirmado «Eliminar».
     signal eliminar
@@ -62,6 +72,8 @@ FocusScope {
     property bool confirmando: false
     property string prioridad: ""
     property bool claudeOff: false
+    // El id de la categoría elegida.
+    property string seccion: ""
     // Se ha intentado guardar: desde entonces se dice también si falta el
     // título (antes no, que una hoja recién abierta no es un error).
     property bool intentado: false
@@ -95,6 +107,7 @@ FocusScope {
         campoFin.text = i.horaFin || Formato.sumarMinutos(campoInicio.text, 60);
         hoja.prioridad = String(i.prioridad || "");
         hoja.claudeOff = i.claudeOff === true;
+        hoja.seccion = String(i.seccion || "");
     }
 
     function enfocar() {
@@ -111,7 +124,8 @@ FocusScope {
             horaInicio: hoja.horaInicio,
             horaFin: hoja.horaFin,
             prioridad: hoja.prioridad,
-            claudeOff: hoja.claudeOff
+            claudeOff: hoja.claudeOff,
+            seccion: hoja.seccion
         };
         // Lo que se manda, tal cual se ve («9» se queda en «09:00»).
         if (!hoja.todoElDia) {
@@ -137,6 +151,10 @@ FocusScope {
         hoja.tocada();
     }
     onClaudeOffChanged: {
+        hoja.confirmando = false;
+        hoja.tocada();
+    }
+    onSeccionChanged: {
         hoja.confirmando = false;
         hoja.tocada();
     }
@@ -324,6 +342,72 @@ FocusScope {
         TapHandler {
             enabled: !hoja.ocupada
             onTapped: punto.pulsado()
+        }
+    }
+
+    // Un chip de categoría: el punto con el color de la sección y su nombre.
+    // Elegido lleva la lámina más clara y un aro.
+    component ChipCategoria: Rectangle {
+        id: chip
+
+        property string nombre: ""
+        property color tinta: Theme.faint
+        property bool elegido: false
+        // Lo más ancho que puede ser: el ancho de la fila (un nombre largo se
+        // corta con «…» en vez de descuadrar la hoja).
+        property real maximo: 200
+        signal pulsado
+
+        implicitWidth: Math.min(chip.maximo, chipFila.implicitWidth + 16)
+        implicitHeight: 22
+        radius: 11
+        color: Qt.rgba(1, 1, 1, chip.elegido ? 0.16 : (chipHover.hovered ? 0.08 : 0))
+        border.width: 1
+        border.color: chip.elegido ? Qt.rgba(1, 1, 1, 0.4) : Theme.rule
+
+        Behavior on color {
+            ColorAnimation {
+                duration: 140
+            }
+        }
+
+        Row {
+            id: chipFila
+
+            anchors.verticalCenter: parent.verticalCenter
+            x: 8
+            spacing: 5
+
+            Rectangle {
+                anchors.verticalCenter: parent.verticalCenter
+                width: 8
+                height: 8
+                radius: 4
+                color: chip.tinta
+            }
+
+            Text {
+                anchors.verticalCenter: parent.verticalCenter
+                width: Math.min(implicitWidth, chip.maximo - 16 - 13)
+                text: chip.nombre
+                elide: Text.ElideRight
+                textFormat: Text.PlainText
+                color: chip.elegido || chipHover.hovered ? Theme.strong : Theme.text
+                font.family: Theme.font
+                font.pixelSize: 10
+                font.bold: chip.elegido
+            }
+        }
+
+        HoverHandler {
+            id: chipHover
+            enabled: !hoja.ocupada
+            cursorShape: Qt.PointingHandCursor
+        }
+
+        TapHandler {
+            enabled: !hoja.ocupada
+            onTapped: chip.pulsado()
         }
     }
 
@@ -684,6 +768,47 @@ FocusScope {
                 TapHandler {
                     enabled: !hoja.ocupada
                     onTapped: hoja.claudeOff = !hoja.claudeOff
+                }
+            }
+        }
+
+        // La categoría: la sección del panel, un chip por cada una.
+        RowLayout {
+            objectName: "categoriasHoja"
+            Layout.fillWidth: true
+            spacing: 6
+            visible: hoja.categorias.length > 0
+
+            Text {
+                Layout.alignment: Qt.AlignTop
+                Layout.topMargin: 4
+                text: "Categoría"
+                color: Theme.muted
+                font.family: Theme.font
+                font.pixelSize: 10
+            }
+
+            Flow {
+                id: flujoCategorias
+
+                Layout.fillWidth: true
+                Layout.preferredWidth: 0
+                Layout.preferredHeight: flujoCategorias.childrenRect.height
+                spacing: 4
+
+                Repeater {
+                    model: hoja.categorias
+
+                    ChipCategoria {
+                        required property var modelData
+
+                        objectName: "categoriaOpcion"
+                        nombre: modelData.nombre
+                        tinta: modelData.color !== "" ? modelData.color : Theme.faint
+                        elegido: hoja.seccion === modelData.id
+                        maximo: flujoCategorias.width
+                        onPulsado: hoja.seccion = modelData.id
+                    }
                 }
             }
         }

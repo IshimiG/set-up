@@ -1668,6 +1668,84 @@ FloatingWindow {
                 cal.elegido = "2026-10-30";
                 ventana.clicEn(ventana.tituloDe("Clase de yoga"));
             }],
+        // La categoría, en la hoja de editar y en la de crear.
+        [300, () => {
+                const o = ventana.enHoja("categoriaOpcion");
+                ventana.comprobar(cal.hojaModo === "editar" && ventana.igual(o.map(x => x.nombre), ["General", "Homelab", "Proyecto de fin de ciclo"]), "la hoja ofrece las secciones del panel como categorías (sin «Clase», de Aules, ni «En pausa»)", o.map(x => x.nombre).join(" | "));
+                ventana.comprobar(ventana.igual(o.map(x => x.elegido), [true, false, false]) && ventana.igual(o.map(x => x.tinta.toString()), ["#e67c73", "#33b679", "#8e24aa"]), "  con el color de cada una, y elegida la actual de la tarea (General)", o.map(x => x.tinta.toString()).join(" "));
+                ventana.comprobar(o.every(x => x.x + x.width <= x.parent.width + 0.5 && x.height > 0), "  y todas dentro del ancho de la hoja");
+                ventana.posts0 = ventana.posts();
+                ventana.captura("20-hoja-categoria");
+                ventana.clicEn(o[1]);
+            }],
+        [200, () => {
+                const o = ventana.enHoja("categoriaOpcion");
+                ventana.comprobar(ventana.hoja().seccion === "homelab" && ventana.igual(o.map(x => x.elegido), [false, true, false]), "pulsar otra categoría la elige (solo una)", ventana.hoja().seccion);
+                ventana.clicEn(o[0]);
+            }],
+        [200, () => {
+                ventana.comprobar(ventana.hoja().seccion === "general", "  y pulsar la de antes la vuelve a elegir");
+                ev.keyClick(Qt.Key_Return, Qt.NoModifier, -1);
+            }],
+        [300, () => ventana.leerRegistro()],
+        [300, () => {
+                ventana.comprobar(cal.hojaModo === "" && ventana.posts() === ventana.posts0, "elegir otra y volver a la misma no manda nada: guardar solo cierra la hoja", ventana.posts() - ventana.posts0 + " escrituras");
+                ventana.clicEn(ventana.tituloDe("Clase de yoga"));
+            }],
+        [300, () => ventana.clicEn(ventana.enHoja("categoriaOpcion")[1])],
+        [200, () => ev.keyClick(Qt.Key_Return, Qt.NoModifier, -1)],
+        [500, () => ventana.leerRegistro()],
+        [300, () => {
+                const r = ventana.ultima();
+                ventana.comprobar(ventana.posts() === ventana.posts0 + 1 && r.metodo === "POST" && /^\/api\/tareas\/n\d+$/.test(r.ruta) && ventana.mismo(r.cuerpo, {
+                    seccion: "homelab"
+                }), "cambiar solo la categoría manda solo { seccion } a POST /api/tareas/{id}", JSON.stringify(r.cuerpo));
+                const n = ventana.porTitulo("Clase de yoga");
+                ventana.comprobar(cal.hojaModo === "" && n !== null && n.seccionId === "homelab" && ventana.etiquetaDe("Clase de yoga") === "Homelab" && Qt.colorEqual(ventana.barraDe("Clase de yoga").color, "#33b679"), "  y la fila pasa a «Homelab», con su barrita verde", ventana.etiquetaDe("Clase de yoga"));
+                ventana.clicEn(ventana.tituloDe("Clase de yoga"));
+            }],
+        [300, () => {
+                const o = ventana.enHoja("categoriaOpcion");
+                ventana.comprobar(ventana.igual(o.map(x => x.elegido), [false, true, false]), "al editarla otra vez, la categoría elegida es la nueva (Homelab)");
+                ventana.clicEn(o[2]);
+                ventana.ajustar({
+                    fallos: [
+                        {
+                            estado: 422,
+                            error: "Sección desconocida."
+                        }
+                    ]
+                });
+            }],
+        [200, () => ev.keyClick(Qt.Key_Return, Qt.NoModifier, -1)],
+        [500, () => {
+                ventana.comprobar(cal.hojaModo === "editar" && !cal.guardando && ventana.hoja().seccion === "tfg" && ventana.textoDe("avisoHoja") === "Sección desconocida.", "si el panel rechaza el cambio de categoría, la hoja se queda con la elegida y el porqué", ventana.textoDe("avisoHoja"));
+                ventana.comprobar(ventana.porTitulo("Clase de yoga").seccionId === "homelab", "  y la tarea vuelve a su categoría de antes");
+                ventana.captura("20b-hoja-categoria-422");
+                ev.keyClick(Qt.Key_Escape, Qt.NoModifier, -1);
+            }],
+        [300, () => ventana.dobleClicDia("2026-10-30")],
+        [300, () => {
+                const o = ventana.enHoja("categoriaOpcion");
+                ventana.comprobar(cal.hojaModo === "nueva" && ventana.igual(o.map(x => x.elegido), [true, false, false]), "una hoja nueva trae elegida la categoría de siempre (General)");
+                ventana.titulo().text = "Reunión del proyecto";
+                ventana.clicEn(o[2]);
+            }],
+        [200, () => ev.keyClick(Qt.Key_Return, Qt.NoModifier, -1)],
+        [500, () => ventana.leerRegistro()],
+        [300, () => {
+                const r = ventana.ultima();
+                ventana.comprobar(r.metodo === "POST" && r.ruta === "/api/tareas" && ventana.mismo(r.cuerpo, {
+                    seccion: "tfg",
+                    texto: "Reunión del proyecto",
+                    area: "",
+                    fecha: "2026-10-30",
+                    prioridad: "medium",
+                    claude_off: false
+                }), "crear con otra categoría manda esa seccion en el POST", JSON.stringify(r.cuerpo));
+                ventana.comprobar(cal.hojaModo === "" && ventana.etiquetaDe("Reunión del proyecto") === "Proyecto de fin de ciclo" && Qt.colorEqual(ventana.barraDe("Reunión del proyecto").color, "#8e24aa"), "  y la tarea sale en esa categoría, con su color", ventana.etiquetaDe("Reunión del proyecto"));
+                ventana.clicEn(ventana.tituloDe("Clase de yoga"));
+            }],
         // Eliminar, en la hoja de editar: dos pulsaciones.
         [300, () => {
                 const e = ventana.unoHoja("eliminarHoja");
@@ -1730,6 +1808,7 @@ FloatingWindow {
             }],
         [300, () => {
                 ventana.comprobar(cal.hojaModo === "editar" && ventana.unoHoja("eliminarHoja") === null && !cal.hojaBorrable, "las entregas de Aules (área «Clase») son de solo lectura: la hoja no tiene «Eliminar»");
+                ventana.comprobar(ventana.enHoja("categoriaOpcion").length === 0 && ventana.unoHoja("categoriasHoja") === null, "  ni selector de categoría: la de Aules es fija");
                 ev.keyClick(Qt.Key_Escape, Qt.NoModifier, -1);
             }],
         [300, () => {

@@ -5,10 +5,12 @@ import "shared/AgendaFormato.js" as Formato
 
 // El cliente mínimo del panel del NUC para el calendario: lee las tareas con
 // fecha (GET /api/tareas), crea una para un día (POST /api/tareas, con sus
-// horas si las tiene) y cambia una de día, de prioridad o su 🚫🤖
-// «Claude no la hace» (POST /api/tareas/{id} con { fecha }, { prioridad } o
-// { claude_off }), la borra (DELETE /api/tareas/{id}) o lo que se haya tocado en la hoja de editarla (cambiar():
-// el texto, las horas, la prioridad y el 🚫🤖). Es el equivalente
+// horas si las tiene y en la sección que se elija) y cambia una de día, de
+// prioridad o su 🚫🤖 «Claude no la hace» (POST /api/tareas/{id} con
+// { fecha }, { prioridad } o { claude_off }), la borra (DELETE
+// /api/tareas/{id}) o lo que se haya tocado en la hoja de editarla (cambiar():
+// el texto, las horas, la prioridad, el 🚫🤖 y la categoría, que es la
+// sección: { seccion }, y la pasa a otra). Es el equivalente
 // reducido de lo que hace homelab/Api.qml, que es otro proceso de qs y no se
 // comparte: el cajón sigue siendo quien escribe el fichero de la agenda, y
 // esto solo se usa mientras el calendario está abierto.
@@ -28,9 +30,9 @@ import "shared/AgendaFormato.js" as Formato
 // mover).
 //
 // datos tiene el mismo formato que bar/Agenda.qml (shared/AgendaFormato.js, con
-// el id de cada evento, sus horas) y tres campos más en cada
-// evento, que el fichero no lleva: claudeOff, prioridadPropia y texto (abajo,
-// en agendaDe); null mientras no se haya podido leer nada.
+// el id de cada evento, sus horas) y cuatro campos más en cada
+// evento, que el fichero no lleva: claudeOff, prioridadPropia, texto y
+// seccionId (abajo, en agendaDe); null mientras no se haya podido leer nada.
 Scope {
     id: cli
 
@@ -44,6 +46,11 @@ Scope {
     readonly property bool puedeEscribir: p.estado === "conectado" && p.datos !== null && !p.escribiendo
     // Lo último que salió mal al escribir, o "".
     readonly property string error: p.error
+    // Las categorías que se pueden elegir en la hoja, en el orden del panel:
+    // { id, nombre, color ("#rrggbb" o "") }. No salen «Clase» (las entregas
+    // de Aules, que son de solo lectura y que el panel rellena solo) ni «En
+    // pausa» (la tarea se iría del calendario y de la isla, que no la cuenta).
+    readonly property var categorias: cli.categoriasDe(p.crudas)
 
     property string baseUrl: (Quickshell.env("HOMELAB_PANEL_URL") || "https://panel.lab.ishimi.es").replace(/\/+$/, "")
     property int esperaPeticion: 10000
@@ -95,6 +102,14 @@ Scope {
         return suelo !== "" && cli.rangoPrio[suelo] < (cli.rangoPrio[prio] ?? 5) ? suelo : prio;
     }
 
+    function categoriasDe(crudas) {
+        return ((crudas && crudas.sections) || []).filter(s => s.id !== "clase" && s.id !== "en-pausa").map(s => ({
+                    id: String(s.id),
+                    nombre: String(s.title || s.id),
+                    color: /^#[0-9a-fA-F]{6}$/.test(s.color || "") ? s.color : ""
+                }));
+    }
+
     function plano(texto) {
         return String(texto || "").replace(/\[\[([^\]|]+)(?:\|([^\]]+))?\]\]/g, (_, a, b) => (b || a.split("#")[0].split("/").pop()).trim()).replace(/\[([^\]]+)\]\((https?:\/\/[^\s)]+)\)/g, "$1").replace(/\*\*|~~|`/g, "");
     }
@@ -108,7 +123,7 @@ Scope {
     // tiene puesta ("maxima".."minima" o ""), que puede no ser la del punto:
     // esa es la de hoy, que el panel sube cerca de la fecha; y texto, el de la
     // nota tal cual, con su Markdown, que es lo que se edita en la hoja (el
-    // título va sin él).
+    // título va sin él); y seccionId, el id de su sección (la categoría).
     function agendaDe(d, conectado) {
         if (!d || typeof d !== "object")
             return null;
@@ -126,7 +141,8 @@ Scope {
                             propias[String(t.id)] = {
                                 claudeOff: t.claude_off === true,
                                 prioridad: cli.nombrePrio[t.priority] || "",
-                                texto: String(t.text || "")
+                                texto: String(t.text || ""),
+                                seccion: String(s.id)
                             };
                         return {
                             id: String(t.id || ""),
@@ -154,6 +170,7 @@ Scope {
             e.claudeOff = !!x && x.claudeOff;
             e.prioridadPropia = x ? x.prioridad : "";
             e.texto = x ? x.texto : e.titulo;
+            e.seccionId = x ? x.seccion : "";
         }
         return agenda;
     }
@@ -292,7 +309,7 @@ Scope {
     }
 
     // Por qué no se puede mandar un cuerpo de POST (con los nombres del panel:
-    // texto, prioridad, hora_inicio y hora_fin), o "". Lo mismo que
+    // texto, prioridad, hora_inicio, hora_fin y seccion), o "". Lo mismo que
     // rechazaría el panel; la hoja del calendario ya no deja llegar aquí nada
     // de esto, pero el cliente no se fía.
     function motivoDe(cuerpo) {
@@ -300,6 +317,8 @@ Scope {
             return "El texto debe tener entre 1 y 300 caracteres";
         if ("prioridad" in cuerpo && cuerpo.prioridad !== "" && !(cuerpo.prioridad in cli.rangoPrio))
             return "Prioridad no válida";
+        if ("seccion" in cuerpo && !((p.crudas && p.crudas.sections) || []).some(s => String(s.id) === cuerpo.seccion))
+            return "Categoría no válida";
         if ("hora_inicio" in cuerpo || "hora_fin" in cuerpo) {
             const m = Formato.motivoHoras(cuerpo.hora_inicio, cuerpo.hora_fin);
             if (m !== "")
@@ -308,9 +327,9 @@ Scope {
         return "";
     }
 
-    // Crea una tarea para un día, en la sección de siempre (seccionPorDefecto)
-    // y sin área. `d`: { texto, dia ("2026-10-30") y, si se quiere,
-    // prioridad (la del panel; media si no se dice, "" sin ninguna), claudeOff
+    // Crea una tarea para un día, en la sección que se diga o, si no, la de
+    // siempre (seccionPorDefecto), y sin área. `d`: { texto, dia
+    // ("2026-10-30") y, si se quiere, seccion (el id), prioridad (la del panel; media si no se dice, "" sin ninguna), claudeOff
     // (apagado si no se dice), horaInicio y horaFin ("HH:MM", las dos o
     // ninguna: todo el día) }. Las horas solo van en el cuerpo si las hay. No es optimista:
     // la tarea aparece cuando el panel contesta con la lista nueva, que ya la
@@ -322,7 +341,7 @@ Scope {
         };
         d = d || {};
         const dia = String(d.dia || "");
-        const seccion = cli.seccionPorDefecto();
+        const seccion = d.seccion === undefined ? cli.seccionPorDefecto() : String(d.seccion || "");
         const cuerpo = {
             seccion: seccion,
             texto: String(d.texto || "").replace(/\s+/g, " ").trim(),
@@ -337,7 +356,8 @@ Scope {
             cuerpo.hora_inicio = inicio;
             cuerpo.hora_fin = final;
         }
-        const motivo = cli.motivoDe(cuerpo);
+        // Sin ninguna sección no hay nada que decir: no se manda y ya.
+        const motivo = seccion === "" ? "" : cli.motivoDe(cuerpo);
         if (!cli.puedeEscribir || motivo !== "" || !/^\d{4}-\d\d-\d\d$/.test(dia) || seccion === "") {
             if (motivo !== "")
                 p.error = motivo;
@@ -359,8 +379,9 @@ Scope {
 
     // Lo que se ha tocado en la hoja de editar la tarea `id`, de una vez:
     // `c` lleva solo lo que cambia, de { texto, prioridad (la del panel, o ""
-    // para quitarla), claudeOff, horaInicio y horaFin (las dos juntas; "" las
-    // dos para dejarla de todo el día) }. Lo que no
+    // para quitarla), claudeOff, seccion (el id de la categoría a la que pasa),
+    // horaInicio y horaFin (las dos juntas; "" las dos para dejarla de todo el
+    // día) }. Lo que no
     // trae no se toca ni se manda. Optimista, como mover.
     function cambiar(id, c, alAcabar) {
         c = c || {};
@@ -371,6 +392,8 @@ Scope {
             cuerpo.prioridad = String(c.prioridad || "");
         if ("claudeOff" in c)
             cuerpo.claude_off = c.claudeOff === true;
+        if ("seccion" in c)
+            cuerpo.seccion = String(c.seccion || "");
         if ("horaInicio" in c || "horaFin" in c) {
             cuerpo.hora_inicio = String(c.horaInicio || "");
             cuerpo.hora_fin = String(c.horaFin || "");
@@ -383,7 +406,7 @@ Scope {
             return;
         }
         const hoy = String((p.crudas && p.crudas.today) || "").slice(0, 10);
-        cli.editar(id, cuerpo, t => {
+        cli.editar(id, cuerpo, (t, nuevas) => {
             if ("texto" in cuerpo)
                 t.text = cuerpo.texto;
             if ("prioridad" in cuerpo) {
@@ -395,6 +418,16 @@ Scope {
             if ("hora_inicio" in cuerpo) {
                 t.time_start = cuerpo.hora_inicio;
                 t.time_end = cuerpo.hora_fin;
+            }
+            // A la otra sección, al final (como la deja el panel).
+            if ("seccion" in cuerpo) {
+                const secs = nuevas.sections || [];
+                const origen = secs.find(s => (s.tasks || []).includes(t));
+                const destino = secs.find(s => String(s.id) === cuerpo.seccion);
+                if (origen && destino && origen !== destino) {
+                    origen.tasks.splice(origen.tasks.indexOf(t), 1);
+                    destino.tasks = (destino.tasks || []).concat([t]);
+                }
             }
         }, "No se pudo guardar la tarea", alAcabar);
     }
@@ -425,8 +458,9 @@ Scope {
     }
 
     // Lo común de mover, la prioridad, el 🚫🤖 y la hoja: cambia la tarea `id` en una
-    // copia de lo último leído con aplicar(t) (sobre la tarea tal como la
-    // devuelve el panel), la enseña, y manda `cuerpo` a POST /api/tareas/{id}.
+    // copia de lo último leído con aplicar(t, nuevas) (sobre la tarea tal como
+    // la devuelve el panel, y la copia entera por si hay que cambiarla de
+    // sección), la enseña, y manda `cuerpo` a POST /api/tareas/{id}.
     // Si falla, vuelve lo anterior y `que` dice qué no se pudo hacer.
     function editar(id, cuerpo, aplicar, que, alAcabar) {
         const fin = ok => {
@@ -439,13 +473,13 @@ Scope {
         }
         const antes = p.crudas;
         const nuevas = JSON.parse(JSON.stringify(antes));
-        let hallada = false;
+        let hallada = null;
         for (const s of nuevas.sections || [])
             for (const t of s.tasks || [])
-                if (String(t.id) === id) {
-                    aplicar(t);
-                    hallada = true;
-                }
+                if (String(t.id) === id && !hallada)
+                    hallada = t;
+        if (hallada)
+            aplicar(hallada, nuevas);
         if (!hallada) {
             p.error = "La tarea ya no está en el panel";
             fin(false);
