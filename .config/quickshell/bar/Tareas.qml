@@ -47,8 +47,9 @@ Scope {
     // Lo último que salió mal al escribir, o "".
     readonly property string error: p.error
     // Las categorías que se pueden elegir en la hoja, en el orden del panel:
-    // { id, nombre, color ("#rrggbb" o "") }. No salen «Clase» (las entregas
-    // de Aules, que son de solo lectura y que el panel rellena solo) ni «En
+    // { id, nombre, color ("#rrggbb" o "") }. «Clase» sale solo si el panel
+    // distingue las entregas de Aules (su campo «aules»: panelNuevo); con uno
+    // viejo no, porque no se sabría cuáles son de solo lectura. No sale «En
     // pausa» (es un aparcamiento, no una categoría de trabajo: no se elige al
     // crear). Las tareas que ya están en pausa siguen saliendo en el
     // calendario de la barra (AgendaFormato.deTareas las deja con la
@@ -105,11 +106,20 @@ Scope {
         return suelo !== "" && cli.rangoPrio[suelo] < (cli.rangoPrio[prio] ?? 5) ? suelo : prio;
     }
 
+    // El panel manda «aules» (true o false) en sus tareas: alguna tarea de la
+    // última lectura lo trae. Sin tareas no hay cómo saberlo y se da por
+    // viejo (lo más seguro: no se ofrece Clase ni se deja borrar).
+    function panelNuevo(crudas) {
+        return ((crudas && crudas.sections) || []).some(s => (s.tasks || []).some(t => typeof t.aules === "boolean"));
+    }
+
+    // «Clase» sin color en el panel lleva el violeta fijo de las entregas.
     function categoriasDe(crudas) {
-        return ((crudas && crudas.sections) || []).filter(s => s.id !== "clase" && s.id !== "en-pausa").map(s => ({
+        const nuevo = cli.panelNuevo(crudas);
+        return ((crudas && crudas.sections) || []).filter(s => s.id !== "en-pausa" && (nuevo || s.id !== "clase")).map(s => ({
                     id: String(s.id),
                     nombre: String(s.title || s.id),
-                    color: /^#[0-9a-fA-F]{6}$/.test(s.color || "") ? s.color : ""
+                    color: /^#[0-9a-fA-F]{6}$/.test(s.color || "") ? s.color : (s.id === "clase" ? Formato.COLOR_CLASE : "")
                 }));
     }
 
@@ -126,7 +136,9 @@ Scope {
     // tiene puesta ("maxima".."minima" o ""), que puede no ser la del punto:
     // esa es la de hoy, que el panel sube cerca de la fecha; y texto, el de la
     // nota tal cual, con su Markdown, que es lo que se edita en la hoja (el
-    // título va sin él); y seccionId, el id de su sección (la categoría).
+    // título va sin él); seccionId, el id de su sección (la categoría); y
+    // aules, true si es una entrega de Aules (solo lectura), false si es
+    // propia, o undefined si el panel no lo manda (uno viejo).
     function agendaDe(d, conectado) {
         if (!d || typeof d !== "object")
             return null;
@@ -145,7 +157,8 @@ Scope {
                                 claudeOff: t.claude_off === true,
                                 prioridad: cli.nombrePrio[t.priority] || "",
                                 texto: String(t.text || ""),
-                                seccion: String(s.id)
+                                seccion: String(s.id),
+                                aules: typeof t.aules === "boolean" ? t.aules : undefined
                             };
                         return {
                             id: String(t.id || ""),
@@ -174,6 +187,7 @@ Scope {
             e.prioridadPropia = x ? x.prioridad : "";
             e.texto = x ? x.texto : e.titulo;
             e.seccionId = x ? x.seccion : "";
+            e.aules = x ? x.aules : undefined;
         }
         return agenda;
     }

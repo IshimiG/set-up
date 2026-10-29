@@ -8,7 +8,8 @@
 # "" las dos, todo el día) y color ("#rrggbb" o ""); al crear se pueden mandar
 # hora_inicio, hora_fin y color, y al editar también (ausente = no se toca;
 # "" = quitar). DELETE /api/tareas/{id} la borra y contesta con la lista nueva
-# (409 si ya no está). Al crear va la sección en «seccion» (422 si no existe) y
+# (409 si ya no está). Cada tarea trae aules (true: entrega de Aules, solo
+# lectura; false: propia, aunque esté en la sección Clase). Al crear va la sección en «seccion» (422 si no existe) y
 # al editar «seccion» mueve la tarea a otra (422 si no existe). Cada sección trae su color ("#rrggbb" o ""). Las horas van siempre en pareja y el fin después del inicio;
 # si no, 422 con el motivo. Nada se aplica si algo del cuerpo no vale.
 #
@@ -27,7 +28,8 @@
 #                     secciones: [[id, título, color]] las secciones que hay
 #                     entre General y En pausa (las tareas de las que se
 #                     quitan pasan a General), mover: { id de tarea: id de
-#                     sección } }
+#                     sección }, viejo: true para emular un panel viejo, que
+#                     no manda «aules» }
 #
 # No escribe nada en ningún log: ni los textos de las tareas ni la contraseña.
 import base64
@@ -58,8 +60,8 @@ def efectiva(prio, vence):
     return prio
 
 
-def tarea(id, texto, vence, prio, area="", claude_off=False, inicio="", fin="", color=""):
-    return {"id": id, "line": 0, "done": False, "area": area, "text": texto, "priority": prio,
+def tarea(id, texto, vence, prio, area="", claude_off=False, inicio="", fin="", color="", aules=False):
+    return {"aules": aules, "id": id, "line": 0, "done": False, "area": area, "text": texto, "priority": prio,
             "due": vence, "start": "", "scheduled": "", "doneDate": "", "effective": efectiva(prio, vence),
             "raised": "", "overdue": False, "dueToday": vence == HOY, "details": [], "subtasks": [],
             "pinned": False, "claude_off": claude_off, "time_start": inicio, "time_end": fin, "color": color}
@@ -116,7 +118,7 @@ estado = {
     # General, no a la primera sección.
     "sections": [
         {"id": "clase", "title": "Clase", "emoji": "", "color": "", "tasks": [
-            tarea("c1", "MIA: Tarea quinta", "2026-10-30", "", "Clase", True)]},
+            tarea("c1", "MIA: Tarea quinta", "2026-10-30", "", "Clase", True, aules=True)]},
         {"id": "general", "title": "General", "emoji": "", "color": "#e67c73", "tasks": [
             tarea("g1", "Revisar el informe", "2026-10-30", "low"),
             tarea("g2", "Llamar al taller", "2026-10-22", "low"),
@@ -300,6 +302,11 @@ class Manejador(BaseHTTPRequestHandler):
             if codigo == 200 and metodo != "GET":
                 estado["version"] = "v%d" % (len(registro) + 1)
             respuesta = json.loads(json.dumps(estado)) if codigo == 200 else error
+            if codigo == 200 and ajustes.get("viejo"):
+                # Un panel viejo no manda «aules».
+                for s in respuesta["sections"]:
+                    for t in s["tasks"]:
+                        t.pop("aules", None)
         self.contestar(codigo, respuesta)
 
     def do_GET(self):

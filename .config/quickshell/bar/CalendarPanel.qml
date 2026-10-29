@@ -135,15 +135,18 @@ Item {
     property var hojaTarea: null
     // Con qué se abre (HojaTarea.inicial), para saber al guardar qué cambió.
     property var hojaInicial: null
-    // La tarea de la hoja se puede borrar: no las de Aules (solo lectura).
-    readonly property bool hojaBorrable: root.hojaModo === "editar" && root.hojaTarea !== null && root.hojaTarea.id !== "" && Formato.categoria(root.hojaTarea).nombre !== "Clase"
+    // La tarea de la hoja es una entrega de Aules (solo lectura): lo dice el
+    // panel (aules); si no lo manda (uno viejo), lo es la de categoría «Clase».
+    readonly property bool hojaDeAules: root.hojaTarea !== null && (typeof root.hojaTarea.aules === "boolean" ? root.hojaTarea.aules : Formato.categoria(root.hojaTarea).nombre === "Clase")
+    // La tarea de la hoja se puede borrar: no las de Aules.
+    readonly property bool hojaBorrable: root.hojaModo === "editar" && root.hojaTarea !== null && root.hojaTarea.id !== "" && !root.hojaDeAules
     // Esperando al panel.
     property bool guardando: false
     // Lo que contestó el panel al no aceptarla.
     property string hojaError: ""
     // Las categorías que ofrece la hoja: las del panel, y ninguna para las
     // entregas de Aules (su categoría es fija, como el no poder borrarlas).
-    readonly property var hojaCategorias: root.hojaTarea && Formato.categoria(root.hojaTarea).nombre === "Clase" ? [] : (root.tareas?.categorias ?? [])
+    readonly property var hojaCategorias: root.hojaDeAules ? [] : (root.tareas?.categorias ?? [])
     // Cuenta las hojas abiertas y cerradas: lo que el panel contesta tarde,
     // con la hoja ya cerrada, va al aviso de la lista y no a otra hoja.
     property int hojaVez: 0
