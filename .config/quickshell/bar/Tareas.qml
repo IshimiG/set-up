@@ -4,12 +4,14 @@ import Quickshell.Io
 import "shared/AgendaFormato.js" as Formato
 
 // El cliente mínimo del panel del NUC para el calendario: lee las tareas con
-// fecha (GET /api/tareas), crea una para un día (POST /api/tareas) y cambia
-// una de día, de prioridad o su 🚫🤖 «Claude no la hace» (POST
-// /api/tareas/{id} con { fecha }, { prioridad } o { claude_off }). Es el
-// equivalente reducido de lo que hace homelab/Api.qml, que es otro proceso de
-// qs y no se comparte: el cajón sigue siendo quien escribe el fichero de la
-// agenda, y esto solo se usa mientras el calendario está abierto.
+// fecha (GET /api/tareas), crea una para un día (POST /api/tareas, con sus
+// horas y su color si los tiene) y cambia una de día, de prioridad o su 🚫🤖
+// «Claude no la hace» (POST /api/tareas/{id} con { fecha }, { prioridad } o
+// { claude_off }), o lo que se haya tocado en la hoja de editarla (cambiar():
+// el texto, las horas, el color, la prioridad y el 🚫🤖). Es el equivalente
+// reducido de lo que hace homelab/Api.qml, que es otro proceso de qs y no se
+// comparte: el cajón sigue siendo quien escribe el fichero de la agenda, y
+// esto solo se usa mientras el calendario está abierto.
 //
 // Las credenciales, como en el cajón: el usuario de Caddy sale del llavero
 // («secret-tool search servicio homelab-panel»), la contraseña se lee una vez
@@ -19,15 +21,16 @@ import "shared/AgendaFormato.js" as Formato
 //
 // Sin sondeo: se lee al abrir el calendario (refrescar()), si lo que hay tiene
 // más de frescoMs, y después de cada escritura, que ya contesta con el estado
-// nuevo. Mover, la prioridad y el 🚫🤖 son optimistas: la vista cambia al
-// momento y, si el POST falla, se revierte a lo anterior. Crear no: la tarea
+// nuevo. Mover, la prioridad, el 🚫🤖 y editar en la hoja son optimistas: la
+// vista cambia al momento y, si el POST falla, se revierte a lo anterior.
+// Crear no: la tarea
 // sale cuando el panel la ha escrito, que es cuando tiene id (y se puede
 // mover).
 //
 // datos tiene el mismo formato que bar/Agenda.qml (shared/AgendaFormato.js, con
-// el id de cada evento) y dos campos más en cada evento, que el fichero no
-// lleva: claudeOff y prioridadPropia (abajo, en agendaDe); null mientras no se
-// haya podido leer nada.
+// el id de cada evento, sus horas y su color propio) y tres campos más en cada
+// evento, que el fichero no lleva: claudeOff, prioridadPropia y texto (abajo,
+// en agendaDe); null mientras no se haya podido leer nada.
 Scope {
     id: cli
 
@@ -96,12 +99,16 @@ Scope {
         return String(texto || "").replace(/\[\[([^\]|]+)(?:\|([^\]]+))?\]\]/g, (_, a, b) => (b || a.split("#")[0].split("/").pop()).trim()).replace(/\[([^\]]+)\]\((https?:\/\/[^\s)]+)\)/g, "$1").replace(/\*\*|~~|`/g, "");
     }
 
-    // De la respuesta de /api/tareas a la agenda del calendario. Cada evento
-    // con id lleva además lo que el calendario necesita para editarlo y el
-    // fichero de la agenda no lleva (shared/AgendaFormato.js lo quitaría al
-    // leerlo): claudeOff, el 🚫🤖 «Claude no la hace», y prioridadPropia, la
-    // que tiene puesta ("maxima".."minima" o ""), que puede no ser la del
-    // punto: esa es la de hoy, que el panel sube cerca de la fecha.
+    // De la respuesta de /api/tareas a la agenda del calendario. Las horas
+    // (time_start y time_end) y el color de cada tarea pasan por
+    // AgendaFormato.deTareas como horaInicio, horaFin y colorPropio. Cada
+    // evento con id lleva además lo que el calendario necesita para editarlo y
+    // el fichero de la agenda no lleva (shared/AgendaFormato.js lo quitaría al
+    // leerlo): claudeOff, el 🚫🤖 «Claude no la hace»; prioridadPropia, la que
+    // tiene puesta ("maxima".."minima" o ""), que puede no ser la del punto:
+    // esa es la de hoy, que el panel sube cerca de la fecha; y texto, el de la
+    // nota tal cual, con su Markdown, que es lo que se edita en la hoja (el
+    // título va sin él).
     function agendaDe(d, conectado) {
         if (!d || typeof d !== "object")
             return null;
@@ -118,7 +125,8 @@ Scope {
                         if (t.id)
                             propias[String(t.id)] = {
                                 claudeOff: t.claude_off === true,
-                                prioridad: cli.nombrePrio[t.priority] || ""
+                                prioridad: cli.nombrePrio[t.priority] || "",
+                                texto: String(t.text || "")
                             };
                         return {
                             id: String(t.id || ""),
@@ -129,7 +137,10 @@ Scope {
                             vencida: !hecha && vence !== "" && hoy !== "" && vence < hoy,
                             prioridad: cli.nombrePrio[t.priority] || "",
                             efectiva: cli.nombrePrio[t.effective] || "",
-                            area: String(t.area || "")
+                            area: String(t.area || ""),
+                            horaInicio: String(t.time_start || ""),
+                            horaFin: String(t.time_end || ""),
+                            colorPropio: String(t.color || "")
                         };
                     })
                 }));
@@ -143,6 +154,7 @@ Scope {
             const x = propias[e.id];
             e.claudeOff = !!x && x.claudeOff;
             e.prioridadPropia = x ? x.prioridad : "";
+            e.texto = x ? x.texto : e.titulo;
         }
         return agenda;
     }
@@ -280,31 +292,68 @@ Scope {
         }, "No se pudo cambiar «Claude no la hace»", alAcabar);
     }
 
-    // Crea una tarea con el texto `texto` para el día `dia`, en la sección de
-    // siempre (seccionPorDefecto), sin área, con prioridad media y sin 🚫🤖.
-    // No es optimista: la tarea aparece cuando el panel contesta con la lista
-    // nueva, que ya la lleva con su id. alAcabar(ok) al terminar.
-    function crear(texto, dia, alAcabar) {
+    // Por qué no se puede mandar un cuerpo de POST (con los nombres del panel:
+    // texto, prioridad, hora_inicio y hora_fin, color), o "". Lo mismo que
+    // rechazaría el panel; la hoja del calendario ya no deja llegar aquí nada
+    // de esto, pero el cliente no se fía.
+    function motivoDe(cuerpo) {
+        if ("texto" in cuerpo && (cuerpo.texto === "" || cuerpo.texto.length > 300))
+            return "El texto debe tener entre 1 y 300 caracteres";
+        if ("prioridad" in cuerpo && cuerpo.prioridad !== "" && !(cuerpo.prioridad in cli.rangoPrio))
+            return "Prioridad no válida";
+        if ("hora_inicio" in cuerpo || "hora_fin" in cuerpo) {
+            const m = Formato.motivoHoras(cuerpo.hora_inicio, cuerpo.hora_fin);
+            if (m !== "")
+                return m;
+        }
+        if ("color" in cuerpo && cuerpo.color !== "" && !/^#[0-9a-f]{6}$/.test(cuerpo.color))
+            return "El color va en #rrggbb";
+        return "";
+    }
+
+    // Crea una tarea para un día, en la sección de siempre (seccionPorDefecto)
+    // y sin área. `d`: { texto, dia ("2026-10-30") y, si se quiere,
+    // prioridad (la del panel; media si no se dice, "" sin ninguna), claudeOff
+    // (apagado si no se dice), horaInicio y horaFin ("HH:MM", las dos o
+    // ninguna: todo el día) y color ("#rrggbb"; sin él, el del calendario) }.
+    // Las horas y el color solo van en el cuerpo si los hay. No es optimista:
+    // la tarea aparece cuando el panel contesta con la lista nueva, que ya la
+    // lleva con su id. alAcabar(ok) al terminar; si no, error dice por qué.
+    function crear(d, alAcabar) {
         const fin = ok => {
             if (alAcabar)
                 alAcabar(ok);
         };
-        const limpio = String(texto || "").replace(/\s+/g, " ").trim();
+        d = d || {};
+        const dia = String(d.dia || "");
         const seccion = cli.seccionPorDefecto();
-        if (!cli.puedeEscribir || limpio === "" || !/^\d{4}-\d\d-\d\d$/.test(dia) || seccion === "") {
+        const cuerpo = {
+            seccion: seccion,
+            texto: String(d.texto || "").replace(/\s+/g, " ").trim(),
+            area: "",
+            fecha: dia,
+            prioridad: d.prioridad === undefined ? "medium" : String(d.prioridad || ""),
+            claude_off: d.claudeOff === true
+        };
+        const inicio = String(d.horaInicio || "");
+        const final = String(d.horaFin || "");
+        if (inicio !== "" || final !== "") {
+            cuerpo.hora_inicio = inicio;
+            cuerpo.hora_fin = final;
+        }
+        const color = String(d.color || "").toLowerCase();
+        if (color !== "")
+            cuerpo.color = color;
+        const motivo = cli.motivoDe(cuerpo);
+        if (!cli.puedeEscribir || motivo !== "" || !/^\d{4}-\d\d-\d\d$/.test(dia) || seccion === "") {
+            if (motivo !== "")
+                p.error = motivo;
             fin(false);
             return;
         }
         p.error = "";
         p.escribiendo = true;
-        cli.pedir("POST", "/api/tareas", {
-            seccion: seccion,
-            texto: limpio,
-            area: "",
-            fecha: dia,
-            prioridad: "medium",
-            claude_off: false
-        }, (estado, respuesta) => {
+        cli.pedir("POST", "/api/tareas", cuerpo, (estado, respuesta) => {
             p.escribiendo = false;
             if (cli.aceptada(estado, respuesta)) {
                 fin(true);
@@ -315,7 +364,53 @@ Scope {
         });
     }
 
-    // Lo común de mover, la prioridad y el 🚫🤖: cambia la tarea `id` en una
+    // Lo que se ha tocado en la hoja de editar la tarea `id`, de una vez:
+    // `c` lleva solo lo que cambia, de { texto, prioridad (la del panel, o ""
+    // para quitarla), claudeOff, horaInicio y horaFin (las dos juntas; "" las
+    // dos para dejarla de todo el día), color ("" para quitarlo) }. Lo que no
+    // trae no se toca ni se manda. Optimista, como mover.
+    function cambiar(id, c, alAcabar) {
+        c = c || {};
+        const cuerpo = {};
+        if ("texto" in c)
+            cuerpo.texto = String(c.texto || "").replace(/\s+/g, " ").trim();
+        if ("prioridad" in c)
+            cuerpo.prioridad = String(c.prioridad || "");
+        if ("claudeOff" in c)
+            cuerpo.claude_off = c.claudeOff === true;
+        if ("horaInicio" in c || "horaFin" in c) {
+            cuerpo.hora_inicio = String(c.horaInicio || "");
+            cuerpo.hora_fin = String(c.horaFin || "");
+        }
+        if ("color" in c)
+            cuerpo.color = String(c.color || "").toLowerCase();
+        const motivo = Object.keys(cuerpo).length === 0 ? "No hay nada que cambiar" : cli.motivoDe(cuerpo);
+        if (motivo !== "") {
+            p.error = motivo;
+            if (alAcabar)
+                alAcabar(false);
+            return;
+        }
+        const hoy = String((p.crudas && p.crudas.today) || "").slice(0, 10);
+        cli.editar(id, cuerpo, t => {
+            if ("texto" in cuerpo)
+                t.text = cuerpo.texto;
+            if ("prioridad" in cuerpo) {
+                t.priority = cuerpo.prioridad;
+                t.effective = cli.efectiva(cuerpo.prioridad, String(t.due || "").slice(0, 10), hoy);
+            }
+            if ("claude_off" in cuerpo)
+                t.claude_off = cuerpo.claude_off;
+            if ("hora_inicio" in cuerpo) {
+                t.time_start = cuerpo.hora_inicio;
+                t.time_end = cuerpo.hora_fin;
+            }
+            if ("color" in cuerpo)
+                t.color = cuerpo.color;
+        }, "No se pudo guardar la tarea", alAcabar);
+    }
+
+    // Lo común de mover, la prioridad, el 🚫🤖 y la hoja: cambia la tarea `id` en una
     // copia de lo último leído con aplicar(t) (sobre la tarea tal como la
     // devuelve el panel), la enseña, y manda `cuerpo` a POST /api/tareas/{id}.
     // Si falla, vuelve lo anterior y `que` dice qué no se pudo hacer.
@@ -338,6 +433,7 @@ Scope {
                     hallada = true;
                 }
         if (!hallada) {
+            p.error = "La tarea ya no está en el panel";
             fin(false);
             return;
         }
