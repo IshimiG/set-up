@@ -1,0 +1,15 @@
+base	3-2	0.00 B	repo	1	0	Minimal package set to define a basic Arch Linux installation
+btop	1.4.0-1	3.24 MiB	repo	0	0	A monitor of system resources, bpytop ported to C++
+firefox	131.0.3-1	245.31 MiB	repo	0	0	Fast, Private & Safe Web Browser
+gimp	2.10.38-2	118.62 MiB	repo	0	0	GNU Image Manipulation Program
+glibc	2.40+r16+gaa533d58ff-2	47.94 MiB	repo	1	214	GNU C Library
+hyprland	0.45.2-1	12.80 MiB	repo	1	3	a highly customizable dynamic tiling Wayland compositor
+inkscape	1.4-1	182.40 MiB	repo	0	0	Professional vector graphics editor
+libreoffice-fresh	24.8.2-1	412.07 MiB	repo	0	0	LibreOffice branch which contains new features and program enhancements
+neovim	0.10.2-1	26.95 MiB	repo	0	0	Fork of Vim aiming to improve user experience, plugins, and GUIs
+obsidian	1.7.4-1	312.55 MiB	aur	0	0	A powerful knowledge base that works on top of a local folder of plain text Markdown files
+python-requests	2.32.3-3	592.41 KiB	repo	0	12	Python HTTP for Humans
+quickshell	0.3.2-1	9.12 MiB	repo	1	0	Flexible toolkit for making desktop shells with QtQuick, for Wayland and X11
+spotify	1:1.2.48.405-1	341.80 MiB	aur	0	0	A proprietary music streaming service <with> some <b>markup</b>
+vlc	3.0.21-5	73.20 MiB	repo	0	1	Multi-platform MPEG, VCD/DVD, and DivX player
+yay	12.4.2-1	8.13 MiB	aur	0	0	Yet another yogurt. Pacman wrapper and AUR helper written in go.

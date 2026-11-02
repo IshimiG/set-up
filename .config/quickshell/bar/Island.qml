@@ -30,7 +30,7 @@ PanelWindow {
     // Los paneles que salen de la isla. El modo es global y también abre los
     // desplegables de los bloques laterales (la wifi, en el portátil): con uno
     // de ésos abierto, la isla se queda en pastilla.
-    readonly property var modos: ["calendar", "notifications", "power"]
+    readonly property var modos: ["calendar", "notifications", "power", "paquetes"]
     readonly property bool open: island.modos.indexOf(island.shell.mode) >= 0 && island.shell.modeScreen === island.screenName
 
     // Qué contenido se pinta. Sigue al modo mientras está abierto, pero al
@@ -49,11 +49,19 @@ PanelWindow {
 
     // Cambiar de contenido con la isla ya abierta: el panel se reajusta, no se
     // cierra y vuelve a abrirse.
+    //
+    // El teclado vuelve a la isla en cada cambio. Un panel con un campo de
+    // texto (el buscador de paquetes, la hoja de una tarea) se lo lleva a su
+    // campo y lo devuelve al irse, pero si al abrirlo la ventana aún no tenía
+    // el foco no sabe a quién devolvérselo, y el panel siguiente se quedaría
+    // sin flechas ni Enter. El panel que lo quiera lo vuelve a coger después.
     Connections {
         target: island.shell
         function onModeChanged() {
-            if (island.open)
+            if (island.open) {
                 island.content = island.shell.mode;
+                teclado.forceActiveFocus();
+            }
         }
     }
 
@@ -279,8 +287,14 @@ PanelWindow {
 
     // Teclado. Escape cierra siempre; el resto se lo ofrece al panel abierto,
     // que es quien sabe si le sirve —las flechas y el Enter sólo significan algo
-    // en el menú de sesión—.
+    // en el menú de sesión y en el de paquetes—.
+    //
+    // Ojo: este Item no es antepasado de los paneles. Lo que se teclea en un
+    // campo de texto de un panel no pasa por aquí, así que ese panel tiene que
+    // ocuparse él de Escape (PaquetesPanel y HojaTarea lo hacen).
     Item {
+        id: teclado
+
         anchors.fill: parent
         focus: island.open
 
@@ -298,7 +312,7 @@ PanelWindow {
 
     // --- El cristal --------------------------------------------------------
 
-    readonly property Item activePanel: island.content === "calendar" ? calendar : island.content === "notifications" ? notifications : island.content === "power" ? power : null
+    readonly property Item activePanel: island.content === "calendar" ? calendar : island.content === "notifications" ? notifications : island.content === "power" ? power : island.content === "paquetes" ? paquetes : null
 
     readonly property int panelW: island.activePanel ? island.activePanel.implicitWidth : 0
     readonly property int panelH: island.activePanel ? island.activePanel.implicitHeight : 0
@@ -409,16 +423,18 @@ PanelWindow {
                 active: island.open && island.shell.mode === "notifications"
             }
 
+            // El de paquetes sale del menú de sesión: el botón sigue siendo su
+            // origen y se queda encendido también con él.
             PowerButton {
                 shell: island.shell
                 screenName: island.screenName
-                active: island.open && island.shell.mode === "power"
+                active: island.open && (island.shell.mode === "power" || island.shell.mode === "paquetes")
             }
         }
 
         // --- El panel: lo que aparece al desplegarse ---
         // Recortado por el cristal, así que mientras la isla es una pastilla
-        // esto simplemente no se ve. Los tres paneles existen a la vez y sólo
+        // esto simplemente no se ve. Los paneles existen a la vez y sólo
         // cambia cuál es opaco: así el cruce entre uno y otro es un fundido y
         // no un parpadeo.
         Item {
@@ -430,7 +446,7 @@ PanelWindow {
 
             // El contenido entra empujado desde arriba, como si lo soltara la
             // propia pastilla, y llega con el mismo rebote que el cristal. Va en
-            // el contenedor y no en cada panel porque los tres se mueven igual y
+            // el contenedor y no en cada panel porque todos se mueven igual y
             // sólo uno está visible a la vez.
             transform: Translate {
                 y: island.open ? 0 : -10
@@ -477,6 +493,23 @@ PanelWindow {
                 anchors.fill: parent
                 shell: island.shell
                 opacity: island.content === "power" ? 1 : 0
+                visible: opacity > 0
+                Behavior on opacity {
+                    NumberAnimation {
+                        duration: 200
+                        easing.type: Easing.OutCubic
+                    }
+                }
+            }
+
+            // Lee la lista y coge el teclado sólo si es el de esta isla: el
+            // modo es global y hay una isla por monitor.
+            PaquetesPanel {
+                id: paquetes
+                anchors.fill: parent
+                shell: island.shell
+                abierto: island.open && island.shell.mode === "paquetes"
+                opacity: island.content === "paquetes" ? 1 : 0
                 visible: opacity > 0
                 Behavior on opacity {
                     NumberAnimation {
