@@ -9,12 +9,16 @@ import "shared"
 // parte de arriba de la pantalla con cuántas actualizaciones hay y un botón
 // para lanzarlas.
 //
-// Tiene tres salidas, y conviene no confundirlas: el botón lanza la
-// actualización, un clic en el cristal la descarta —se acabó hasta el próximo
-// arranque— y la flecha de arriba sólo la esconde, dejando una pestañita
-// colgando para volver a bajarla. Esconder existe porque la tarjeta cae encima
-// de lo que sea que esté arrancando, y querer apartarla un momento no es lo
-// mismo que querer olvidarse de las actualizaciones.
+// Tiene tres salidas, y conviene no confundirlas: «Actualizar ahora» lanza la
+// actualización, «Más tarde» la descarta —se acabó hasta el próximo arranque—
+// y la flecha de arriba sólo la esconde, dejando una pestañita colgando para
+// volver a bajarla. Esconder existe porque la tarjeta cae encima de lo que sea
+// que esté arrancando, y querer apartarla un momento no es lo mismo que querer
+// olvidarse de las actualizaciones.
+//
+// Un clic en el cristal no hace nada. Antes descartaba, y con el botón justo
+// al lado, un clic que se quedaba corto por un par de píxeles tiraba el aviso
+// en vez de lanzar la actualización. Descartar es ahora un botón más.
 //
 // Las cuentas no se hacen aquí. Las trae ya hechas
 // ~/.config/hypr/scripts/updates-notify.sh en dos variables de entorno, y ese
@@ -49,8 +53,31 @@ PanelWindow {
     // superficie entera se quedaría con los clics de su rectángulo, que
     // escondida es justo lo contrario de lo que se ha pedido: apartarla de en
     // medio y seguir usando el escritorio que hay debajo.
-    mask: Region {
-        item: root.collapsed ? tab : card
+    //
+    // Las regiones llevan la geometría a mano y no `item: card`. Con `item`,
+    // Quickshell mide el rectángulo ya transformado —con la escala y el
+    // empujón de la animación— y sólo lo vuelve a medir cuando cambia la
+    // geometría, no la escala. Así que se quedaba con la tarjeta tal y como
+    // nace, encogida al 78 % y 14px más arriba, y la máscara acababa justo en
+    // el canto de arriba del botón: era lo único de él que se podía pulsar.
+    // x, y, width y height no incluyen las transformaciones, que es lo que
+    // hace falta: la tarjeta en su sitio, sin la curva de la animación.
+    mask: root.collapsed ? regionTab : regionCard
+
+    Region {
+        id: regionCard
+        x: card.x
+        y: card.y
+        width: card.width
+        height: card.height
+    }
+
+    Region {
+        id: regionTab
+        x: tab.x
+        y: tab.y
+        width: tab.width
+        height: tab.height
     }
 
     screen: {
@@ -112,9 +139,86 @@ PanelWindow {
         quitTimer.start();
     }
 
+    // El guardia de shown evita dos terminales si el botón se pulsa dos veces
+    // mientras la tarjeta se está recogiendo.
     function runUpdate() {
+        if (!root.shown)
+            return;
         Quickshell.execDetached(["ghostty", "--title=Actualizar", "-e", root.updateScript]);
         root.dismiss();
+    }
+
+    // Los dos botones son la misma lámina de cristal, una capa por encima de
+    // la tarjeta: blanca y casi transparente, con un filo que la levanta de la
+    // superficie. El principal sólo sube el alfa para pedir algo más de vista;
+    // el secundario se queda en un susurro, ahí para quien lo busque.
+    //
+    // Al pulsar se hunde un poco y se aclara, para que se note que el clic ha
+    // llegado aunque lo que lance tarde un momento en aparecer.
+    component Boton: Rectangle {
+        id: boton
+
+        property string icono: ""
+        property string texto: ""
+        property bool principal: false
+        signal pulsado
+
+        implicitHeight: 40
+        radius: 12
+
+        color: Qt.rgba(1, 1, 1, (boton.principal ? 0.12 : 0.03) + (tap.pressed ? 0.14 : hover.hovered ? 0.08 : 0))
+        border.width: 1
+        border.color: Qt.rgba(1, 1, 1, (boton.principal ? 0.22 : 0.10) + (hover.hovered ? 0.16 : 0))
+
+        scale: tap.pressed ? 0.97 : 1
+
+        Behavior on color {
+            ColorAnimation {
+                duration: 120
+            }
+        }
+        Behavior on border.color {
+            ColorAnimation {
+                duration: 120
+            }
+        }
+        Behavior on scale {
+            NumberAnimation {
+                duration: 90
+                easing.type: Easing.OutCubic
+            }
+        }
+
+        RowLayout {
+            anchors.centerIn: parent
+            spacing: 8
+
+            Text {
+                visible: boton.icono !== ""
+                text: boton.icono
+                color: Theme.strong
+                font.family: Theme.font
+                font.pixelSize: 15
+            }
+
+            Text {
+                text: boton.texto
+                color: boton.principal || hover.hovered ? Theme.strong : Theme.text
+                font.family: Theme.font
+                font.pixelSize: 13
+                font.bold: boton.principal
+            }
+        }
+
+        HoverHandler {
+            id: hover
+            cursorShape: Qt.PointingHandCursor
+        }
+
+        TapHandler {
+            id: tap
+            onTapped: boton.pulsado()
+        }
     }
 
     Component.onCompleted: root.shown = true
@@ -225,17 +329,6 @@ PanelWindow {
             id: cardHover
         }
 
-        // Un clic en la tarjeta la quita de en medio sin esperar al plazo. Va
-        // con z negativo, por detrás de todo lo demás, para que el botón y la
-        // flecha de esconder —que están por delante— se queden con los suyos y
-        // pulsarlos no cuente como descartar.
-        MouseArea {
-            anchors.fill: parent
-            z: -1
-            acceptedButtons: Qt.LeftButton | Qt.RightButton | Qt.MiddleButton
-            onPressed: root.dismiss()
-        }
-
         // La flecha de esconder, centrada en el aire que deja el relleno
         // superior. En reposo es apenas una marca: está para encontrarla
         // cuando se la busca, no para competir con la cifra que hay debajo.
@@ -309,57 +402,25 @@ PanelWindow {
                 font.pixelSize: 11
             }
 
-            // El botón es otra lámina de cristal, una capa por encima: blanca y
-            // casi transparente, con un filo que la levanta de la superficie.
-            Rectangle {
-                id: button
-
+            // El principal se queda con el ancho que sobra: es el que se viene
+            // a pulsar, y el más grande es también el más fácil de acertar.
+            RowLayout {
                 Layout.fillWidth: true
                 Layout.topMargin: 16
-                implicitHeight: 40
-                radius: 12
+                spacing: 8
 
-                color: Qt.rgba(1, 1, 1, buttonHover.hovered ? 0.20 : 0.10)
-                border.width: 1
-                border.color: Qt.rgba(1, 1, 1, buttonHover.hovered ? 0.38 : 0.20)
-
-                Behavior on color {
-                    ColorAnimation {
-                        duration: 120
-                    }
-                }
-                Behavior on border.color {
-                    ColorAnimation {
-                        duration: 120
-                    }
+                Boton {
+                    Layout.preferredWidth: 96
+                    texto: "Más tarde"
+                    onPulsado: root.dismiss()
                 }
 
-                RowLayout {
-                    anchors.centerIn: parent
-                    spacing: 9
-
-                    Text {
-                        text: "󰚰"
-                        color: Theme.strong
-                        font.family: Theme.font
-                        font.pixelSize: 15
-                    }
-
-                    Text {
-                        text: "Actualizar ahora"
-                        color: Theme.strong
-                        font.family: Theme.font
-                        font.pixelSize: 13
-                    }
-                }
-
-                HoverHandler {
-                    id: buttonHover
-                    cursorShape: Qt.PointingHandCursor
-                }
-
-                TapHandler {
-                    onTapped: root.runUpdate()
+                Boton {
+                    Layout.fillWidth: true
+                    principal: true
+                    icono: "󰚰"
+                    texto: "Actualizar ahora"
+                    onPulsado: root.runUpdate()
                 }
             }
         }
