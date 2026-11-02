@@ -20,13 +20,16 @@ paq() { # nombre versión descripción tamaño requeridos
 	paq linux-zen-headers 6.1.zen1-1 'Cabeceras' '100.00 MiB' None
 	paq linux-zen 6.1.zen1-1 'Kernel zen' '150.00 MiB' None
 	paq paru-bin 2.0-1 'Ayudante AUR' '9.00 MiB' None
+	paq linux-firmware-intel 1-1 'Firmware' '5.00 MiB' None
+	paq linux-atm 2.5-1 'Programa que sólo empieza por linux' '1.00 MiB' None
+	paq linux-cachyos-lts 6.1-1 'Kernel cachyos lts' '150.00 MiB' None
 	paq largo 1-1 'Una descripción muy larga que sigue
                   en una segunda línea con sangría	y un tabulador' '1.50 KiB' 'x  y  z'
 } >"$T/qi"
 printf 'paru-bin\n' >"$T/qm"
 
 out=$(PAQUETES_QI=$T/qi PAQUETES_QM=$T/qm "$S" lista); es 'lista sale 0' $? 0
-es 'lista: orden por nombre' "$(cut -f1 <<<"$out" | paste -sd' ')" 'base largo linux-zen linux-zen-headers paru-bin zen-browser'
+es 'lista: orden por nombre' "$(cut -f1 <<<"$out" | paste -sd' ')" 'base largo linux-atm linux-cachyos-lts linux-firmware-intel linux-zen linux-zen-headers paru-bin zen-browser'
 campo() { awk -F'\t' -v n="$1" -v c="$2" '$1 == n { print $c }' <<<"$out"; }
 es 'lista: 7 campos en todas' "$(awk -F'\t' 'NF != 7' <<<"$out" | wc -l)" 0
 es 'zen-browser: versión' "$(campo zen-browser 2)" 1.0-1
@@ -40,6 +43,9 @@ es 'base: protegido' "$(campo base 5)" 1
 es 'base: 2 requeridos' "$(campo base 6)" 2
 es 'linux-zen: protegido' "$(campo linux-zen 5)" 1
 es 'linux-zen-headers: no protegido' "$(campo linux-zen-headers 5)" 0
+es 'linux-cachyos-lts: protegido' "$(campo linux-cachyos-lts 5)" 1
+es 'linux-firmware-intel: protegido' "$(campo linux-firmware-intel 5)" 1
+es 'linux-atm: no protegido (no es un núcleo)' "$(campo linux-atm 5)" 0
 es 'largo: 3 requeridos' "$(campo largo 6)" 3
 es 'largo: descripción unida, sin tabs' "$(campo largo 7)" 'Una descripción muy larga que sigue en una segunda línea con sangría y un tabulador'
 

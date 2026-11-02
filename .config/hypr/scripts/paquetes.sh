@@ -18,10 +18,12 @@
 # defensa en profundidad de «desinstalar». Es una expresión regular ampliada:
 #  - nombres exactos (base, arranque, pacman, el escritorio y su terminal...;
 #    paru o yay según el equipo, así que van los dos);
-#  - el núcleo `linux` y sus variantes (-lts, -zen, -cachyos...), y cualquier
-#    linux-firmware-*; el segundo patrón deja fuera los -headers y -docs, que sí
-#    se pueden quitar sin romper el arranque.
-PROTEGIDOS='^(base|base-devel|linux-firmware|systemd|systemd-libs|glibc|pacman|pacman-contrib|sudo|mkinitcpio|limine|grub|efibootmgr|hyprland|quickshell|quickshell-git|ghostty|fish|git|paru|yay|iwd|networkmanager|sddm)$|^linux(-[a-z0-9]+)*$'
+#  - el núcleo `linux` y sus variantes (-lts, -zen, -hardened, -rt, -cachyos...),
+#    y cualquier linux-firmware-*. Las variantes van con nombre y no como
+#    «linux-loquesea»: eso protegería también programas que sólo empiezan por
+#    linux, como linux-atm o linux-wifi-hotspot. El segundo patrón deja fuera
+#    los -headers y -docs, que sí se pueden quitar sin romper el arranque.
+PROTEGIDOS='^(base|base-devel|systemd|systemd-libs|glibc|pacman|pacman-contrib|sudo|mkinitcpio|limine|grub|efibootmgr|hyprland|quickshell|quickshell-git|ghostty|fish|git|paru|yay|iwd|networkmanager|sddm)$|^linux(-(lts|zen|hardened|rt|rt-lts|cachyos(-[a-z0-9]+)*))?$|^linux-firmware(-[a-z0-9]+)*$'
 NO_PROTEGIDOS='-(headers|docs)$'
 
 es_protegido() {
