@@ -41,13 +41,18 @@ choca.
 - `.config/hypr/hyprland.lua`: Hyprland, en Lua (0.56+).
 - `.config/hypr/hyprlock.conf`: la pantalla de bloqueo.
 - `.config/hypr/scripts/`: barra, capturas, notificaciones, recordatorios,
-  aviso de actualizaciones.
+  aviso de actualizaciones y `paquetes.sh` (lista los paquetes instalados a
+  propósito y los desinstala con `sudo pacman -Rns`; se niega con los
+  protegidos: núcleo, arranque, pacman, sudo, Hyprland, Quickshell, Ghostty…).
 - `.config/ghostty/config.ghostty`: la terminal, con el mismo cristal.
 - `.config/fish/`: fish, la shell de todas las máquinas: Starship, zoxide, eza,
   las abreviaturas de git, el saludo y `ms` (SSH al homelab).
 - `.config/nvim/`: Neovim con LazyVim, el tema Horizon con el fondo transparente
   y los lenguajes que se usan (TypeScript, SQL, Docker, Java, Angular…).
-- `.config/quickshell/`: `bar` (barra, isla, notificaciones y el calendario,
+- `.config/quickshell/`: `bar` (barra, isla, notificaciones, el menú de sesión
+  con «Desinstalar», que cambia la isla a un panel de paquetes con buscador,
+  selección múltiple y confirmación, y abre la terminal con `paquetes.sh`;
+  también por IPC: `qs -c bar ipc call bar togglePaquetes`; y el calendario,
   que marca las tareas con fecha y las entregas de Aules: se las deja el cajón
   del homelab en `$XDG_RUNTIME_DIR/escritorio-agenda.json`; con el panel al
   alcance, una hoja crea una tarea con doble clic en un día y la edita al
@@ -95,6 +100,14 @@ choca.
   botones, no sólo su canto de arriba), el cristal, la flecha de esconder, la
   pestaña y los botones «Más tarde» y «Actualizar ahora», sin lanzar ninguna
   terminal (`--guardar` deja las capturas).
+- `pruebas/paquetes/`: `script.sh` prueba `paquetes.sh` con un `pacman -Qie`
+  falso (campos, AUR, protegidos, requeridos) y `desinstalar` con
+  `PAQUETES_PACMAN=echo`, y lee la lista real sólo para contarla. `prueba.sh`
+  prueba sin pantalla el panel de paquetes y la isla de verdad con él: carga,
+  buscador, teclado, clics en toda la fila, protegidos, confirmación, la orden
+  exacta de la terminal, el reinicio al cerrar y el estado de error, con
+  ghostty, pacman y sudo de mentira en el `PATH` (`--guardar` deja las
+  capturas). Ninguna desinstala nada.
 
 ## Instalación
 
