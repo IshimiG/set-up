@@ -295,6 +295,12 @@ ShellRoot {
             return root.mode === "power" ? "open" : "closed";
         }
 
+        // El panel de paquetes del menú de sesión, directo.
+        function togglePaquetes(): string {
+            root.toggleFocused("paquetes");
+            return root.mode === "paquetes" ? "open" : "closed";
+        }
+
         function dismissAll(): string {
             const live = server.trackedNotifications.values;
             for (let i = live.length - 1; i >= 0; i--)
