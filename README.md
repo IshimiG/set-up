@@ -108,8 +108,14 @@ lo común y lo del equipo juntos.
 `setup.sh` instala los paquetes que falten (la lista está en el propio script;
 los del AUR, con `yay` o `paru`), enlaza `~/.config` y `~/.local/bin` al repo
 (así un `git pull` se nota al momento), descarga el fondo si la máquina no
-tiene `~/.config/hypr/hyprpaper.conf`, activa los servicios de usuario y pone
-fish como shell. Lo que hubiera en el sitio de un enlace se aparta a
+tiene `~/.config/hypr/hyprpaper.conf`, activa los servicios de usuario, ajusta
+la memoria y pone fish como shell. De la memoria se ocupan tres cosas: earlyoom
+(si se agota la RAM mata antes el navegador y las apps Electron que Hyprland;
+`/etc/default/earlyoom`), `/etc/sysctl.d/99-zram.conf` (swappiness 180 y el
+resto de valores de la Arch Wiki para zram, sólo si la máquina usa zram) y
+`.config/zen/user.js`, que se enlaza en el perfil por defecto de Zen (procesos
+de contenido, descarga de pestañas, cachés; sin tocar `prefs.js`) y vale al
+reiniciar Zen. Lo que hubiera en el sitio de un enlace se aparta a
 `~/.local/share/set-up-apartado/<fecha>/`, no se borra. Se puede repetir
 cuando se quiera. Al final ejecuta `equipo.sh` si la rama lo trae: lo que sólo
 necesita esa máquina.
