@@ -103,6 +103,6 @@ done
 if grep -qxs 'blacklist xe' /etc/modprobe.d/blacklist-xe.conf; then
 	echo "  xe ya en lista negra"
 else
-	echo 'blacklist xe' | hacer sudo tee /etc/modprobe.d/blacklist-xe.conf >/dev/null
+	hacer sudo sh -c "echo 'blacklist xe' >/etc/modprobe.d/blacklist-xe.conf"
 	command -v limine-update >/dev/null && hacer sudo limine-update
 fi
