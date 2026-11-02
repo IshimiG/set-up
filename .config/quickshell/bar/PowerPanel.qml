@@ -5,16 +5,18 @@ import "shared"
 
 // El menú de sesión, ahora como contenido de la isla en vez de una superficie
 // propia. Es el mismo menú de siempre: bloquear, suspender, cerrar sesión,
-// actualizar, reiniciar y apagar.
+// actualizar, reiniciar y apagar; y, desde que hay panel de paquetes,
+// desinstalar.
 //
 // Las tres acciones destructivas piden confirmación en un segundo menú cuya
 // primera entrada —la preseleccionada— es "Cancelar", así que un Enter de más no
 // apaga el equipo. La decisión va por índice y no por el texto, para que cambiar
 // un glifo no rompa nada.
 //
-// Al pasar a la confirmación la lista baja de seis filas a dos, y eso encoge la
+// Al pasar a la confirmación la lista baja de siete filas a dos, y eso encoge la
 // isla con la misma animación con la que se abrió: el panel no salta de tamaño,
-// se reajusta.
+// se reajusta. Lo mismo al elegir «Desinstalar», que no lanza nada: cambia la
+// isla al panel de paquetes (PaquetesPanel.qml) y la isla se reajusta a él.
 Item {
     id: root
 
@@ -56,6 +58,15 @@ Item {
             // Repos y AUR en una terminal que se queda abierta; el mismo script
             // que lanza el aviso de actualizaciones del inicio de sesión.
             cmd: "ghostty --title=Actualizar -e \"$HOME/.config/hypr/scripts/actualizar.sh\"",
+            confirm: ""
+        },
+        {
+            icon: "󰆴",
+            label: "Desinstalar",
+            // No es una orden: es otro panel de la isla, el de paquetes. Ahí
+            // se elige qué quitar y se confirma; la terminal la abre él.
+            cmd: "",
+            modo: "paquetes",
             confirm: ""
         },
         {
@@ -114,7 +125,11 @@ Item {
                 root.run(entry.cmd);
             return;
         }
-        if (entry.confirm !== "") {
+        if (entry.modo) {
+            // En la misma pantalla en la que está abierto el menú: la isla
+            // cambia de contenido y se reajusta, no se cierra.
+            root.shell.toggle(root.shell.modeScreen, entry.modo);
+        } else if (entry.confirm !== "") {
             root.pending = i;
             list.currentIndex = 0;
         } else {
@@ -242,7 +257,12 @@ Item {
                     anchors.rightMargin: 12
                     spacing: 12
 
+                    // Columna fija: los glifos no miden todos lo mismo (el de
+                    // suspender es más ancho que el de la papelera) y sin ella
+                    // las etiquetas no quedaban alineadas.
                     Text {
+                        Layout.preferredWidth: 18
+                        horizontalAlignment: Text.AlignHCenter
                         text: row.modelData.icon
                         color: list.currentIndex === row.index ? Theme.strong : Theme.text
                         font.family: Theme.font
