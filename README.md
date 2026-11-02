@@ -90,6 +90,11 @@ choca.
   de crear, editar, eliminar tareas y el color por categoría (`--guardar` deja las capturas). Levanta un panel
   falso (`panel-falso.py`, con las horas, el color de cada sección y el
   borrado del contrato de `/api/tareas`), así que necesita `python3`.
+- `pruebas/updates/prueba.sh`: prueba sin pantalla del aviso de
+  actualizaciones: que la máscara de clics cubre la tarjeta entera (los dos
+  botones, no sólo su canto de arriba), el cristal, la flecha de esconder, la
+  pestaña y los botones «Más tarde» y «Actualizar ahora», sin lanzar ninguna
+  terminal (`--guardar` deja las capturas).
 
 ## Instalación
 
