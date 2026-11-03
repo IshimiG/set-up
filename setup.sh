@@ -258,7 +258,7 @@ else
 fi
 # Y los fragmentos del tema para Ghostty (ghostty-tema, que incluye
 # config.ghostty) y hyprlock (hyprlock-tema.conf, que hyprlock.conf hace
-# `source`): tema.sh los copia desde el repo. Neovim lee la palabra sola.
+# `source`): tema.sh los copia desde el repo. Neovim no depende del tema.
 hacer "$repo/.config/hypr/scripts/tema.sh" aplicar
 
 # ---------------------------------------------------------------------------

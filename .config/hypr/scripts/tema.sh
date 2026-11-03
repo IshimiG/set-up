@@ -23,7 +23,7 @@
 # hyprlock-tema.conf (lo hace `source` hyprlock.conf). Salen de
 # ghostty/temas/<tema>.ghostty y hypr/temas/hyprlock-<tema>.conf del repo.
 # Las terminales de Ghostty abiertas se recargan solas (acción reload-config
-# por D-Bus: no se mata ni se señala a nadie); neovim vigila la palabra.
+# por D-Bus: no se mata ni se señala a nadie); Neovim no depende del tema.
 #
 # Poner el tema que ya está no rompe nada: no reescribe el fichero y vuelve a
 # aplicarlo en Hyprland. Si falta el fichero o dice algo que no es un tema, el

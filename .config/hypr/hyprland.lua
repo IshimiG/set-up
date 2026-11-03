@@ -139,47 +139,40 @@ local temas = {
 		aberracion = nil,
 	},
 
-	-- Cristal oscuro y claro con el borde irisado, como una lente de cristal
-	-- líquido. Mismas medidas que default (huecos, grosor del borde, redondeo
-	-- y su potencia): sólo cambia el material y el color. La paleta, la misma
-	-- que en Ghostty, Neovim y hyprlock: fondo #0a0e1c, violeta #8b6cff, cian
-	-- #5ad7ff, magenta #ff5cc8, naranja #ff9a5a.
+	-- Cristal neutro y translúcido, a la manera del Liquid Glass de iOS 26: el
+	-- fondo colorido se transparenta y el borde es un canto fino blanco sin
+	-- color. Mismas medidas que default (huecos, grosor del borde, redondeo y
+	-- su potencia): sólo cambia el material. El único color es la aberración
+	-- cromática (rojo y cian, ver ABERRACIÓN, abajo), en los pulsos.
 	--   - ignore_alpha baja a 0.15: con 0.5, Hyprland dejaría de desenfocar
 	--     el cristal claro de Quickshell. Lo que no deba desenfocarse tiene que
 	--     ir por debajo de 0.15 (Theme.ignoreAlpha lo dice en QML).
-	--   - Borde activo: luz blanca especular que pasa por cian, violeta y
-	--     magenta y acaba en naranja; el inactivo, un azul tenue.
-	--   - El blur es más grande y con más vibrancy y contraste, y algo de
-	--     brillo menos: los colores del fondo traspasan el cristal sin que
-	--     quede lechoso. Casi sin grano.
-	--   - Sombra suave y azulada.
-	--   - Aberración cromática: a ratos, el borde se separa en magenta y cian
-	--     (ver ABERRACIÓN, abajo).
+	--   - Blur: mucha vibrancy (los colores del fondo traspasan con
+	--     saturación) y contraste y brillo neutros (1.0): ni se oscurece ni se
+	--     emblanquece, para que no quede lechoso. Casi sin grano.
+	--   - Sombra neutra y suave.
 	liquido = {
 		gaps_in = 5,
 		gaps_out = 20,
 		border_size = 2,
-		active_border = {
-			colors = { "rgba(ffffffff)", "rgba(5ad7ffff)", "rgba(8b6cffff)", "rgba(ff5cc8ff)", "rgba(ff9a5aff)" },
-			angle = 45,
-		},
-		inactive_border = "rgba(8b9cff40)",
+		active_border = { colors = { "rgba(ffffffe6)", "rgba(ffffff40)", "rgba(ffffffa0)" }, angle = 45 },
+		inactive_border = "rgba(ffffff26)",
 		rounding = 10,
 		rounding_power = 2,
 		shadow = {
 			enabled = true,
 			range = 18,
 			render_power = 3,
-			color = 0x66101a4a,
+			color = 0x40000000,
 		},
 		blur = {
 			enabled = true,
 			size = 10,
-			passes = 4,
-			vibrancy = 0.6,
-			vibrancy_darkness = 0.2,
-			contrast = 1.15,
-			brightness = 0.9,
+			passes = 3,
+			vibrancy = 0.8,
+			vibrancy_darkness = 0.0,
+			contrast = 1.0,
+			brightness = 1.0,
 			noise = 0.008,
 			new_optimizations = true,
 		},
@@ -187,12 +180,13 @@ local temas = {
 		-- 600 ms) lleguen a verse enteros.
 		border_speed = 2.5,
 		ignore_alpha = 0.15,
-		-- Los bordes del pulso de aberración: el mismo degradado con el cian
-		-- y el magenta separados, y el blanco en medio. Dos, con las franjas
-		-- cambiadas de lado, para que un pulso de dos parpadeos tiemble.
+		-- Los bordes del pulso de aberración: el blanco del filo, con una
+		-- franja roja en un extremo y una cian en el otro (las mismas de
+		-- Theme.franjaRoja y Theme.franjaCian). Dos, con las franjas cambiadas
+		-- de lado, para que un pulso de dos parpadeos tiemble.
 		aberracion = {
-			{ colors = { "rgba(ff5cc8ff)", "rgba(ffffffff)", "rgba(5ad7ffff)", "rgba(8b6cffff)", "rgba(ff9a5aff)" }, angle = 45 },
-			{ colors = { "rgba(5ad7ffff)", "rgba(ffffffff)", "rgba(ff5cc8ff)", "rgba(ff9a5aff)", "rgba(8b6cffff)" }, angle = 45 },
+			{ colors = { "rgba(ff3b6b99)", "rgba(ffffffe6)", "rgba(3be8ff99)" }, angle = 45 },
+			{ colors = { "rgba(3be8ff99)", "rgba(ffffffe6)", "rgba(ff3b6b99)" }, angle = 45 },
 		},
 	},
 }

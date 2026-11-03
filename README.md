@@ -121,9 +121,9 @@ choca.
   sus tiempos, `hyprland.lua` con un Hyprland de mentira
   (`hypr-simulado.lua`: default da los valores de siempre y los dos temas las
   mismas claves, y liquido con las mismas medidas) y con `Hyprland
-  --verify-config`, los fragmentos de Ghostty (`ghostty +validate-config`),
-  hyprlock (sus variables) y Neovim (`nvim --headless` en cada tema y el
-  cambio en caliente), y `shared/Theme.qml` con `qs`, en caliente y al arrancar. Necesita `qs` y `lua` (`--guardar` deja
+  --verify-config`, los fragmentos de Ghostty (`ghostty +validate-config`, colores
+  iguales a default), hyprlock (sus variables) y Neovim (`nvim --headless`
+  en cada tema, siempre Horizon), y `shared/Theme.qml` con `qs`, en caliente y al arrancar. Necesita `qs` y `lua` (`--guardar` deja
   los registros).
 
 ## Temas
@@ -131,24 +131,22 @@ choca.
 El escritorio tiene temas intercambiables:
 
 - `default`: el de siempre, cristal negro esmerilado con un filo blanco.
-- `liquido`: cristal oscuro y claro con el borde irisado. Cambia el material y
-  el color de TODO el escritorio, no las medidas: huecos, grosor del borde,
-  redondeo, tamaño de letra y márgenes son los de `default`. La paleta: fondo
-  azul noche `#0a0e1c`, violeta `#8b6cff`, cian `#5ad7ff`, magenta `#ff5cc8`,
-  naranja `#ff9a5a`, texto `#f4f7ff`, ok `#4ade80`, warn `#ffb454`, danger
-  `#ff5470`. Por componente:
-  - Quickshell: láminas de cristal translúcidas con canto blanco y brillo
-    especular (`shared/Theme.qml`).
-  - Hyprland: borde activo en degradado (blanco, cian, violeta, magenta,
-    naranja; 45 grados), inactivo azul tenue, blur más grande y vivo (10, 4
-    pasadas, vibrancy 0,6, contraste 1,15) para que el color del fondo
-    traspase sin quedar lechoso, sombra suave azulada y aberración cromática a
-    ratos en el borde.
-  - Ghostty: fondo `#0a0e1c` al 55 %, paleta de 16 colores de la paleta,
-    cursor cian, selección violeta (`.config/ghostty/temas/liquido.ghostty`).
-  - Neovim: el colorscheme propio `aurora` (`.config/nvim/colors/aurora.lua`).
-  - hyprlock: fondo desenfocado más vivo y el campo de contraseña con borde
-    irisado (`.config/hypr/temas/hyprlock-liquido.conf`).
+- `liquido`: cristal neutro y translúcido, a la manera del Liquid Glass de
+  iOS 26: el fondo colorido se transparenta y no hay colores en el cristal. Cambia
+  el material de TODO el escritorio, no las medidas: huecos, grosor del borde,
+  redondeo, tamaño de letra y márgenes son los de `default`. Por componente:
+  - Quickshell: láminas de cristal translúcidas con canto fino blanco
+    (`shared/Theme.qml`).
+  - Hyprland: borde activo blanco con alfa (neutro), inactivo blanco tenue,
+    blur con mucha vibrancy (0,8) y contraste y brillo neutros (1,0) para que
+    los colores del fondo traspasen sin oscurecer ni emblanquecer, sombra
+    neutra. El único color es la aberración cromática: franjas roja `#ff3b6b`
+    y cian `#3be8ff` en el borde, sólo durante los pulsos aleatorios.
+  - Ghostty: los mismos colores que `default`, sólo más translúcida (0,70 en
+    vez de 0,85) (`.config/ghostty/temas/liquido.ghostty`).
+  - hyprlock: fondo desenfocado más vivo y campo de contraseña con borde
+    blanco translúcido (`.config/hypr/temas/hyprlock-liquido.conf`).
+  - Neovim: no depende del tema (Horizon transparente en los dos).
   - SDDM no cambia con el tema (instalarlo pide sudo: `sddm/install.sh`).
 
 ### Cambiar de tema
@@ -189,12 +187,8 @@ copiar sin cambiar nada, y `setup.sh` lo hace):
 - `hyprlock-tema.conf`: lo lee `hyprlock.conf` con `source` y redefine las
   variables de color y blur (`$campo_borde`, `$fondo_pasadas`…) que éste trae
   con los valores de `default`. Se aplica la próxima vez que se bloquea.
-- Neovim no usa fragmento: `config/tema.lua` lee la palabra al arrancar
-  (`default` pone `horizon`, `liquido` pone `aurora`) y cambia en caliente sin
-  reiniciar con un `vim.uv` fs_event sobre la carpeta del estado (`tema.sh`
-  renombra un temporal encima, así que se vigila la carpeta) y al volver el
-  foco (`FocusGained`). Los grupos de resalte transparentes de
-  `config/autocmds.lua` se reaplican solos en cada `ColorScheme`.
+
+Neovim no usa nada de esto: Horizon en los dos temas.
 
 Quickshell no necesita nada: `shared/Theme.qml` vigila el fichero y la
 barra, la isla, el cajón del homelab y lo demás cambian en caliente. Fuera
@@ -205,8 +199,8 @@ existía, no ve el primer cambio hasta que se reinicia (tema.sh lo avisa).
 ### Aberración cromática
 
 Sólo en `liquido`. Hyprland no tiene aberración cromática en los bordes, así
-que es el mismo borde en degradado con el magenta y el cian separados a los
-lados del blanco (y el violeta y el naranja detrás), puesto a pulsos por `scripts/aberracion.sh`: cada 4 a 25 s
+que es el mismo borde en degradado con una franja roja y otra cian a los
+lados del blanco, puesto a pulsos por `scripts/aberracion.sh`: cada 4 a 25 s
 al azar, y cuatro de cada diez veces nada; cada pulso dura de 150 a 600 ms,
 con uno o dos parpadeos (el segundo con las franjas al revés), y vuelve al
 borde normal. Los colores están en `hyprland.lua` (`temas.liquido.aberracion`)
