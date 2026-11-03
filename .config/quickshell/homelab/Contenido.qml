@@ -357,7 +357,7 @@ Item {
 
         implicitWidth: 28
         implicitHeight: 28
-        radius: 8
+        radius: Theme.liquido ? Theme.radiusPill : 8
         color: icono.activo ? Qt.rgba(1, 1, 1, 0.14) : (sobreIcono.hovered ? Qt.rgba(1, 1, 1, 0.08) : "transparent")
         border.width: icono.activo ? 1 : 0
         border.color: Qt.rgba(1, 1, 1, 0.22)
@@ -413,7 +413,7 @@ Item {
                 y: contenido.idsTira.indexOf(contenido.arrastrada) * tira.paso
                 width: 36
                 height: 36
-                radius: 10
+                radius: Theme.liquido ? Theme.radiusSmall : 10
                 color: Qt.rgba(1, 1, 1, 0.05)
                 border.width: 1
                 border.color: Qt.rgba(1, 1, 1, 0.16)
@@ -443,7 +443,7 @@ Item {
                     z: boton.llevada ? 2 : 1
                     width: 36
                     height: 36
-                    radius: 10
+                    radius: Theme.liquido ? Theme.radiusPill : 10
                     opacity: boton.llevada ? 0.85 : 1
                     color: boton.elegida ? Qt.rgba(1, 1, 1, 0.14) : (sobreBoton.hovered || boton.llevada ? Qt.rgba(1, 1, 1, 0.07) : "transparent")
                     border.width: boton.elegida ? 1 : 0
@@ -791,7 +791,7 @@ Item {
         z: 10
         width: Math.min(parent.width - 2 * Theme.pad, textoAviso.implicitWidth + 28)
         height: textoAviso.implicitHeight + 18
-        radius: 10
+        radius: Theme.liquido ? Theme.radiusSmall : 10
         color: Theme.glassDense
         border.width: 1
         border.color: contenido.avisoError ? Theme.prioMaxima : Theme.edgeTop
@@ -993,7 +993,7 @@ Item {
 
                                 Layout.fillWidth: true
                                 implicitHeight: 52
-                                radius: 12
+                                radius: Theme.liquido ? Theme.radiusSmall : 12
                                 color: Qt.rgba(1, 1, 1, 0.05)
                                 border.width: 1
                                 border.color: Theme.rule
@@ -1049,7 +1049,7 @@ Item {
                                     visible: (fila.modelData.entrada || 0) > 0
                                     implicitWidth: textoDetalles.implicitWidth + 18
                                     implicitHeight: 24
-                                    radius: 8
+                                    radius: Theme.liquido ? Theme.radiusPill : 8
                                     color: sobreDetalles.hovered ? Qt.rgba(1, 1, 1, 0.08) : "transparent"
                                     border.width: 1
                                     border.color: Theme.rule
@@ -1084,7 +1084,7 @@ Item {
                                     visible: !fila.modelData.vista
                                     implicitWidth: 46
                                     implicitHeight: 24
-                                    radius: 8
+                                    radius: Theme.liquido ? Theme.radiusPill : 8
                                     color: sobreVista.hovered ? Qt.rgba(1, 1, 1, 0.14) : Qt.rgba(1, 1, 1, 0.07)
                                     border.width: 1
                                     border.color: Qt.rgba(1, 1, 1, 0.22)
@@ -1145,7 +1145,7 @@ Item {
                                 visible: contenido.api && contenido.api.tareas !== null && contenido.api.tareas.habilitado
                                 implicitWidth: textoPlazos.implicitWidth + 16
                                 implicitHeight: 20
-                                radius: 10
+                                radius: Theme.liquido ? Theme.radiusSmall : 10
                                 color: Qt.rgba(chipPlazos.tinte.r, chipPlazos.tinte.g, chipPlazos.tinte.b, 0.18)
                                 border.width: 1
                                 border.color: Qt.rgba(chipPlazos.tinte.r, chipPlazos.tinte.g, chipPlazos.tinte.b, 0.5)
@@ -1190,7 +1190,7 @@ Item {
                                 objectName: "tarjetaInicio"
                                 Layout.fillWidth: true
                                 implicitHeight: 56
-                                radius: 12
+                                radius: Theme.liquido ? Theme.radiusSmall : 12
                                 color: Qt.rgba(1, 1, 1, 0.05)
                                 border.width: 1
                                 border.color: Theme.rule

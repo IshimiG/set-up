@@ -378,6 +378,24 @@ Item {
     // La capa exterior es sólo el canto, con el cuerpo de cristal encima dejando
     // 1 px al aire: la única forma de tener un borde con degradado en QML, como
     // en la isla.
+    // Sombra suave (sólo liquido): unas capas translúcidas cada vez más
+    // anchas detrás del cajón. Barata, sin efectos; Theme.shadowRadius manda.
+    Repeater {
+        model: Theme.liquido && Theme.shadowRadius > 0 ? 5 : 0
+
+        Rectangle {
+            required property int index
+            readonly property real e: Theme.shadowRadius * (index + 1) / 5
+            x: canto.x - e * 0.6
+            y: canto.y - e * 0.3 + Theme.shadowRadius * 0.25
+            width: canto.width + e * 1.2
+            height: canto.height + e * 0.6
+            radius: Theme.radius + e * 0.6
+            visible: canto.visible
+            color: Qt.rgba(Theme.shadowColor.r, Theme.shadowColor.g, Theme.shadowColor.b, Theme.shadowColor.a / 8)
+        }
+    }
+
     Rectangle {
         id: canto
 
@@ -401,9 +419,11 @@ Item {
         }
 
         Rectangle {
+            id: cuerpo
+
             anchors.fill: parent
-            anchors.margins: 1
-            radius: Math.max(0, canto.radius - 1)
+            anchors.margins: Theme.bordeAnchura
+            radius: Math.max(0, canto.radius - Theme.bordeAnchura)
 
             gradient: Gradient {
                 GradientStop {
@@ -414,6 +434,98 @@ Item {
                     position: 1.0
                     color: Theme.glassBottom
                 }
+            }
+
+            // Tinte frío (transparente en default) y, sólo en liquido, un velo
+            // azul oscuro que da fondo al texto: sobre un cristal claro un
+            // fondo claro se lee mal. En el fondo del cajón, que es contenido.
+            Rectangle {
+                anchors.fill: parent
+                radius: parent.radius
+                color: Theme.tint
+                visible: Theme.liquido
+            }
+
+            Rectangle {
+                anchors.fill: parent
+                radius: parent.radius
+                visible: Theme.liquido
+                color: Qt.rgba(0.04, 0.07, 0.18, 0.22)
+            }
+
+            // Brillo especular en el tercio de arriba.
+            Rectangle {
+                visible: Theme.liquido && Theme.specularHeight > 0
+                width: parent.width
+                height: parent.height * Theme.specularHeight
+                radius: parent.radius
+                gradient: Gradient {
+                    GradientStop {
+                        position: 0.0
+                        color: Theme.specular
+                    }
+                    GradientStop {
+                        position: 1.0
+                        color: Qt.rgba(1, 1, 1, 0)
+                    }
+                }
+            }
+        }
+
+        // Aberración cromática: una franja roja y otra cian muy finas en el
+        // canto, a ratos (200-500 ms cada 4-12 s). Sólo si el tema la tiene.
+        Item {
+            id: aberracion
+
+            property bool encendida: false
+
+            anchors.fill: parent
+            visible: Theme.aberracion
+            opacity: aberracion.encendida && cajon.progreso > 0.9 ? 1 : 0
+
+            Behavior on opacity {
+                NumberAnimation {
+                    duration: 120
+                }
+            }
+
+            Rectangle {
+                x: -1
+                width: parent.width
+                height: parent.height
+                radius: canto.radius
+                color: "transparent"
+                border.width: 1
+                border.color: Theme.franjaRoja
+            }
+
+            Rectangle {
+                x: 1
+                width: parent.width
+                height: parent.height
+                radius: canto.radius
+                color: "transparent"
+                border.width: 1
+                border.color: Theme.franjaCian
+            }
+
+            Timer {
+                id: pulso
+
+                running: Theme.aberracion && cajon.progreso > 0.9
+                repeat: true
+                interval: 4000 + Math.random() * 8000
+                onTriggered: {
+                    aberracion.encendida = true;
+                    apagar.interval = 200 + Math.random() * 300;
+                    apagar.restart();
+                    pulso.interval = 4000 + Math.random() * 8000;
+                }
+            }
+
+            Timer {
+                id: apagar
+                onTriggered: aberracion.encendida = false
             }
         }
 

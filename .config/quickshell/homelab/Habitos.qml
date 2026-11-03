@@ -98,7 +98,7 @@ ColumnLayout {
 
                 implicitWidth: 28
                 implicitHeight: 28
-                radius: 8
+                radius: Theme.liquido ? Theme.radiusPill : 8
                 color: fila.valor === true ? Qt.rgba(Theme.ok.r, Theme.ok.g, Theme.ok.b, 0.3) : (sobre.hovered ? Qt.rgba(1, 1, 1, 0.1) : Qt.rgba(1, 1, 1, 0.05))
                 border.width: 1
                 border.color: fila.valor === true ? Theme.ok : Theme.rule
@@ -172,7 +172,7 @@ ColumnLayout {
                     objectName: "energia-" + nivel.numero
                     Layout.fillWidth: true
                     implicitHeight: 28
-                    radius: 7
+                    radius: Theme.liquido ? Theme.radiusPill : 7
                     color: nivel.puesta ? Qt.rgba(1, 1, 1, 0.22) : (sobreNivel.hovered ? Qt.rgba(1, 1, 1, 0.1) : Qt.rgba(1, 1, 1, 0.05))
                     border.width: 1
                     border.color: nivel.puesta ? Qt.rgba(1, 1, 1, 0.5) : Theme.rule

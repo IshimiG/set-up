@@ -284,7 +284,7 @@ Item {
                             visible: !fila.esDia
                             width: parent.width
                             implicitHeight: pila.implicitHeight + 10
-                            radius: 8
+                            radius: Theme.liquido ? Theme.radiusSmall : 8
                             color: fila.abierta || fila.resaltada ? Qt.rgba(1, 1, 1, 0.07) : (sobre.hovered && !fila.esDia && fila.e.conDetalle ? Qt.rgba(1, 1, 1, 0.05) : "transparent")
                             border.width: fila.resaltada ? 1 : 0
                             border.color: Qt.rgba(1, 1, 1, 0.22)

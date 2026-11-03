@@ -30,7 +30,7 @@ Item {
 
         width: parent.width
         implicitHeight: pila.implicitHeight
-        radius: 10
+        radius: Theme.liquido ? Theme.radiusSmall : 10
         color: fila.elegida ? Qt.rgba(1, 1, 1, 0.09) : (sobre.hovered ? Qt.rgba(1, 1, 1, 0.05) : "transparent")
         border.width: fila.elegida ? 1 : 0
         border.color: Qt.rgba(1, 1, 1, 0.22)

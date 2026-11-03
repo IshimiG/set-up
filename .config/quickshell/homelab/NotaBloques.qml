@@ -145,7 +145,7 @@ Column {
                 Rectangle {
                     objectName: "codigoNota"
                     implicitHeight: textoCodigo.implicitHeight + 16
-                    radius: 8
+                    radius: Theme.liquido ? Theme.radiusSmall : 8
                     color: Qt.rgba(1, 1, 1, 0.06)
 
                     Text {
@@ -209,7 +209,7 @@ Column {
                 Rectangle {
                     objectName: "avisoNota"
                     implicitHeight: pilaAviso.implicitHeight + 20
-                    radius: 10
+                    radius: Theme.liquido ? Theme.radiusSmall : 10
                     color: Qt.rgba(1, 1, 1, 0.05)
                     border.width: 1
                     border.color: Theme.rule
