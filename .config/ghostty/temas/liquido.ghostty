@@ -1,0 +1,5 @@
+# Tema liquido: los mismos colores que default (Horizon con los de caelestia,
+# fondo #131317, cursor y selección de siempre); sólo un poco más translúcida,
+# para que se vea el fondo colorido a través del cristal. El desenfoque lo da
+# Hyprland. Letra, tamaño, ventana y márgenes son los de config.ghostty.
+background-opacity = 0.70
