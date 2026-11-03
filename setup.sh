@@ -256,6 +256,10 @@ if [[ -d $estado_tema ]]; then
 else
 	hacer mkdir -p "$estado_tema"
 fi
+# Y los fragmentos del tema para Ghostty (ghostty-tema, que incluye
+# config.ghostty) y hyprlock (hyprlock-tema.conf, que hyprlock.conf hace
+# `source`): tema.sh los copia desde el repo. Neovim lee la palabra sola.
+hacer "$repo/.config/hypr/scripts/tema.sh" aplicar
 
 # ---------------------------------------------------------------------------
 paso "4. Fondo de pantalla"

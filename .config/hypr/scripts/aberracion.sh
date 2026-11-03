@@ -43,7 +43,16 @@ case "${1:-}" in
 	if flock -n "$CERROJO" true; then
 		exit 0
 	fi
-	pid=$(head -n1 "$CERROJO" 2>/dev/null)
+	# El demonio toma el cerrojo y un instante después escribe su PID: si
+	# se llega entre las dos cosas (el fichero aún guarda el del anterior), se
+	# espera a que aparezca el bueno (hasta 1 s).
+	# Sin esto, --parar no mataba al que acababa de arrancar y el borde normal
+	# llegaba después de la recarga (era la comprobación inestable de la prueba).
+	for _ in $(seq 20); do
+		pid=$(head -n1 "$CERROJO" 2>/dev/null)
+		[[ $pid =~ ^[0-9]+$ ]] && grep -qa aberracion "/proc/$pid/cmdline" 2>/dev/null && break
+		sleep 0.05
+	done
 	if [[ $pid =~ ^[0-9]+$ ]] && grep -qa aberracion "/proc/$pid/cmdline" 2>/dev/null; then
 		kill -TERM "$pid" 2>/dev/null
 		# Espera a que suelte el cerrojo: para entonces ya ha dejado el borde
@@ -75,12 +84,6 @@ if ! $en_seco && [[ -z ${HYPRLAND_INSTANCE_SIGNATURE:-} ]]; then
 	# Sin sesión de Hyprland no hay borde que tocar.
 	exit 0
 fi
-
-# Uno solo a la vez. El cerrojo se abre sin truncar para no borrar el PID del
-# que ya lo tiene; sólo el que lo consigue escribe el suyo.
-exec 9>>"$CERROJO" || exit 1
-flock -n 9 || exit 0
-printf '%s\n' "$$" >"$CERROJO"
 
 [[ -n ${ABERRACION_SEMILLA:-} ]] && RANDOM=$ABERRACION_SEMILLA
 turnos=${ABERRACION_TURNOS:-}
@@ -119,13 +122,24 @@ salir() {
 }
 trap salir TERM INT HUP
 
+# Uno solo a la vez. El cerrojo se abre sin truncar para no borrar el PID del
+# que ya lo tiene; sólo el que lo consigue escribe el suyo.
+exec 9>>"$CERROJO" || exit 1
+flock -n 9 || exit 0
+printf '%s\n' "$$" >"$CERROJO"
+# (Va después del trap de arriba: en cuanto el PID está en el cerrojo, --parar
+# puede mandar TERM, y sin trap el demonio moriría sin dejar el borde normal.)
+
 n=0
 while [[ -z $turnos ]] || ((n < turnos)); do
 	n=$((n + 1))
 	# De 4 a 25 s, en décimas.
 	espera $(((RANDOM % 211 + 40) * 100))
-	# El tema ha podido cambiar mientras esperaba.
-	con_aberracion || break
+	# El tema ha podido cambiar mientras esperaba: se sale dejando el borde
+	# normal (y no a secas: tema.sh escribe el tema antes de llamar a --parar,
+	# y si el demonio salía solo, la recarga se encontraba sin borde normal
+	# puesto; era la comprobación inestable de la prueba).
+	con_aberracion || salir
 	# Cuatro de cada diez turnos, nada.
 	((RANDOM % 100 < 40)) && continue
 

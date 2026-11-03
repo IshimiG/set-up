@@ -45,7 +45,8 @@ choca.
   y `paquetes.sh` (lista los paquetes instalados a
   propósito y los desinstala con `sudo pacman -Rns`; se niega con los
   protegidos: núcleo, arranque, pacman, sudo, Hyprland, Quickshell, Ghostty…).
-- `.config/ghostty/config.ghostty`: la terminal, con el mismo cristal.
+- `.config/ghostty/config.ghostty`: la terminal, con el mismo cristal (y
+  `temas/`, sus fragmentos por tema).
 - `.config/fish/`: fish, la shell de todas las máquinas: Starship, zoxide, eza,
   las abreviaturas de git, el saludo y `ms` (SSH al homelab).
 - `.config/nvim/`: Neovim con LazyVim, el tema Horizon con el fondo transparente
@@ -119,8 +120,10 @@ choca.
   demonio que pulsa, no se duplica y se para), `aberracion.sh --en-seco` con
   sus tiempos, `hyprland.lua` con un Hyprland de mentira
   (`hypr-simulado.lua`: default da los valores de siempre y los dos temas las
-  mismas claves) y con `Hyprland --verify-config`, y `shared/Theme.qml` con
-  `qs`, en caliente y al arrancar. Necesita `qs` y `lua` (`--guardar` deja
+  mismas claves, y liquido con las mismas medidas) y con `Hyprland
+  --verify-config`, los fragmentos de Ghostty (`ghostty +validate-config`),
+  hyprlock (sus variables) y Neovim (`nvim --headless` en cada tema y el
+  cambio en caliente), y `shared/Theme.qml` con `qs`, en caliente y al arrancar. Necesita `qs` y `lua` (`--guardar` deja
   los registros).
 
 ## Temas
@@ -128,13 +131,25 @@ choca.
 El escritorio tiene temas intercambiables:
 
 - `default`: el de siempre, cristal negro esmerilado con un filo blanco.
-- `liquido`: cristal claro a la manera del Liquid Glass de Apple. Lámina
-  blanco azulada muy translúcida (alfa 0,26-0,34) con degradado, canto blanco
-  marcado arriba y tenue abajo, brillo especular en el tercio de arriba,
-  tinte frío, texto blanco puro, radios grandes y cápsulas, sombra suave. En
-  Hyprland: blur más grande (12, 4 pasadas, vibrancy 0,5, casi sin grano),
-  esquinas de squircle (`rounding_power` 3), más aire entre ventanas y
-  aberración cromática a ratos en el borde.
+- `liquido`: cristal oscuro y claro con el borde irisado. Cambia el material y
+  el color de TODO el escritorio, no las medidas: huecos, grosor del borde,
+  redondeo, tamaño de letra y márgenes son los de `default`. La paleta: fondo
+  azul noche `#0a0e1c`, violeta `#8b6cff`, cian `#5ad7ff`, magenta `#ff5cc8`,
+  naranja `#ff9a5a`, texto `#f4f7ff`, ok `#4ade80`, warn `#ffb454`, danger
+  `#ff5470`. Por componente:
+  - Quickshell: láminas de cristal translúcidas con canto blanco y brillo
+    especular (`shared/Theme.qml`).
+  - Hyprland: borde activo en degradado (blanco, cian, violeta, magenta,
+    naranja; 45 grados), inactivo azul tenue, blur más grande y vivo (10, 4
+    pasadas, vibrancy 0,6, contraste 1,15) para que el color del fondo
+    traspase sin quedar lechoso, sombra suave azulada y aberración cromática a
+    ratos en el borde.
+  - Ghostty: fondo `#0a0e1c` al 55 %, paleta de 16 colores de la paleta,
+    cursor cian, selección violeta (`.config/ghostty/temas/liquido.ghostty`).
+  - Neovim: el colorscheme propio `aurora` (`.config/nvim/colors/aurora.lua`).
+  - hyprlock: fondo desenfocado más vivo y el campo de contraseña con borde
+    irisado (`.config/hypr/temas/hyprlock-liquido.conf`).
+  - SDDM no cambia con el tema (instalarlo pide sudo: `sddm/install.sh`).
 
 ### Cambiar de tema
 
@@ -161,6 +176,26 @@ encima) y, dentro de la sesión:
 3. Arranca la aberración si el tema la tiene.
 4. Avisa con una notificación.
 
+Y `tema.sh` deja en esa misma carpeta los fragmentos del tema para lo que no
+sabe leer la palabra (los copia del repo; `tema.sh aplicar` los vuelve a
+copiar sin cambiar nada, y `setup.sh` lo hace):
+
+- `ghostty-tema`: lo incluye `config.ghostty` con `config-file = ?~/.local/state/escritorio/ghostty-tema`
+  (opcional: sin él, Ghostty es el de `default`), antes de `equipo.ghostty`,
+  que sigue mandando. `tema.sh` recarga las terminales abiertas con la acción
+  `reload-config` de Ghostty por D-Bus (`gdbus`), sin señales ni matar nada;
+  si no se recargara alguna, basta con abrir una nueva. El fragmento de
+  `default` está vacío: la terminal es la de `config.ghostty`.
+- `hyprlock-tema.conf`: lo lee `hyprlock.conf` con `source` y redefine las
+  variables de color y blur (`$campo_borde`, `$fondo_pasadas`…) que éste trae
+  con los valores de `default`. Se aplica la próxima vez que se bloquea.
+- Neovim no usa fragmento: `config/tema.lua` lee la palabra al arrancar
+  (`default` pone `horizon`, `liquido` pone `aurora`) y cambia en caliente sin
+  reiniciar con un `vim.uv` fs_event sobre la carpeta del estado (`tema.sh`
+  renombra un temporal encima, así que se vigila la carpeta) y al volver el
+  foco (`FocusGained`). Los grupos de resalte transparentes de
+  `config/autocmds.lua` se reaplican solos en cada `ColorScheme`.
+
 Quickshell no necesita nada: `shared/Theme.qml` vigila el fichero y la
 barra, la isla, el cajón del homelab y lo demás cambian en caliente. Fuera
 de una sesión, `tema.sh` sólo escribe el estado, que vale al entrar. La
@@ -170,8 +205,8 @@ existía, no ve el primer cambio hasta que se reinicia (tema.sh lo avisa).
 ### Aberración cromática
 
 Sólo en `liquido`. Hyprland no tiene aberración cromática en los bordes, así
-que es el mismo borde en degradado con una franja roja y otra cian a los
-lados del blanco, puesto a pulsos por `scripts/aberracion.sh`: cada 4 a 25 s
+que es el mismo borde en degradado con el magenta y el cian separados a los
+lados del blanco (y el violeta y el naranja detrás), puesto a pulsos por `scripts/aberracion.sh`: cada 4 a 25 s
 al azar, y cuatro de cada diez veces nada; cada pulso dura de 150 a 600 ms,
 con uno o dos parpadeos (el segundo con las franjas al revés), y vuelve al
 borde normal. Los colores están en `hyprland.lua` (`temas.liquido.aberracion`)
@@ -185,6 +220,10 @@ con el PID en `$XDG_RUNTIME_DIR/escritorio-aberracion.lock`). Para apagarlo:
 su `equipo.lua`), o pararlo a mano con `aberracion.sh --parar`.
 `aberracion.sh --en-seco` no toca nada: imprime las órdenes y las esperas
 (`ABERRACION_TURNOS` y `ABERRACION_SEMILLA` lo hacen corto y repetible).
+`--parar` espera a que el demonio recién arrancado escriba su PID, éste
+instala su `trap` antes de escribirlo y, si sale solo porque el tema ya no es
+`liquido`, también deja el borde normal: así tema.sh nunca recarga con un
+borde de aberración puesto.
 
 ### El contrato de `Theme`
 

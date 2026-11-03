@@ -1,0 +1,32 @@
+# Tema liquido: cristal oscuro azul noche con la paleta del escritorio (fondo
+# #0a0e1c, violeta #8b6cff, cian #5ad7ff, magenta #ff5cc8, naranja #ff9a5a,
+# texto #f4f7ff). Sólo colores y transparencia: la letra, su tamaño, el
+# tamaño de la ventana y los márgenes son los de config.ghostty. El desenfoque
+# lo da Hyprland (decoration.blur), no Ghostty.
+foreground = #f4f7ff
+background = #0a0e1c
+background-opacity = 0.55
+cursor-color = #5ad7ff
+cursor-text = #0a0e1c
+# Ghostty no admite alfa en la selección: un violeta ya mezclado con el fondo.
+selection-background = #3d3290
+selection-foreground = #f4f7ff
+palette = 0=#1a2038
+palette = 1=#ff5470
+palette = 2=#4ade80
+palette = 3=#ffb454
+palette = 4=#8b6cff
+palette = 5=#ff5cc8
+palette = 6=#5ad7ff
+palette = 7=#c9d3f0
+palette = 8=#3a4468
+palette = 9=#ff7a90
+palette = 10=#7af0a6
+palette = 11=#ffd08a
+palette = 12=#ab93ff
+palette = 13=#ff8ad8
+palette = 14=#8fe6ff
+palette = 15=#f4f7ff
+palette = 16=#ff9a5a
+palette = 17=#5ad7ff
+palette = 18=#ff5cc8

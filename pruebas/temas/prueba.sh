@@ -12,6 +12,8 @@
 #   - hyprland.lua con el Hyprland de verdad, con --verify-config (no arranca
 #     nada), en los dos temas;
 #   - shared/Theme.qml con qs, en caliente y al arrancar.
+# Además, los fragmentos de Ghostty, hyprlock y Neovim (ghostty +validate-config,
+# las variables de hyprlock.conf y nvim --headless en cada tema).
 # Ninguna toca la sesión: todo va con un $XDG_STATE_HOME y un
 # $XDG_RUNTIME_DIR de prueba, sin HYPRLAND_INSTANCE_SIGNATURE de verdad y sin
 # bus de notificaciones.
@@ -155,7 +157,9 @@ esperar vivo
 : >"$tmp/hyprctl.log"
 sesion "$tema_sh" default >/dev/null
 si "tema.sh default para el demonio" eval '! vivo'
-si "  que deja el borde normal antes de la recarga" test "$(grep -vE '^eval escritorio\.aberracion\([12]\)$' "$tmp/hyprctl.log" | tail -n2 | tr '\n' '|')" = "eval escritorio.aberracion(0)|reload config-only|"
+cp "$tmp/hyprctl.log" "$tmp/hyprctl-default.log"
+ultimas=$(grep -vE '^eval escritorio\.aberracion\([12]\)$' "$tmp/hyprctl.log" | tail -n2 | tr '\n' '|')
+ok $([[ $ultimas == "eval escritorio.aberracion(0)|reload config-only|" ]]; echo $?) "  que deja el borde normal antes de la recarga (log: $ultimas | $(tr '\n' '|' <"$tmp/hyprctl.log" | tail -c 200))"
 si "  y no lo vuelve a arrancar en default" eval '! esperar vivo'
 si "--parar sin demonio sale bien" sesion "$aberracion_sh" --parar
 sesion env ABERRACION=0 "$tema_sh" liquido >/dev/null
@@ -221,11 +225,14 @@ si "con basura, igual que default" cmp -s "$tmp/simulado/basura.txt" "$tmp/simul
 
 # Los valores de antes de haber temas, tal cual los daba hyprland.lua.
 faltan=$(grep -vxF -f "$tmp/simulado/default.txt" <<'FIN'
+config decoration.blur.brightness = 1
+config decoration.blur.contrast = 0.8916
 config decoration.blur.enabled = true
 config decoration.blur.new_optimizations = true
 config decoration.blur.noise = 0.02
 config decoration.blur.passes = 3
 config decoration.blur.size = 8
+config decoration.blur.vibrancy_darkness = 0
 config decoration.blur.vibrancy = 0.25
 config decoration.rounding = 10
 config decoration.rounding_power = 2
@@ -248,8 +255,15 @@ si "liquido: las 9 con ignore_alpha 0.15" test "$(capas "$tmp/simulado/liquido.t
 si "los dos temas dan las mismas claves de configuración" cmp -s <(grep '^config ' "$tmp/simulado/default.txt" | cut -d= -f1) <(grep '^config ' "$tmp/simulado/liquido.txt" | cut -d= -f1)
 si "fuera de lo del tema, liquido no cambia nada (mismas llamadas salvo borde, capas y la aberración)" cmp -s <(grep -vE '^(config |hl\.layer_rule|hl\.animation\(\{.*leaf="border"|aberracion\(|hl\.exec_cmd\(".*aberracion\.sh"\))' "$tmp/simulado/default.txt") <(grep -vE '^(config |hl\.layer_rule|hl\.animation\(\{.*leaf="border"|aberracion\(|hl\.exec_cmd\(".*aberracion\.sh"\))' "$tmp/simulado/liquido.txt")
 liq() { grep -F "config $1 = " "$tmp/simulado/liquido.txt" | sed 's/^[^=]*= //'; }
-si "liquido: blur más grande (12), 3-4 pasadas, vibrancy 0.5 y poco grano" test "$(liq decoration.blur.size)" = 12 -a "$(liq decoration.blur.vibrancy)" = 0.5 -a "$(liq decoration.blur.passes)" -ge 3 -a "$(liq decoration.blur.passes)" -le 4
-si "liquido: más redondeo que default" test "$(liq decoration.rounding)" -gt 10
+def() { grep -F "config $1 = " "$tmp/simulado/default.txt" | sed 's/^[^=]*= //'; }
+si "liquido: blur más grande que default, con más vibrancy y poco grano" test "$(liq decoration.blur.size)" -gt "$(def decoration.blur.size)" && test "$(liq decoration.blur.vibrancy)" != "$(def decoration.blur.vibrancy)" && test "$(liq decoration.blur.noise)" != 0.02
+si "liquido: pasadas del blur entre 3 y 5" test "$(liq decoration.blur.passes)" -ge 3 -a "$(liq decoration.blur.passes)" -le 5
+# Requisito: las medidas y las formas son las de default; sólo cambia el material.
+for clave in general.gaps_in general.gaps_out general.border_size decoration.rounding decoration.rounding_power; do
+	si "liquido: $clave igual que default ($(def $clave))" test "$(liq $clave)" = "$(def $clave)"
+done
+si "liquido: borde activo irisado (blanco, cian, violeta, magenta y naranja)" eval 'l=$(liq general.col.active_border); for c in ffffff 5ad7ff 8b6cff ff5cc8 ff9a5a; do [[ $l == *"rgba(${c}ff)"* ]] || exit 1; done; [[ $l == *angle=45* ]]'
+si "liquido: sombra azulada y suave" eval '[[ $(liq decoration.shadow.color) != $(def decoration.shadow.color) ]]'
 bind=$(grep -c '^hl.bind("SUPER + SHIFT + T"' "$tmp/simulado/default.txt")
 si "SUPER+SHIFT+T está una sola vez" test "$bind" = 1
 si "  y abre/cierra el selector (qs -c temas)" grep -qE '^hl.bind\("SUPER \+ SHIFT \+ T", hl.dsp.exec_cmd\(".*qs -c temas.*"\)\)$' "$tmp/simulado/default.txt"
@@ -259,15 +273,15 @@ si "liquido arranca aberracion.sh con la sesión" grep -q 'aberracion\.sh' <(ini
 si "default no" eval '! grep -q "aberracion\.sh" <(inicio "$tmp/simulado/default.txt")'
 normal=$(liq general.col.active_border)
 si "escritorio.aberracion(0) deja el borde normal de liquido" grep -qxF "aberracion(0) $normal" "$tmp/simulado/liquido.txt"
-si "escritorio.aberracion(1) y (2) ponen bordes con franja roja y cian, distintos del normal" eval 'for n in 1 2; do l=$(grep "^aberracion($n) " "$tmp/simulado/liquido.txt"); [[ $l == *ff3b6b* && $l == *3be8ff* && $l != *"$normal" ]] || exit 1; done'
+si "escritorio.aberracion(1) y (2) ponen bordes con franja magenta y cian, distintos del normal" eval 'for n in 1 2; do l=$(grep "^aberracion($n) " "$tmp/simulado/liquido.txt"); [[ $l == *ff5cc8* && $l == *5ad7ff* && $l != *"$normal" ]] || exit 1; done'
 si "en default, escritorio.aberracion(n) siempre deja el borde normal" test "$(grep -c '^aberracion([0-3]) {angle=45, colors={1="rgba(ffffffe6)", 2="rgba(ffffff26)"}}$' "$tmp/simulado/default.txt")" = 4
 
 # Para Theme.qml: el ignore_alpha de cada tema y las franjas, en #aarrggbb.
 ia_default=$(grep -m1 -o 'ignore_alpha=[0-9.]*' "$tmp/simulado/default.txt" | cut -d= -f2)
 ia_liquido=$(grep -m1 -o 'ignore_alpha=[0-9.]*' "$tmp/simulado/liquido.txt" | cut -d= -f2)
 argb() { sed -E 's/rgba\((..)(..)(..)(..)\)/#\4\1\2\3/'; }
-franja_roja=$(grep '^aberracion(1) ' "$tmp/simulado/liquido.txt" | grep -o 'rgba(ff3b6b..)' | head -n1 | argb)
-franja_cian=$(grep '^aberracion(1) ' "$tmp/simulado/liquido.txt" | grep -o 'rgba(3be8ff..)' | head -n1 | argb)
+franja_roja=$(grep '^aberracion(1) ' "$tmp/simulado/liquido.txt" | grep -o 'rgba(ff5cc8..)' | head -n1 | argb)
+franja_cian=$(grep '^aberracion(1) ' "$tmp/simulado/liquido.txt" | grep -o 'rgba(5ad7ff..)' | head -n1 | argb)
 
 # ---------------------------------------------------------------------------
 seccion "hyprland.lua, con Hyprland --verify-config"
@@ -291,6 +305,105 @@ FIN
 	ok $([[ $r == "config ok" ]]; echo $?) "y también los bordes de escritorio.aberracion en liquido${r:+ ($r)}"
 else
 	echo "OMITIDA  no hay Hyprland en esta máquina"
+fi
+
+# ---------------------------------------------------------------------------
+seccion "Ghostty, hyprlock y Neovim: los fragmentos de cada tema"
+
+# tema.sh deja, junto a la palabra, los fragmentos del tema. Sin sesión y sin
+# bus: no recarga nada.
+rm -rf "$XDG_STATE_HOME/escritorio"
+"$tema_sh" liquido >/dev/null
+est=$XDG_STATE_HOME/escritorio
+si "tema.sh liquido deja ghostty-tema igual que temas/liquido.ghostty" cmp -s "$est/ghostty-tema" "$repo/.config/ghostty/temas/liquido.ghostty"
+si "  y hyprlock-tema.conf igual que hyprlock-liquido.conf" cmp -s "$est/hyprlock-tema.conf" "$repo/.config/hypr/temas/hyprlock-liquido.conf"
+"$tema_sh" default >/dev/null
+si "tema.sh default los cambia por los de default" cmp -s "$est/ghostty-tema" "$repo/.config/ghostty/temas/default.ghostty"
+rm -f "$est/ghostty-tema" "$est/hyprlock-tema.conf"
+"$tema_sh" aplicar
+si "tema.sh aplicar los vuelve a dejar (del tema activo)" test -s "$est/ghostty-tema" -a -s "$est/hyprlock-tema.conf"
+si "no quedan temporales de los fragmentos" test -z "$(find "$est" -name '.frag.*')"
+
+if command -v ghostty >/dev/null; then
+	gh=$tmp/ghostty
+	validar_ghostty() { # $1: tema; saca la configuración efectiva
+		local casa=$gh/$1/casa
+		rm -rf "$gh/$1"
+		mkdir -p "$casa/.local/state/escritorio" "$gh/$1/xdg/ghostty"
+		cp "$repo/.config/ghostty/temas/$1.ghostty" "$casa/.local/state/escritorio/ghostty-tema"
+		cp "$repo/.config/ghostty/config.ghostty" "$gh/$1/xdg/ghostty/config.ghostty"
+		HOME=$casa XDG_CONFIG_HOME=$gh/$1/xdg XDG_STATE_HOME= ghostty +validate-config >"$gh/$1/validar.txt" 2>&1
+		echo $? >"$gh/$1/rc"
+		HOME=$casa XDG_CONFIG_HOME=$gh/$1/xdg XDG_STATE_HOME= ghostty +show-config 2>/dev/null >"$gh/$1/efectiva.txt"
+	}
+	for t in default liquido; do
+		validar_ghostty $t
+		si "Ghostty valida config.ghostty con el fragmento de $t" test "$(cat "$gh/$t/rc")" = 0 -a ! -s "$gh/$t/validar.txt"
+	done
+	ef() { grep -m1 "^$2 = " "$gh/$1/efectiva.txt" | sed 's/^[^=]*= //'; }
+	si "Ghostty default: Horizon con los colores de caelestia, #131317 al 85 %, Noto Sans Mono" test "$(ef default background)" = "#131317" -a "$(ef default background-opacity)" = 0.85 -a "$(ef default font-family)" = "Noto Sans Mono" -a "$(ef default foreground)" = "#e5e1e7"
+	si "Ghostty liquido: fondo #0a0e1c translúcido y cursor cian" test "$(ef liquido background)" = "#0a0e1c" -a "$(ef liquido cursor-color)" = "#5ad7ff" -a "$(ef liquido background-opacity)" = 0.55
+	si "Ghostty liquido: misma letra, tamaño, ventana y desenfoque que default" eval 'for k in font-family font-size window-width window-height background-blur-radius; do [[ $(ef liquido $k) == $(ef default $k) ]] || exit 1; done'
+	si "Ghostty liquido: 16 colores de paleta propios" test "$(grep -c '^palette = ' "$gh/liquido/efectiva.txt")" -ge 16
+	# Sin el fichero de estado (máquina nueva) la terminal es la de default.
+	rm -f "$gh/liquido/casa/.local/state/escritorio/ghostty-tema"
+	si "Ghostty sin fragmento de estado: valida y es la de default" eval 'HOME='"$gh"'/liquido/casa XDG_CONFIG_HOME='"$gh"'/liquido/xdg ghostty +validate-config && [[ $(HOME='"$gh"'/liquido/casa XDG_CONFIG_HOME='"$gh"'/liquido/xdg ghostty +show-config | grep -m1 "^background = ") == "background = #131317" ]]'
+else
+	echo "OMITIDA  no hay ghostty en esta máquina"
+fi
+
+# hyprlock no se puede probar sin bloquear la pantalla: se comprueba que todas
+# las variables que usa hyprlock.conf las dan los dos temas (y el propio
+# fichero, por si faltara el de estado) y que default es lo de siempre.
+lock=$repo/.config/hypr/hyprlock.conf
+usadas=$(grep -v '^\s*#' "$lock" | grep -oE '\$(fondo|campo|texto)_?[a-z]*' | sort -u)
+for t in default liquido; do
+	frag=$repo/.config/hypr/temas/hyprlock-$t.conf
+	definidas=$(grep -oE '^\$[a-z_]+' "$frag" | sort -u)
+	si "hyprlock $t: el fragmento define todas las variables que usa hyprlock.conf" test -z "$(comm -23 <(echo "$usadas") <(echo "$definidas"))"
+	si "hyprlock $t: sin variables de más" test -z "$(comm -13 <(echo "$usadas") <(echo "$definidas"))"
+done
+si "hyprlock: los valores por defecto de hyprlock.conf son los del fragmento default" eval 'diff <(grep -E "^\\$(fondo|campo|texto)[a-z_]* =" "'"$lock"'" | sort) <(grep -E "^\\$[a-z_]+ =" "'"$repo"'/.config/hypr/temas/hyprlock-default.conf" | sort)'
+si "hyprlock: hace source del fragmento antes de usar las variables" eval '[[ $(grep -n "^source = ~/.local/state/escritorio/hyprlock-tema.conf" "'"$lock"'" | cut -d: -f1) -lt $(grep -n "^background {" "'"$lock"'" | cut -d: -f1) ]]'
+si "hyprlock: los dos fragmentos pintan lo mismo en los mismos sitios (sólo cambian los valores)" cmp -s <(grep -oE '^\$[a-z_]+' "$repo/.config/hypr/temas/hyprlock-default.conf") <(grep -oE '^\$[a-z_]+' "$repo/.config/hypr/temas/hyprlock-liquido.conf")
+si "hyprlock liquido: borde del campo irisado, de 4 colores" grep -qE '^\$campo_borde = (rgba\([0-9a-f]{8}\) ){4}45deg$' "$repo/.config/hypr/temas/hyprlock-liquido.conf"
+
+# Neovim: arranca en cada tema con el colorscheme esperado y sin mensajes.
+if command -v nvim >/dev/null && [[ -d ${XDG_DATA_HOME:-$HOME/.local/share}/nvim/lazy/LazyVim ]]; then
+	nv=$tmp/nvim
+	mkdir -p "$nv/cfg" "$nv/estado/escritorio"
+	ln -s "$repo/.config/nvim" "$nv/cfg/nvim"
+	# Con un XDG_STATE_HOME de prueba, pero los plugins de verdad (sólo lectura).
+	nvim_en() { # $1: tema; $2: orden Lua que corre a los 3 s; saca lo que escriba
+		printf '%s\n' "$1" >"$nv/estado/escritorio/tema"
+		cat >"$nv/prueba.lua" <<FIN
+vim.defer_fn(function()
+$2
+vim.cmd("qa!")
+end, 3000)
+FIN
+		XDG_CONFIG_HOME=$nv/cfg XDG_STATE_HOME=$nv/estado timeout 120 nvim --headless -c "luafile $nv/prueba.lua" 2>&1
+	}
+	salida=$(nvim_en default 'io.stdout:write("CS=" .. vim.g.colors_name .. " MSG=[" .. vim.api.nvim_exec2("messages", { output = true }).output .. "]\n")')
+	si "nvim default: colorscheme horizon y sin mensajes" grep -qx 'CS=horizon MSG=\[\]' <<<"$salida"
+	salida=$(nvim_en liquido 'io.stdout:write("CS=" .. vim.g.colors_name .. " MSG=[" .. vim.api.nvim_exec2("messages", { output = true }).output .. "] bg=" .. tostring(vim.api.nvim_get_hl(0, { name = "Normal" }).bg) .. " kw=" .. string.format("%06x", vim.api.nvim_get_hl(0, { name = "Keyword" }).fg) .. " fn=" .. string.format("%06x", vim.api.nvim_get_hl(0, { name = "Function" }).fg) .. "\n")')
+	si "nvim liquido: colorscheme aurora y sin mensajes" grep -q 'CS=aurora MSG=\[\]' <<<"$salida"
+	si "  fondo transparente, keywords violeta y funciones cian" grep -q 'bg=nil kw=8b6cff fn=5ad7ff' <<<"$salida"
+	salida=$(nvim_en default '
+local d = vim.env.XDG_STATE_HOME .. "/escritorio"
+local l = {}
+local function r(m) l[#l + 1] = m .. ":" .. vim.g.colors_name end
+r("ini")
+os.execute("printf liquido > " .. d .. "/.t && mv " .. d .. "/.t " .. d .. "/tema")
+vim.wait(1500, function() return vim.g.colors_name == "aurora" end, 50)
+r("liquido")
+os.execute("printf default > " .. d .. "/.t && mv " .. d .. "/.t " .. d .. "/tema")
+vim.wait(1500, function() return vim.g.colors_name == "horizon" end, 50)
+r("default")
+io.stdout:write(table.concat(l, " ") .. "\n")')
+	si "nvim cambia en caliente de tema sin reiniciar (default, liquido y vuelta)" grep -qx 'ini:horizon liquido:aurora default:horizon' <<<"$salida"
+else
+	echo "OMITIDA  no hay nvim con LazyVim instalado en esta máquina"
 fi
 
 # ---------------------------------------------------------------------------

@@ -123,6 +123,11 @@ local temas = {
 			size = 8,
 			passes = 3,
 			vibrancy = 0.25,
+			-- Los valores de fábrica de Hyprland: están para que liquido pueda
+			-- cambiarlos y volver (cada tema da las mismas claves).
+			vibrancy_darkness = 0.0,
+			contrast = 0.8916,
+			brightness = 1.0,
 			noise = 0.02, -- frosted-glass grain
 			new_optimizations = true,
 		},
@@ -134,40 +139,47 @@ local temas = {
 		aberracion = nil,
 	},
 
-	-- Cristal claro, a la manera del Liquid Glass de Apple. El cristal de las
-	-- superficies de Quickshell es blanco azulado y muy translúcido (alfa
-	-- 0.26-0.34, ver Theme.qml), así que:
+	-- Cristal oscuro y claro con el borde irisado, como una lente de cristal
+	-- líquido. Mismas medidas que default (huecos, grosor del borde, redondeo
+	-- y su potencia): sólo cambia el material y el color. La paleta, la misma
+	-- que en Ghostty, Neovim y hyprlock: fondo #0a0e1c, violeta #8b6cff, cian
+	-- #5ad7ff, magenta #ff5cc8, naranja #ff9a5a.
 	--   - ignore_alpha baja a 0.15: con 0.5, Hyprland dejaría de desenfocar
-	--     ese cristal. Lo que no deba desenfocarse tiene que ir por debajo de
-	--     0.15 (Theme.ignoreAlpha lo dice en QML).
-	--   - El blur es más grande, con una pasada más y el doble de vibrancy:
-	--     el fondo se lee como luz de colores detrás de una lente, no como
-	--     una mancha gris. Casi sin grano: el Liquid Glass es liso.
-	--   - Esquinas más grandes y casi de squircle (rounding_power 3): las
-	--     "continuous corners" de Apple, que no son un arco de círculo.
-	--   - Borde con un filo de luz arriba a la izquierda, un valle tenue y un
-	--     reflejo abajo a la derecha, apenas frío; sombra amplia y suave.
-	--   - Aberración cromática: a ratos, el filo se separa en rojo y cian
+	--     el cristal claro de Quickshell. Lo que no deba desenfocarse tiene que
+	--     ir por debajo de 0.15 (Theme.ignoreAlpha lo dice en QML).
+	--   - Borde activo: luz blanca especular que pasa por cian, violeta y
+	--     magenta y acaba en naranja; el inactivo, un azul tenue.
+	--   - El blur es más grande y con más vibrancy y contraste, y algo de
+	--     brillo menos: los colores del fondo traspasan el cristal sin que
+	--     quede lechoso. Casi sin grano.
+	--   - Sombra suave y azulada.
+	--   - Aberración cromática: a ratos, el borde se separa en magenta y cian
 	--     (ver ABERRACIÓN, abajo).
 	liquido = {
-		gaps_in = 7,
-		gaps_out = 24,
+		gaps_in = 5,
+		gaps_out = 20,
 		border_size = 2,
-		active_border = { colors = { "rgba(ffffffd9)", "rgba(dce8ff38)", "rgba(ffffff80)" }, angle = 45 },
-		inactive_border = "rgba(dce8ff1f)",
-		rounding = 18,
-		rounding_power = 3,
+		active_border = {
+			colors = { "rgba(ffffffff)", "rgba(5ad7ffff)", "rgba(8b6cffff)", "rgba(ff5cc8ff)", "rgba(ff9a5aff)" },
+			angle = 45,
+		},
+		inactive_border = "rgba(8b9cff40)",
+		rounding = 10,
+		rounding_power = 2,
 		shadow = {
 			enabled = true,
-			range = 26,
-			render_power = 2,
-			color = 0x40081020,
+			range = 18,
+			render_power = 3,
+			color = 0x66101a4a,
 		},
 		blur = {
 			enabled = true,
-			size = 12,
+			size = 10,
 			passes = 4,
-			vibrancy = 0.5,
+			vibrancy = 0.6,
+			vibrancy_darkness = 0.2,
+			contrast = 1.15,
+			brightness = 0.9,
 			noise = 0.008,
 			new_optimizations = true,
 		},
@@ -175,13 +187,12 @@ local temas = {
 		-- 600 ms) lleguen a verse enteros.
 		border_speed = 2.5,
 		ignore_alpha = 0.15,
-		-- Los bordes del pulso de aberración: el blanco del filo, con una
-		-- franja roja en un extremo y una cian en el otro (las mismas de
-		-- Theme.franjaRoja y Theme.franjaCian). Dos, con las franjas cambiadas
-		-- de lado, para que un pulso de dos parpadeos tiemble.
+		-- Los bordes del pulso de aberración: el mismo degradado con el cian
+		-- y el magenta separados, y el blanco en medio. Dos, con las franjas
+		-- cambiadas de lado, para que un pulso de dos parpadeos tiemble.
 		aberracion = {
-			{ colors = { "rgba(ff3b6b99)", "rgba(ffffffe6)", "rgba(3be8ff99)" }, angle = 45 },
-			{ colors = { "rgba(3be8ff99)", "rgba(ffffffe6)", "rgba(ff3b6b99)" }, angle = 45 },
+			{ colors = { "rgba(ff5cc8ff)", "rgba(ffffffff)", "rgba(5ad7ffff)", "rgba(8b6cffff)", "rgba(ff9a5aff)" }, angle = 45 },
+			{ colors = { "rgba(5ad7ffff)", "rgba(ffffffff)", "rgba(ff5cc8ff)", "rgba(ff9a5aff)", "rgba(8b6cffff)" }, angle = 45 },
 		},
 	},
 }
