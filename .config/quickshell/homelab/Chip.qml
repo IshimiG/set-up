@@ -21,8 +21,17 @@ Rectangle {
 
     implicitWidth: fila.implicitWidth + 18
     implicitHeight: 26
-    radius: 8
+    radius: Theme.liquido ? Theme.radiusPill : 8
     opacity: chip.encendido ? 1 : 0.4
+    // Liquido: al pasar el ratón crece un pelo y al pulsar se hunde.
+    scale: Theme.liquido && chip.encendido ? (pulsado.pressed ? 0.96 : (sobre.hovered ? 1.04 : 1)) : 1
+
+    Behavior on scale {
+        NumberAnimation {
+            duration: 120
+            easing.type: Easing.OutCubic
+        }
+    }
     color: chip.activo ? Qt.rgba(1, 1, 1, 0.14) : (sobre.hovered && chip.encendido ? Qt.rgba(1, 1, 1, 0.1) : Qt.rgba(1, 1, 1, 0.05))
     border.width: 1
     border.color: chip.activo ? Qt.rgba(1, 1, 1, 0.3) : Theme.rule
@@ -73,6 +82,8 @@ Rectangle {
     }
 
     TapHandler {
+        id: pulsado
+
         gesturePolicy: TapHandler.ReleaseWithinBounds
         onTapped: if (chip.encendido)
             chip.activado()

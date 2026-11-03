@@ -95,7 +95,7 @@ FocusScope {
         anchors.centerIn: parent
         width: Math.min(parent.width - 24, 340)
         height: columna.implicitHeight + 36
-        radius: 14
+        radius: Theme.liquido ? Theme.radiusSmall : 14
         color: Theme.glassDense
         border.width: 1
         border.color: confirmar.peligro ? Theme.prioMaxima : Theme.edgeTop
