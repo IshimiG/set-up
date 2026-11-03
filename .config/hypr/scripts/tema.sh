@@ -4,7 +4,7 @@
 #   tema.sh              dice el tema activo
 #   tema.sh lista        los temas que hay, uno por línea; el activo, con *
 #   tema.sh <tema>       pone ese tema: default o liquido
-#   tema.sh alternar     pasa al siguiente de la lista (SUPER+SHIFT+T)
+#   tema.sh alternar     pasa al siguiente de la lista (SUPER+SHIFT+CTRL+T)
 #
 # El tema es una palabra en ${XDG_STATE_HOME:-~/.local/state}/escritorio/tema,
 # de cada máquina y fuera del repo. Se escribe de una vez (un temporal que se

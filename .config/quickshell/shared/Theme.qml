@@ -33,7 +33,7 @@ import Quickshell.Io
 // y tantos ficheros que usan Theme sin tocar ninguno.
 //
 // El tema activo es una palabra en ${XDG_STATE_HOME:-~/.local/state}/
-// escritorio/tema, que escribe ~/.config/hypr/scripts/tema.sh (SUPER+SHIFT+T
+// escritorio/tema, que escribe ~/.config/hypr/scripts/tema.sh (SUPER+SHIFT+CTRL+T
 // alterna). El mismo fichero lo lee hyprland.lua para el borde, el blur y el
 // ignore_alpha de las superficies. Si falta, está vacío o dice algo que no es
 // un tema, vale "default". No va en el repo: es de cada máquina.
