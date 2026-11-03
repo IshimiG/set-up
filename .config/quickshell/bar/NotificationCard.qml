@@ -51,40 +51,12 @@ Item {
 
     // La capa exterior es *solo* el canto: se pinta entera con el degradado
     // blanco y el cuerpo de cristal se dibuja encima dejando 1px al aire.
-    Rectangle {
+    Cristal {
         id: body
 
         anchors.fill: parent
         implicitHeight: content.implicitHeight + Theme.pad * 2
         radius: Theme.radius
-
-        gradient: Gradient {
-            GradientStop {
-                position: 0.0
-                color: Theme.edgeTop
-            }
-            GradientStop {
-                position: 1.0
-                color: Theme.edgeBottom
-            }
-        }
-
-        Rectangle {
-            anchors.fill: parent
-            anchors.margins: 1
-            radius: Math.max(0, body.radius - 1)
-
-            gradient: Gradient {
-                GradientStop {
-                    position: 0.0
-                    color: Theme.glassTop
-                }
-                GradientStop {
-                    position: 1.0
-                    color: Theme.glassBottom
-                }
-            }
-        }
 
         // Las críticas llevan un filo rojo a la izquierda. Es la única
         // concesión al color: en la barra el rojo significa exactamente esto.
@@ -213,7 +185,7 @@ Item {
                         visible: modelData.identifier !== "default"
                         width: visible ? label.implicitWidth + 22 : 0
                         height: visible ? 26 : 0
-                        radius: 9
+                        radius: Theme.liquido ? Theme.radiusPill : 9
 
                         color: Qt.rgba(1, 1, 1, actionHover.hovered ? 0.20 : 0.10)
                         border.width: 1

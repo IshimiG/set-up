@@ -779,7 +779,7 @@ FocusScope {
                                 objectName: "cabeceraGrupo"
                                 width: parent.width
                                 height: 30
-                                radius: 8
+                                radius: Theme.liquido ? Theme.radiusSmall : 8
                                 color: cabDrop.containsDrag && cabDrop.cambio ? Qt.rgba(1, 1, 1, 0.22) : (sobreGrupo.hovered ? Qt.rgba(1, 1, 1, 0.06) : "transparent")
                                 scale: cabDrop.containsDrag && cabDrop.cambio ? 1.03 : 1
 
@@ -979,7 +979,7 @@ FocusScope {
         z: 80
         width: Math.min(220, tareas.width - 20)
         height: 28
-        radius: 10
+        radius: Theme.liquido ? Theme.radiusSmall : 10
         color: Theme.glassDense
         border.width: 1
         border.color: Qt.rgba(1, 1, 1, 0.4)
@@ -1037,7 +1037,7 @@ FocusScope {
         height: 58
         y: tira.saca ? 0 : -height - 12
         z: 60
-        radius: 12
+        radius: Theme.liquido ? Theme.radiusSmall : 12
         color: Theme.glassDense
         border.width: 1
         border.color: Qt.rgba(1, 1, 1, 0.22)

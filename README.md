@@ -41,7 +41,8 @@ choca.
 - `.config/hypr/hyprland.lua`: Hyprland, en Lua (0.56+).
 - `.config/hypr/hyprlock.conf`: la pantalla de bloqueo.
 - `.config/hypr/scripts/`: barra, capturas, notificaciones, recordatorios,
-  aviso de actualizaciones y `paquetes.sh` (lista los paquetes instalados a
+  aviso de actualizaciones, `tema.sh` y `aberracion.sh` (ver [Temas](#temas))
+  y `paquetes.sh` (lista los paquetes instalados a
   propósito y los desinstala con `sudo pacman -Rns`; se niega con los
   protegidos: núcleo, arranque, pacman, sudo, Hyprland, Quickshell, Ghostty…).
 - `.config/ghostty/config.ghostty`: la terminal, con el mismo cristal.
@@ -62,7 +63,7 @@ choca.
   barrita con el color de su categoría (la sección de la tarea; «Clase», en un
   violeta fijo, para Aules) y a la derecha el nombre de esa categoría; el punto
   es la prioridad), `launcher`
-  (SUPER+SPACE), `reminder` (SUPER+R), `updates`, `homelab` (el panel del
+  (SUPER+SPACE), `reminder` (SUPER+R), `temas` (SUPER+SHIFT+T, el selector de tema), `updates`, `homelab` (el panel del
   homelab: el cajón que sale del centro del borde derecho, o con SUPER+H, con
   los datos del panel del NUC; cada equipo entra con su usuario, y la contraseña
   va en el llavero: `secret-tool store --label="Panel del homelab" servicio
@@ -73,7 +74,8 @@ choca.
   Servidor con los contenedores en vivo, las acciones de Docker (escribiendo el
   nombre cuando hace falta), los logs y el consumo, el Registro, y Notas: las
   notas del vault como página, sólo para leer, con un Markdown propio, los
-  `[[enlaces]]` navegables y atrás y adelante) y `shared` (la paleta).
+  `[[enlaces]]` navegables y atrás y adelante) y `shared` (la paleta, con los
+  temas: ver [Temas](#temas)).
 - `.config/systemd/user/notificaciones.*`: el latido de los recordatorios.
 - `.local/bin/launch-or-focus`: enfoca una ventana o lanza la app.
 - `.local/bin/actualizar-equipo` (sólo en la rama de un equipo, si lo quiere):
@@ -95,6 +97,9 @@ choca.
   de crear, editar, eliminar tareas y el color por categoría (`--guardar` deja las capturas). Levanta un panel
   falso (`panel-falso.py`, con las horas, el color de cada sección y el
   borrado del contrato de `/api/tareas`), así que necesita `python3`.
+- `pruebas/temas/panel.sh`: prueba sin pantalla del selector de tema, en los
+  dos temas (carga, lista, marca el activo, ↑/↓, Enter, clic y Escape, sin
+  ejecutar el `tema.sh` real; `--guardar` deja las capturas).
 - `pruebas/updates/prueba.sh`: prueba sin pantalla del aviso de
   actualizaciones: que la máscara de clics cubre la tarjeta entera (los dos
   botones, no sólo su canto de arriba), el cristal, la flecha de esconder, la
@@ -108,6 +113,140 @@ choca.
   exacta de la terminal, el reinicio al cerrar y el estado de error, con
   ghostty, pacman y sudo de mentira en el `PATH` (`--guardar` deja las
   capturas). Ninguna desinstala nada.
+- `pruebas/temas/prueba.sh`: prueba sin pantalla de los temas: `tema.sh` (con
+  un `$XDG_STATE_HOME` de prueba), `tema.sh` y `aberracion.sh` en una sesión
+  de mentira (`hyprctl`, `notify-send` y `sleep` falsos: recarga, aviso, el
+  demonio que pulsa, no se duplica y se para), `aberracion.sh --en-seco` con
+  sus tiempos, `hyprland.lua` con un Hyprland de mentira
+  (`hypr-simulado.lua`: default da los valores de siempre y los dos temas las
+  mismas claves) y con `Hyprland --verify-config`, y `shared/Theme.qml` con
+  `qs`, en caliente y al arrancar. Necesita `qs` y `lua` (`--guardar` deja
+  los registros).
+
+## Temas
+
+El escritorio tiene temas intercambiables:
+
+- `default`: el de siempre, cristal negro esmerilado con un filo blanco.
+- `liquido`: cristal claro a la manera del Liquid Glass de Apple. Lámina
+  blanco azulada muy translúcida (alfa 0,26-0,34) con degradado, canto blanco
+  marcado arriba y tenue abajo, brillo especular en el tercio de arriba,
+  tinte frío, texto blanco puro, radios grandes y cápsulas, sombra suave. En
+  Hyprland: blur más grande (12, 4 pasadas, vibrancy 0,5, casi sin grano),
+  esquinas de squircle (`rounding_power` 3), más aire entre ventanas y
+  aberración cromática a ratos en el borde.
+
+### Cambiar de tema
+
+SUPER+SHIFT+T abre el selector (`quickshell/temas`: una tarjeta con los
+temas, su vista previa y el activo marcado; ↑/↓ y Enter, o un clic; Escape
+cierra) y SUPER+SHIFT+CTRL+T alterna sin abrirlo. Desde la terminal:
+
+```sh
+~/.config/hypr/scripts/tema.sh            # el activo
+~/.config/hypr/scripts/tema.sh lista      # los que hay; el activo, con *
+~/.config/hypr/scripts/tema.sh liquido    # o default
+~/.config/hypr/scripts/tema.sh alternar   # el siguiente de la lista
+```
+
+El tema activo es una palabra en `${XDG_STATE_HOME:-~/.local/state}/escritorio/tema`,
+de cada máquina: no va en el repo. Si falta o dice algo que no es un tema,
+vale `default`. `tema.sh` lo escribe de una vez (un temporal que renombra
+encima) y, dentro de la sesión:
+
+1. Para la aberración cromática si estaba en marcha.
+2. `hyprctl reload config-only`: `hyprland.lua` vuelve a leer el tema y pone
+   el borde, el redondeo, la sombra, el blur, los huecos, la velocidad del
+   borde y el `ignore_alpha` de las superficies de Quickshell de ese tema.
+3. Arranca la aberración si el tema la tiene.
+4. Avisa con una notificación.
+
+Quickshell no necesita nada: `shared/Theme.qml` vigila el fichero y la
+barra, la isla, el cajón del homelab y lo demás cambian en caliente. Fuera
+de una sesión, `tema.sh` sólo escribe el estado, que vale al entrar. La
+carpeta la crea `setup.sh` (paso 3); si Quickshell arrancó cuando no
+existía, no ve el primer cambio hasta que se reinicia (tema.sh lo avisa).
+
+### Aberración cromática
+
+Sólo en `liquido`. Hyprland no tiene aberración cromática en los bordes, así
+que es el mismo borde en degradado con una franja roja y otra cian a los
+lados del blanco, puesto a pulsos por `scripts/aberracion.sh`: cada 4 a 25 s
+al azar, y cuatro de cada diez veces nada; cada pulso dura de 150 a 600 ms,
+con uno o dos parpadeos (el segundo con las franjas al revés), y vuelve al
+borde normal. Los colores están en `hyprland.lua` (`temas.liquido.aberracion`)
+y el demonio los pone con `hyprctl eval 'escritorio.aberracion(n)'` (`hyprctl
+keyword` no funciona con la configuración en Lua; 0 es el borde normal).
+
+Arranca con la sesión si el tema es `liquido` y lo arranca y para `tema.sh`;
+se para solo en cuanto el tema deja de ser `liquido` y no se duplica (cerrojo
+con el PID en `$XDG_RUNTIME_DIR/escritorio-aberracion.lock`). Para apagarlo:
+`ABERRACION=0` en el entorno (en una máquina, `hl.env("ABERRACION", "0")` en
+su `equipo.lua`), o pararlo a mano con `aberracion.sh --parar`.
+`aberracion.sh --en-seco` no toca nada: imprime las órdenes y las esperas
+(`ABERRACION_TURNOS` y `ABERRACION_SEMILLA` lo hacen corto y repetible).
+
+### El contrato de `Theme`
+
+Todos los QML usan la paleta por `Theme.<propiedad>`; las de la tabla
+cambian con el tema, en caliente. Lo que no está en la tabla (las
+prioridades y `colorPrioridad`, `font`, `cardWidth`, `pad`, `gap`, `dropTop`,
+`dropSide`, `slideRoom`, `minTimeout` y `timeoutFor`) es igual en todos.
+
+| Propiedad | Tipo | `default` | `liquido` | Qué es |
+|---|---|---|---|---|
+| `nombreTema` | string | `"default"` | `"liquido"` | El tema activo |
+| `liquido` | bool | `false` | `true` | Atajo para `nombreTema === "liquido"` |
+| `temas` | var | `["default", "liquido"]` | igual | Los que hay |
+| `rutaEstado` | string | `…/escritorio/tema` | igual | El fichero que se vigila |
+| `glassTop`, `glassBottom` | color | negro al 0,76 / 0,64 | blanco azulado al 0,34 / 0,26 | El cuerpo, en degradado |
+| `glassClear` | color | negro al 0,64 | blanco azulado al 0,18 | Variante *clear*: sobre algo con mucho color, con el texto en `strong` |
+| `glassDense` | color | negro al 0,92 | pizarra fría al 0,90 | Lo que flota sobre el contenido: casi opaco, nunca cristal |
+| `ignoreAlpha` | real | 0,5 | 0,15 | El `ignore_alpha` de `hyprland.lua` en el tema |
+| `edgeTop`, `edgeBottom` | color | blanco al 0,30 / 0,08 | blanco al 0,55 / 0,14 | El canto |
+| `bordeAnchura` | real | 1 | 1,5 | El grueso del canto |
+| `specular` | color | transparente | blanco al 0,30 | El brillo de la cara, de arriba hacia abajo |
+| `specularHeight` | real (0-1) | 0 | 0,33 | Lo que cubre ese brillo |
+| `tint` | color | transparente | azul al 0,08 | Tinte sobre el cuerpo |
+| `shadowColor` | color | transparente | azul noche al 0,35 | La sombra de la lámina |
+| `shadowRadius` | real | 0 | 24 | Su difuminado |
+| `aberracion` | bool | `false` | `true` | Si el tema tiene aberración cromática |
+| `franjaRoja`, `franjaCian` | color | transparente | `#ff3b6b`, `#3be8ff` al 0,6 | Sus colores, los del borde de Hyprland |
+| `text` | color | blanco al 0,78 | blanco | Texto |
+| `strong` | color | blanco | blanco | Texto que manda |
+| `muted`, `faint` | color | blanco al 0,55 / 0,35 | blanco al 0,75 / 0,52 | Atenuados |
+| `rule` | color | blanco al 0,12 | blanco al 0,22 | Separadores |
+| `accent` | color | blanco | blanco | Resalte |
+| `ok`, `warn`, `danger` | color | `#6dc89e`, `#e59625`, `#e90b25` | `#30d158`, `#ff9f0a`, `#ff453a` | Estados |
+| `radius` | int | 16 | 24 | Radio de una lámina |
+| `radiusSmall` | int | 8 | 14 | Radio de lo de dentro (botón, campo, fila) |
+| `radiusPill` | int | 999 | 999 | Cápsula |
+| `animIn`, `animOut` | int (ms) | 420, 300 | 460, 300 | Duración de entrar y salir |
+| `overshootIn`, `overshootOut` | real | 1,9, 1,5 | 1,5, 1,3 | Rebote de entrar y salir |
+
+Reglas de cualquier tema, traducidas del Liquid Glass:
+
+- El cristal es para la capa de navegación (la barra, la isla, el cajón, el
+  lanzador, los avisos), nunca para el contenido.
+- El cristal no se pone encima de otro cristal: lo que flota sobre una
+  lámina va en `glassDense`.
+- El alfa del cristal va por encima de `ignoreAlpha` (si no, Hyprland no lo
+  desenfoca), y lo que no deba desenfocarse, por debajo: en `liquido`, el velo
+  del lanzador (0,32) también se desenfoca.
+- `default` es exactamente lo de antes de haber temas: lo comprueba
+  `pruebas/temas/prueba.sh`.
+
+### Añadir un tema
+
+1. `shared/Theme.qml`: una `Paleta { id: paletaX; nombre: "x" … }` con sólo
+   lo que cambia (lo demás sale de `default`), metida en `paletas`.
+2. `hyprland.lua`: su tabla en `temas`, con las mismas claves que `default`
+   (la prueba lo exige; así al volver de un tema no se queda nada puesto).
+   Con `aberracion` (una lista de bordes) tiene aberración, y entonces su
+   nombre va también en `CON_ABERRACION` de `scripts/aberracion.sh`.
+3. `scripts/tema.sh`: su nombre en `TEMAS`, que es el orden de `lista` y de
+   `alternar`.
+4. `pruebas/temas/`: lo que el tema nuevo no pueda romper.
 
 ## Instalación
 
@@ -125,7 +264,9 @@ lo común y lo del equipo juntos.
 
 `setup.sh` instala los paquetes que falten (la lista está en el propio script;
 los del AUR, con `yay` o `paru`), enlaza `~/.config` y `~/.local/bin` al repo
-(así un `git pull` se nota al momento), descarga el fondo si la máquina no
+(así un `git pull` se nota al momento), crea la carpeta del tema
+(`~/.local/state/escritorio`, ver [Temas](#temas); el tema no lo toca),
+descarga el fondo si la máquina no
 tiene `~/.config/hypr/hyprpaper.conf`, activa los servicios de usuario, ajusta
 la memoria y pone fish como shell. De la memoria se ocupan tres cosas: earlyoom
 (si se agota la RAM mata antes el navegador y las apps Electron que Hyprland;

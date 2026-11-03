@@ -31,7 +31,7 @@ Rectangle {
     }
 
     implicitHeight: Math.max(30, edit.contentHeight + 16)
-    radius: 8
+    radius: Theme.liquido ? (campo.multilinea ? Theme.radiusSmall : Theme.radiusPill) : 8
     color: edit.activeFocus ? Qt.rgba(1, 1, 1, 0.09) : Qt.rgba(1, 1, 1, 0.05)
     border.width: 1
     border.color: edit.activeFocus ? Qt.rgba(1, 1, 1, 0.3) : Theme.rule
