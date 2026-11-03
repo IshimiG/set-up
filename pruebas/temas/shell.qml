@@ -24,11 +24,11 @@ ShellRoot {
     property int paso: 0
     // Lo que valía al crearse la prueba, antes de que nada pueda recargar.
     property string alNacer: ""
-    property real radiusAlNacer: 0
+    property bool vidrioAlNacer: false
 
     Component.onCompleted: {
         prueba.alNacer = Theme.nombreTema;
-        prueba.radiusAlNacer = Theme.radius;
+        prueba.vidrioAlNacer = Theme.vidrio;
     }
 
     function ok(cond, msg) {
@@ -77,38 +77,56 @@ ShellRoot {
         prueba.ok(Theme.specular.a === 0 && Theme.specularHeight === 0 && Theme.tint.a === 0, donde + ": sin brillo especular ni tinte (transparentes, altura 0)");
         prueba.ok(Theme.shadowColor.a === 0 && Theme.shadowRadius === 0, donde + ": sin sombra (transparente, radio 0)");
         prueba.ok(Theme.bordeAnchura === 1, donde + ": bordeAnchura 1");
-        prueba.ok(!Theme.aberracion && Theme.franjaRoja.a === 0 && Theme.franjaCian.a === 0, donde + ": sin aberración");
         prueba.ok(prueba.mismo(Theme.glassClear, Theme.glassBottom), donde + ": glassClear es el cuerpo de siempre");
         prueba.ok(prueba.cerca(Theme.ignoreAlpha, Number(Quickshell.env("PRUEBA_IA_DEFAULT"))), donde + ": ignoreAlpha (" + Theme.ignoreAlpha + ") es el de hyprland.lua en default (" + Quickshell.env("PRUEBA_IA_DEFAULT") + ")");
+        prueba.ok(!Theme.vidrio && Theme.rimStops.length === 0 && Theme.readingVeil.a === 0 && Theme.thickness === 0 && Theme.sheen === 0 && Theme.rimCorner === 0 && Theme.rimMid === 0 && Theme.rimLight === 0 && Theme.rimReflect === 0, donde + ": sin el shader del vidrio, ni velo de lectura (apagado, sin paradas y a 0)");
+        prueba.ok(Theme.aberracion === undefined && Theme.franjaRoja === undefined && Theme.franjaCian === undefined, donde + ": Theme ya no tiene aberración cromática");
     }
+
+    // Las medidas: en todos los temas, las de default. Un tema cambia el
+    // material, no la forma.
+    readonly property var medidas: [["radius", 16], ["radiusSmall", 8], ["radiusPill", 999], ["pad", 14], ["gap", 10], ["cardWidth", 380], ["dropTop", 38], ["dropSide", 14], ["slideRoom", 44]]
 
     // Liquido, por sus reglas: no se fijan los colores exactos (para poder
     // afinarlos sin tocar la prueba), sí lo que no se puede romper.
     function comprobarLiquido(donde) {
         prueba.ok(Theme.nombreTema === "liquido" && Theme.liquido, donde + ": nombreTema es liquido y liquido, true");
-        prueba.ok(Theme.radius === 24 && Theme.radiusSmall === 14 && Theme.radiusPill === 999, donde + ": radios 24, 14 y 999");
-        prueba.ok(Theme.bordeAnchura === 1.5, donde + ": bordeAnchura 1.5");
+        const otras = prueba.medidas.filter(([k, e]) => Theme[k] !== e).map(([k, e]) => k + "=" + Theme[k] + " (default " + e + ")");
+        prueba.ok(otras.length === 0, donde + ": las medidas (radios, cápsula, rellenos, huecos, anchos) son las de default" + (otras.length ? ": " + otras.join(", ") : ""));
+        prueba.ok(Theme.bordeAnchura >= 1 && Theme.bordeAnchura <= 2, donde + ": el canto, de 1 a 2 px (" + Theme.bordeAnchura + ")");
         prueba.ok(prueba.cerca(Theme.ignoreAlpha, Number(Quickshell.env("PRUEBA_IA_LIQUIDO"))), donde + ": ignoreAlpha (" + Theme.ignoreAlpha + ") es el de hyprland.lua en liquido (" + Quickshell.env("PRUEBA_IA_LIQUIDO") + ")");
         const cuerpo = [Theme.glassTop.a, Theme.glassBottom.a];
-        prueba.ok(cuerpo.every(a => a >= 0.25 - 0.002 && a <= 0.4 + 0.002), donde + ": el cristal va de 0.25 a 0.4 de alfa (" + cuerpo.map(a => a.toFixed(2)).join(", ") + ")");
+        prueba.ok(cuerpo.every(a => a > Theme.ignoreAlpha && a <= 0.22), donde + ": el cristal es muy translúcido: de alfa, justo por encima del ignoreAlpha y hasta 0.22 (" + cuerpo.map(a => a.toFixed(2)).join(", ") + ")");
         prueba.ok([Theme.glassTop, Theme.glassBottom, Theme.glassClear].every(c => c.a >= Theme.ignoreAlpha), donde + ": todo el cristal, también glassClear, queda por encima del ignoreAlpha");
-        prueba.ok(Theme.glassTop.a > Theme.glassBottom.a, donde + ": el cristal es más denso arriba");
-        prueba.ok([Theme.glassTop, Theme.glassBottom].every(c => c.b >= c.r && c.b >= c.g && c.r > 0.7), donde + ": el cristal es blanco azulado");
+        prueba.ok(Theme.glassTop.a >= Theme.glassBottom.a, donde + ": el cristal no es menos denso arriba");
+        prueba.ok([Theme.glassTop, Theme.glassBottom, Theme.glassClear].every(c => c.r > 0.9), donde + ": el cristal es claro (blanco translúcido)");
         prueba.ok(Theme.glassDense.a >= 0.85, donde + ": lo que flota sobre el contenido es casi opaco, no cristal sobre cristal (" + Theme.glassDense.a.toFixed(2) + ")");
-        prueba.ok(prueba.cerca(Theme.edgeTop.a, 0.55) && Theme.edgeBottom.a < Theme.edgeTop.a / 2, donde + ": canto marcado arriba (" + Theme.edgeTop.a.toFixed(2) + ") y tenue abajo (" + Theme.edgeBottom.a.toFixed(2) + ")");
-        prueba.ok(Theme.specular.a > 0 && prueba.cerca(Theme.specularHeight, 0.33), donde + ": brillo especular en el tercio de arriba");
-        prueba.ok(Theme.tint.a > 0 && Theme.tint.a <= 0.15 && Theme.tint.b > Theme.tint.r, donde + ": tinte frío y sutil");
+        // Neutro: ningún color propio. Todo gris (r = g = b, con un pelo de
+        // margen para el oscuro de glassDense), sin tinte.
+        const neutro = c => Math.abs(c.r - c.g) < 0.02 && Math.abs(c.g - c.b) < 0.02;
+        const grises = [["glassTop", Theme.glassTop], ["glassBottom", Theme.glassBottom], ["glassClear", Theme.glassClear], ["glassDense", Theme.glassDense], ["edgeTop", Theme.edgeTop], ["edgeBottom", Theme.edgeBottom], ["specular", Theme.specular], ["shadowColor", Theme.shadowColor], ["readingVeil", Theme.readingVeil], ["text", Theme.text], ["strong", Theme.strong], ["muted", Theme.muted], ["faint", Theme.faint], ["rule", Theme.rule], ["accent", Theme.accent]].concat(Array.from(Theme.rimStops).map((c, i) => ["rimStops[" + i + "]", c]));
+        const conColor = grises.filter(([k, c]) => !neutro(c)).map(([k, c]) => k + "=" + c);
+        prueba.ok(conColor.length === 0 && Theme.tint.a === 0, donde + ": cristal neutro, sin ningún color propio ni tinte" + (conColor.length ? ": " + conColor.join(", ") : ""));
+        prueba.ok(prueba.mismo(Theme.ok, "#6dc89e") && prueba.mismo(Theme.warn, "#e59625") && prueba.mismo(Theme.danger, "#e90b25") && prueba.mismo(Theme.accent, "#ffffff"), donde + ": los acentos y estados, los de default");
+        prueba.ok(Theme.vidrio && Theme.rimStops.length === 5, donde + ": vidrio, con cinco paradas en el canto");
+        const alfas = Array.from(Theme.rimStops).map(c => c.a);
+        prueba.ok(alfas[0] >= 0.85 && alfas[0] > alfas[2] && alfas[2] > alfas[3], donde + ": el canto, blanco brillante arriba a la izquierda y tenue abajo (" + alfas.map(a => a.toFixed(2)).join(", ") + ")");
+        prueba.ok(Theme.rimCorner >= Theme.rimMid && Theme.rimMid > 0 && Theme.rimCorner <= 1, donde + ": el canto, igual o más vivo en las esquinas (" + Theme.rimCorner + ") que en el medio (" + Theme.rimMid + ")");
+        prueba.ok(Theme.rimLight > 0 && Theme.rimReflect > 0 && Theme.rimReflect < Theme.rimLight, donde + ": luz arriba y un reflejo más tenue abajo");
+        prueba.ok(Theme.thickness > 0 && Theme.thickness <= 6 && Theme.sheen > 0 && Theme.sheen <= 0.08, donde + ": un resplandor fino (" + Theme.thickness + ") y un brillo de arriba muy discreto (" + Theme.sheen + ")");
+        prueba.ok(Theme.readingVeil.a > 0 && Theme.readingVeil.a <= 0.3, donde + ": un velo de lectura suave (" + Theme.readingVeil.a.toFixed(2) + ")");
+        prueba.ok(Theme.specular.a > 0 && Theme.specularHeight > 0, donde + ": brillo especular también sin shader");
         prueba.ok(Theme.shadowColor.a > 0 && Theme.shadowRadius > 0, donde + ": sombra suave");
-        prueba.ok(prueba.mismo(Theme.text, "#ffffff") && prueba.mismo(Theme.strong, "#ffffff"), donde + ": texto blanco puro");
-        prueba.ok(Theme.aberracion, donde + ": con aberración");
-        prueba.ok(String(Theme.franjaRoja) === Quickshell.env("PRUEBA_FRANJA_ROJA") && String(Theme.franjaCian) === Quickshell.env("PRUEBA_FRANJA_CIAN"), donde + ": las franjas (" + Theme.franjaRoja + ", " + Theme.franjaCian + ") son las del borde de hyprland.lua (" + Quickshell.env("PRUEBA_FRANJA_ROJA") + ", " + Quickshell.env("PRUEBA_FRANJA_CIAN") + ")");
-        prueba.ok(prueba.mismo(Theme.prioAlta, "#ff9a4d") && Theme.font === "JetBrainsMono Nerd Font" && Theme.pad === 14 && Theme.dropTop === 38, donde + ": lo que no es del tema (prioridades, letra, medidas) no cambia");
+        prueba.ok(Theme.shadowColor.a * 5 / 8 < Theme.ignoreAlpha, donde + ": la sombra del cajón (cinco capas) queda por debajo del ignoreAlpha y Hyprland no la desenfoca");
+        prueba.ok(prueba.mismo(Theme.text, "#ffffff") && prueba.mismo(Theme.strong, "#ffffff") && Theme.muted.a >= 0.7 && Theme.faint.a >= 0.5, donde + ": texto blanco puro y atenuados que se leen sobre el cristal claro");
+        prueba.ok(Theme.aberracion === undefined, donde + ": sin aberración cromática");
+        prueba.ok(prueba.mismo(Theme.prioAlta, "#ff9a4d") && Theme.font === "JetBrainsMono Nerd Font", donde + ": lo que no es del tema (prioridades, letra) no cambia");
     }
 
     readonly property var pasos: prueba.modo === "inicio" ? pasosInicio : pasosCambio
 
     readonly property var pasosInicio: [function () {
-            prueba.ok(prueba.alNacer === "liquido" && prueba.radiusAlNacer === 24, "al arrancar con el fichero en liquido, Theme ya es liquido desde el primer momento (" + prueba.alNacer + ", radio " + prueba.radiusAlNacer + ")");
+            prueba.ok(prueba.alNacer === "liquido" && prueba.vidrioAlNacer, "al arrancar con el fichero en liquido, Theme ya es liquido desde el primer momento (" + prueba.alNacer + ", vidrio " + prueba.vidrioAlNacer + ")");
             prueba.comprobarLiquido("al arrancar");
         }]
 

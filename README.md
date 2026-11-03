@@ -190,8 +190,10 @@ su `equipo.lua`), o pararlo a mano con `aberracion.sh --parar`.
 
 Todos los QML usan la paleta por `Theme.<propiedad>`; las de la tabla
 cambian con el tema, en caliente. Lo que no está en la tabla (las
-prioridades y `colorPrioridad`, `font`, `cardWidth`, `pad`, `gap`, `dropTop`,
-`dropSide`, `slideRoom`, `minTimeout` y `timeoutFor`) es igual en todos.
+prioridades y `colorPrioridad`, `font`, las medidas —`cardWidth`, `radius`
+16, `radiusSmall` 8, `radiusPill` 999, `pad`, `gap`, `dropTop`, `dropSide`,
+`slideRoom`—, `minTimeout` y `timeoutFor`) es igual en todos: un tema cambia
+el material, nunca la forma ni el tamaño.
 
 | Propiedad | Tipo | `default` | `liquido` | Qué es |
 |---|---|---|---|---|
@@ -199,28 +201,30 @@ prioridades y `colorPrioridad`, `font`, `cardWidth`, `pad`, `gap`, `dropTop`,
 | `liquido` | bool | `false` | `true` | Atajo para `nombreTema === "liquido"` |
 | `temas` | var | `["default", "liquido"]` | igual | Los que hay |
 | `rutaEstado` | string | `…/escritorio/tema` | igual | El fichero que se vigila |
-| `glassTop`, `glassBottom` | color | negro al 0,76 / 0,64 | blanco azulado al 0,34 / 0,26 | El cuerpo, en degradado |
-| `glassClear` | color | negro al 0,64 | blanco azulado al 0,18 | Variante *clear*: sobre algo con mucho color, con el texto en `strong` |
-| `glassDense` | color | negro al 0,92 | pizarra fría al 0,90 | Lo que flota sobre el contenido: casi opaco, nunca cristal |
+| `glassTop`, `glassBottom` | color | negro al 0,76 / 0,64 | blanco al 0,17 / 0,16 | El cuerpo, en degradado |
+| `glassClear` | color | negro al 0,64 | blanco al 0,16 | Variante *clear*: sobre algo con mucho color, con el texto en `strong` |
+| `glassDense` | color | negro al 0,92 | gris casi negro al 0,90 | Lo que flota sobre el contenido: casi opaco, nunca cristal |
 | `ignoreAlpha` | real | 0,5 | 0,15 | El `ignore_alpha` de `hyprland.lua` en el tema |
-| `edgeTop`, `edgeBottom` | color | blanco al 0,30 / 0,08 | blanco al 0,55 / 0,14 | El canto |
+| `edgeTop`, `edgeBottom` | color | blanco al 0,30 / 0,08 | blanco al 0,55 / 0,14 | El canto plano (en `liquido`, sólo los filos sueltos y el respaldo sin shader) |
 | `bordeAnchura` | real | 1 | 1,5 | El grueso del canto |
-| `specular` | color | transparente | blanco al 0,30 | El brillo de la cara, de arriba hacia abajo |
+| `specular` | color | transparente | blanco al 0,14 | El brillo de la cara, de arriba hacia abajo (respaldo sin shader) |
 | `specularHeight` | real (0-1) | 0 | 0,33 | Lo que cubre ese brillo |
-| `tint` | color | transparente | azul al 0,08 | Tinte sobre el cuerpo |
-| `shadowColor` | color | transparente | azul noche al 0,35 | La sombra de la lámina |
-| `shadowRadius` | real | 0 | 24 | Su difuminado |
-| `aberracion` | bool | `false` | `true` | Si el tema tiene aberración cromática |
-| `franjaRoja`, `franjaCian` | color | transparente | `#ff3b6b`, `#3be8ff` al 0,6 | Sus colores, los del borde de Hyprland |
+| `tint` | color | transparente | transparente | Tinte sobre el cuerpo |
+| `shadowColor` | color | transparente | negro al 0,22 | La sombra del cajón |
+| `shadowRadius` | real | 0 | 22 | Su difuminado |
+| `vidrio` | bool | `false` | `true` | La lámina la pinta el shader `shared/cristal.frag` |
+| `rimStops` | list\<color\> | `[]` | blancos al 0,95 → 0,22 → 0,30 | El alfa del canto, de arriba a la izquierda a abajo a la derecha |
+| `rimCorner`, `rimMid` | real | 0 | 1, 0,6 | Cuánto de ese alfa en las esquinas y en el medio de los lados |
+| `rimLight`, `rimReflect` | real | 0 | 0,6, 0,25 | La luz de arriba a la izquierda y el reflejo de abajo |
+| `thickness` | real | 0 | 4 | El resplandor fino de dentro del canto (el grosor) |
+| `sheen` | real | 0 | 0,05 | El brillo ancho de arriba |
+| `readingVeil` | color | transparente | negro al 0,24 | Velo para leer en las láminas que caen sobre ventanas (`Cristal.lectura`) |
 | `text` | color | blanco al 0,78 | blanco | Texto |
 | `strong` | color | blanco | blanco | Texto que manda |
 | `muted`, `faint` | color | blanco al 0,55 / 0,35 | blanco al 0,75 / 0,52 | Atenuados |
 | `rule` | color | blanco al 0,12 | blanco al 0,22 | Separadores |
 | `accent` | color | blanco | blanco | Resalte |
-| `ok`, `warn`, `danger` | color | `#6dc89e`, `#e59625`, `#e90b25` | `#30d158`, `#ff9f0a`, `#ff453a` | Estados |
-| `radius` | int | 16 | 24 | Radio de una lámina |
-| `radiusSmall` | int | 8 | 14 | Radio de lo de dentro (botón, campo, fila) |
-| `radiusPill` | int | 999 | 999 | Cápsula |
+| `ok`, `warn`, `danger` | color | `#6dc89e`, `#e59625`, `#e90b25` | igual | Estados |
 | `animIn`, `animOut` | int (ms) | 420, 300 | 460, 300 | Duración de entrar y salir |
 | `overshootIn`, `overshootOut` | real | 1,9, 1,5 | 1,5, 1,3 | Rebote de entrar y salir |
 
@@ -235,6 +239,18 @@ Reglas de cualquier tema, traducidas del Liquid Glass:
   del lanzador (0,32) también se desenfoca.
 - `default` es exactamente lo de antes de haber temas: lo comprueba
   `pruebas/temas/prueba.sh`.
+- Un tema cambia el material (colores, canto, brillos, sombra), nunca las
+  medidas ni las formas: por eso las medidas no están en las paletas.
+
+`shared/Cristal.qml` es la lámina: en `default`, el canto con degradado
+debajo y el cuerpo encima, como siempre; con `vidrio`, un shader
+(`shared/cristal.frag`, compilado a `cristal.frag.qsb` con `qsb --qt6`, del
+paquete `qt6-shadertools`, sólo para volver a compilarlo) que pinta el
+cuerpo, el canto blanco con su degradado de alfa, el resplandor de dentro y
+el brillo, porque con un cuerpo tan translúcido el canto de debajo se vería a
+través y lo volvería lechoso. Sin shaders (el renderizador por software),
+sale un respaldo plano. `pruebas/temas/prueba.sh` comprueba que el `.qsb`
+está al día y mira los píxeles de una lámina por software y con OpenGL.
 
 ### Añadir un tema
 

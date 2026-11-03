@@ -20,7 +20,7 @@
 #   pruebas/temas/prueba.sh --guardar  la deja, para mirar los registros
 #
 # Hace falta: bash, quickshell (qs) y lua; Hyprland, si está, para la cuarta
-# parte. Sale con 1 si algo falla.
+# parte, y qsb e ImageMagick, si están, para la última. Sale con 1 si algo falla.
 set -uo pipefail
 
 aqui=$(dirname "$(readlink -f "$0")")
@@ -325,6 +325,71 @@ for r in "$resultado" "$resultado2"; do
 	total=$((total + t + f))
 	fallos=$((fallos + f))
 done
+
+# ---------------------------------------------------------------------------
+seccion "shared/Cristal.qml y cristal.frag: la lámina de cristal"
+
+# El .qsb va en el repo, compilado de cristal.frag: tiene que estar al día.
+qsb=$(command -v qsb || echo /usr/lib/qt6/bin/qsb)
+if [[ -x $qsb ]]; then
+	si "cristal.frag.qsb está compilado de cristal.frag (qsb --qt6)" eval '"$qsb" --qt6 -o "$tmp/cristal.frag.qsb" "$repo/.config/quickshell/shared/cristal.frag" && cmp -s "$tmp/cristal.frag.qsb" "$repo/.config/quickshell/shared/cristal.frag.qsb"'
+else
+	echo "OMITIDA  no hay qsb (qt6-shadertools) para recompilar cristal.frag"
+fi
+
+# Una lámina sobre gris medio (#808080), con cada tema y con el renderizador
+# por software (el de offscreen, sin shaders) y, si la máquina tiene OpenGL,
+# con el de la RHI, el de una sesión de verdad. Los píxeles: el centro del
+# cuerpo, un punto del canto de arriba y otro del de abajo, y el canto en la
+# esquina de abajo a la derecha (cuánto color tiene: el máximo menos el mínimo
+# de r, g y b; tiene que ser neutro).
+mkdir -p "$tmp/cristal"
+cp "$aqui/cristal-shell.qml" "$tmp/cristal/shell.qml"
+cp -r "$repo/.config/quickshell/shared" "$tmp/cristal/shared"
+lamina() { # lamina <tema> <sw|gl>: imprime lo que dice la prueba
+	printf '%s\n' "$1" >"$fichero"
+	local gl=()
+	[[ $2 == gl ]] && gl=(QT_QUICK_BACKEND=rhi QSG_RHI_BACKEND=opengl)
+	(cd "$tmp/cristal" && env "${gl[@]}" PRUEBA_PNG="$tmp/cristal/$1-$2.png" QT_QPA_PLATFORM=offscreen timeout 60 qs -p ./shell.qml 2>&1) |
+		tee -a "$tmp/qs.log" | sed -E 's/\x1b\[[0-9;]*m//g' | grep -oE 'tema=.*'
+}
+pixel() { # pixel <png> <x> <y>: la luminancia, de 0 a 1
+	magick "$1" -crop "1x1+$2+$3" -format '%[fx:0.2126*r+0.7152*g+0.0722*b]' info:
+}
+color_esquina() {
+	magick "$1" -crop 6x6+272+132 +repage -fx 'max(r,max(g,b))-min(r,min(g,b))' -format '%[fx:maxima]' info:
+}
+menor() { awk -v a="$1" -v b="$2" 'BEGIN { exit !(a + 0 < b + 0) }'; }
+
+r=$(lamina default sw)
+si "default: sin vidrio ni shader ($r)" test "$r" = "tema=default api=1 vidrio=false shader=false"
+r=$(lamina liquido sw)
+si "liquido sin shaders: el respaldo plano, sin romperse ($r)" test "$r" = "tema=liquido api=1 vidrio=true shader=false"
+if command -v magick >/dev/null; then
+	c=$(pixel "$tmp/cristal/liquido-sw.png" 150 80)
+	si "  y el cuerpo es un cristal claro y translúcido: algo más claro que el gris de detrás, sin lechoso ($c entre 0,5 y 0,62)" eval 'menor 0.5 "$c" && menor "$c" 0.62'
+else
+	echo "OMITIDA  no hay ImageMagick (magick) para mirar los píxeles"
+fi
+r=$(lamina liquido gl)
+if [[ $r == *"api=3"* ]]; then
+	si "liquido con OpenGL: el shader del vidrio ($r)" test "$r" = "tema=liquido api=3 vidrio=true shader=true"
+	r=$(lamina default gl)
+	si "default con OpenGL: sin vidrio ni shader, lo de siempre ($r)" test "$r" = "tema=default api=3 vidrio=false shader=false"
+	if command -v magick >/dev/null; then
+		c=$(pixel "$tmp/cristal/liquido-gl.png" 150 80)
+		si "  el cuerpo es un cristal claro y translúcido, no lechoso: algo más claro que el gris de detrás ($c entre 0,5 y 0,62)" eval 'menor 0.5 "$c" && menor "$c" 0.62'
+		c=$(pixel "$tmp/cristal/liquido-gl.png" 150 21)
+		si "  el canto de arriba brilla ($c > 0,75)" menor 0.75 "$c"
+		c=$(pixel "$tmp/cristal/liquido-gl.png" 150 139)
+		si "  y el de abajo, más tenue ($c < el de arriba)" menor "$c" "$(pixel "$tmp/cristal/liquido-gl.png" 150 21)"
+		c=$(color_esquina "$tmp/cristal/liquido-gl.png")
+		si "  el canto es neutro, sin color: en la esquina de abajo a la derecha, r, g y b casi iguales ($c < 0,04)" menor "$c" 0.04
+	fi
+else
+	echo "OMITIDA  sin OpenGL fuera de pantalla (hace falta un \$DISPLAY con GLX): el shader no se prueba"
+fi
+rm -f "$fichero"
 
 echo
 echo "Resultado: $total comprobaciones, $fallos fallos"
