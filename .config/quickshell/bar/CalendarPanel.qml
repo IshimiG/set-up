@@ -28,8 +28,23 @@ import "shared/AgendaFormato.js" as Formato
 //     (‹ › lo cambian) y los doce meses debajo. Se cierra al pulsar fuera.
 //   - Con el panel del NUC al alcance (shell.tareas, bar/Tareas.qml, que es
 //     quien escribe en él), las tareas se editan desde aquí:
-//       · doble clic en un día abre una línea para crear una tarea en él
-//         (Intro la crea, Escape la cierra), con prioridad media y sin 🚫🤖;
+//       · doble clic en un día abre en el sitio de la lista la hoja «Nueva
+//         tarea» (bar/HojaTarea.qml): el título, todo el día o de una hora a
+//         otra, la prioridad (media), el 🚫🤖 (apagado) y la categoría (General,
+//         Homelab… las secciones del panel; la de siempre). Intro
+//         guarda, Escape cancela. Con ella abierta, pulsar otro día la lleva
+//         a ese día;
+//       · pulsar el título de una tarea abre la misma hoja, «Editar tarea»,
+//         con lo suyo, y guardar manda solo lo que ha cambiado (también la
+//         categoría, que pasa la tarea a otra sección; las de Aules no la
+//         tienen). Pulsar un día
+//         la cierra sin guardar. Con «Eliminar» (dos pulsaciones: la segunda
+//         confirma) se borra la tarea, salvo las de Aules, que son de solo
+//         lectura;
+//       · en la lista, cada fila lleva a la izquierda una barrita con el
+//         color de su categoría (su sección; «Clase» en las entregas de
+//         Aules) y a la derecha el nombre de esa categoría; una tarea con
+//         hora lleva además su rango («09:00–10:00»);
 //       · el punto de una tarea, pulsado, abre un menú con las cinco
 //         prioridades;
 //       · el 🚫🤖 del final de la fila («Claude no la hace») se enciende y se
@@ -92,6 +107,7 @@ Item {
             return;
         }
         root.cerrarPrioridad();
+        root.cerrarCategorias();
         root.selectorAnio = root.shown.getFullYear();
         root.selectorAbierto = true;
     }
@@ -110,17 +126,38 @@ Item {
     // o por qué no pudo ser.
     property string aviso: ""
 
-    // Crear: el día de la línea abierta ("2026-10-30"), o "" sin ella. Elegir
-    // otro día la cierra.
-    property string nuevaDia: ""
-    // Esperando al panel: crear no es optimista.
-    property bool creando: false
-    // Quien tenía el teclado al abrir la línea (la isla, que cierra con
+    // La hoja de una tarea (bar/HojaTarea.qml), una sola a la vez: "" sin
+    // ella, "nueva" o "editar".
+    property string hojaModo: ""
+    // Su día ("2026-10-30").
+    property string hojaDia: ""
+    // La tarea que se edita (el evento, tal como era al abrir la hoja), o null.
+    property var hojaTarea: null
+    // Con qué se abre (HojaTarea.inicial), para saber al guardar qué cambió.
+    property var hojaInicial: null
+    // La tarea de la hoja es una entrega de Aules (solo lectura): lo dice el
+    // panel (aules); si no lo manda (uno viejo), lo es la de categoría «Clase».
+    readonly property bool hojaDeAules: root.hojaTarea !== null && (typeof root.hojaTarea.aules === "boolean" ? root.hojaTarea.aules : Formato.categoria(root.hojaTarea).nombre === "Clase")
+    // La tarea de la hoja se puede borrar: no las de Aules.
+    readonly property bool hojaBorrable: root.hojaModo === "editar" && root.hojaTarea !== null && root.hojaTarea.id !== "" && !root.hojaDeAules
+    // Esperando al panel.
+    property bool guardando: false
+    // Lo que contestó el panel al no aceptarla.
+    property string hojaError: ""
+    // Las categorías que ofrece la hoja: las del panel, y ninguna para las
+    // entregas de Aules (su categoría es fija, como el no poder borrarlas).
+    readonly property var hojaCategorias: root.hojaDeAules ? [] : (root.tareas?.categorias ?? [])
+    // Cuenta las hojas abiertas y cerradas: lo que el panel contesta tarde,
+    // con la hoja ya cerrada, va al aviso de la lista y no a otra hoja.
+    property int hojaVez: 0
+    // Quien tenía el teclado al abrir la hoja (la isla, que cierra con
     // Escape): se le devuelve al cerrarla.
     property Item tecladoAntes: null
 
     // La prioridad: la tarea cuyo menú está abierto (un evento), o null.
     property var menuDe: null
+    // La lista de categorías de la hoja de una tarea, abierta o no.
+    property bool menuCatAbierto: false
 
     // Las del panel, de la más alta a la más baja, con el nombre de su color
     // (Theme.colorPrioridad) y lo que se lee en el menú.
@@ -152,44 +189,181 @@ Item {
         }
     ]
 
-    onDiaVistoChanged: if (root.nuevaDia !== "" && root.nuevaDia !== root.diaVisto)
-        root.cerrarNueva()
+    // Con la hoja de una nueva abierta, el día que se mira es el suyo; la de
+    // editar se cierra si se mira otro.
+    onDiaVistoChanged: {
+        if (root.hojaModo === "nueva")
+            root.hojaDia = root.diaVisto;
+        else if (root.hojaModo === "editar")
+            root.cerrarHoja();
+    }
 
+    // La prioridad del panel ("high") de su nombre ("alta"); "" sin ella.
+    function valorDe(nombre) {
+        const p = root.prioridades.find(x => x.nombre === nombre);
+        return p ? p.valor : "";
+    }
+
+    // Doble clic en un día: la hoja de una tarea nueva para él. Si ya está
+    // abierta, solo cambia de día (lo tecleado se queda).
     function abrirNueva(dia) {
         if (!root.puedeEscribir)
             return;
         root.cerrarSelector();
         root.cerrarPrioridad();
+        root.cerrarCategorias();
         root.elegido = dia === root.hoy ? "" : dia;
-        root.nuevaDia = dia;
+        if (root.hojaModo === "nueva") {
+            root.hojaDia = dia;
+            return;
+        }
+        root.abrirHoja("nueva", dia, null, {
+            texto: "",
+            horaInicio: "",
+            horaFin: "",
+            prioridad: "medium",
+            claudeOff: false,
+            seccion: root.tareas && root.tareas.seccionPorDefecto ? root.tareas.seccionPorDefecto() : ""
+        });
     }
 
-    function cerrarNueva() {
-        if (root.nuevaDia === "")
+    // El título de una tarea, pulsado: la hoja para editarla, con lo suyo.
+    function abrirEdicion(e) {
+        if (!root.puedeEscribir || !e || e.id === "")
             return;
-        root.nuevaDia = "";
-        root.creando = false;
+        root.cerrarSelector();
+        root.cerrarPrioridad();
+        root.cerrarCategorias();
+        const conHora = !e.todoElDia && e.hora !== "";
+        // Su categoría tal cual se ve en la fila: por si no se ofrece (En
+        // pausa) y hay que enseñarla igual.
+        const cat = Formato.categoria(e);
+        root.abrirHoja("editar", e.dia, e, {
+            texto: e.texto || e.titulo,
+            horaInicio: conHora ? e.hora : "",
+            horaFin: conHora ? (e.horaFin || Formato.sumarMinutos(e.hora, 60)) : "",
+            prioridad: root.valorDe(e.prioridadPropia),
+            claudeOff: e.claudeOff === true,
+            seccion: e.seccionId || "",
+            seccionNombre: cat.nombre,
+            seccionColor: cat.color
+        });
+    }
+
+    function abrirHoja(modo, dia, tarea, inicial) {
+        // Una sola: la que hubiera se va sin guardar.
+        root.cerrarHoja();
+        root.hojaVez++;
+        root.hojaError = "";
+        root.guardando = false;
+        root.hojaInicial = inicial;
+        root.hojaTarea = tarea;
+        root.hojaDia = dia;
+        root.hojaModo = modo;
+    }
+
+    function cerrarHoja() {
+        if (root.hojaModo === "")
+            return;
+        root.hojaVez++;
+        root.cerrarCategorias();
         if (root.tecladoAntes)
             root.tecladoAntes.forceActiveFocus();
         root.tecladoAntes = null;
+        root.hojaModo = "";
+        root.hojaTarea = null;
+        root.hojaInicial = null;
+        root.guardando = false;
+        root.hojaError = "";
     }
 
-    function crearNueva(texto) {
-        const dia = root.nuevaDia;
-        if (root.creando || dia === "" || texto.trim() === "" || !root.tareas)
-            return;
+    // Lo que ha cambiado entre lo que tenía la hoja al abrirse y lo que se
+    // guarda (los nombres de Tareas.cambiar). Las horas van juntas.
+    function cambiosDe(ini, v) {
+        const c = {};
+        const plano = t => String(t || "").replace(/\s+/g, " ").trim();
+        if (plano(v.texto) !== plano(ini.texto))
+            c.texto = v.texto;
+        if (v.horaInicio !== ini.horaInicio || v.horaFin !== ini.horaFin) {
+            c.horaInicio = v.horaInicio;
+            c.horaFin = v.horaFin;
+        }
+        if (v.prioridad !== ini.prioridad)
+            c.prioridad = v.prioridad;
+        if (v.claudeOff !== ini.claudeOff)
+            c.claudeOff = v.claudeOff;
+        if (v.seccion !== ini.seccion)
+            c.seccion = v.seccion;
+        return c;
+    }
+
+    // «Eliminar» confirmado en la hoja de editar: borra la tarea en el panel.
+    // Si el panel no la borra, la hoja se queda abierta con el porqué.
+    function eliminarHoja() {
         const cli = root.tareas;
-        root.creando = true;
-        cli.crear(texto, dia, ok => {
-            root.creando = false;
+        if (!cli || root.guardando || root.hojaModo !== "editar" || !root.hojaTarea || !root.hojaBorrable)
+            return;
+        const vez = root.hojaVez;
+        root.hojaError = "";
+        root.guardando = true;
+        cli.eliminar(root.hojaTarea.id, ok => {
+            const abierta = vez === root.hojaVez;
+            if (abierta)
+                root.guardando = false;
             if (!ok) {
-                root.avisar(cli.error || "No se pudo crear la tarea");
+                const motivo = cli.error || "No se pudo eliminar la tarea";
+                if (abierta)
+                    root.hojaError = motivo;
+                else
+                    root.avisar(motivo);
                 return;
             }
-            if (root.nuevaDia === dia)
-                root.cerrarNueva();
-            root.avisar("Añadida al " + Formato.diaCorto(dia));
+            if (abierta)
+                root.cerrarHoja();
+            root.avisar("Eliminada");
         });
+    }
+
+    // Guardar en la hoja. Una nueva se crea (no es optimista: sale al
+    // contestar el panel, ya con su id); una editada manda solo lo que
+    // cambió, y si no cambió nada, solo se cierra. Si el panel no la acepta,
+    // la hoja se queda abierta, con lo tecleado y lo que ha dicho.
+    function guardarHoja(v) {
+        const cli = root.tareas;
+        if (!cli || root.guardando || root.hojaModo === "")
+            return;
+        const vez = root.hojaVez;
+        const modo = root.hojaModo;
+        const dia = root.hojaDia;
+        const cambios = modo === "editar" ? root.cambiosDe(root.hojaInicial, v) : null;
+        if (cambios !== null && Object.keys(cambios).length === 0) {
+            root.cerrarHoja();
+            return;
+        }
+        root.hojaError = "";
+        root.guardando = true;
+        const alAcabar = ok => {
+            const abierta = vez === root.hojaVez;
+            if (abierta)
+                root.guardando = false;
+            if (!ok) {
+                const motivo = cli.error || (modo === "nueva" ? "No se pudo crear la tarea" : "No se pudo guardar la tarea");
+                if (abierta)
+                    root.hojaError = motivo;
+                else
+                    root.avisar(motivo);
+                return;
+            }
+            if (abierta)
+                root.cerrarHoja();
+            root.avisar(modo === "nueva" ? "Añadida al " + Formato.diaCorto(dia) : "Guardada");
+        };
+        if (modo === "nueva")
+            cli.crear(Object.assign({
+                dia: dia
+            }, v), alAcabar);
+        else
+            cli.cambiar(root.hojaTarea.id, cambios, alAcabar);
     }
 
     // El menú sale debajo del punto si cabe y, si no (lo normal, porque la
@@ -202,6 +376,7 @@ Item {
             return;
         }
         root.cerrarSelector();
+        root.cerrarCategorias();
         const q = punto.mapToItem(root, 0, 0);
         const abajo = q.y + punto.height + 4;
         menuPrio.arriba = abajo + menuPrio.height > root.height - 6;
@@ -213,6 +388,38 @@ Item {
 
     function cerrarPrioridad() {
         root.menuDe = null;
+    }
+
+    // La lista de categorías sale encima del control si no cabe debajo (lo
+    // normal: la hoja va al final de la isla), del ancho del control y, si
+    // hay muchas, con scroll.
+    function abrirCategorias(control) {
+        if (root.menuCatAbierto) {
+            root.cerrarCategorias();
+            return;
+        }
+        root.cerrarSelector();
+        root.cerrarPrioridad();
+        const q = control.mapToItem(root, 0, 0);
+        const abajo = q.y + control.height + 4;
+        menuCat.width = Math.min(root.width - 2 * Theme.pad, Math.max(control.width, 220));
+        menuCat.arriba = abajo + menuCat.height > root.height - 6;
+        menuCat.y = menuCat.arriba ? q.y - menuCat.height - 4 : abajo;
+        menuCat.x = Math.min(Math.max(Theme.pad - 6, q.x), root.width - menuCat.width - 6);
+        menuCatLista.positionViewAtBeginning();
+        root.menuCatAbierto = true;
+    }
+
+    function cerrarCategorias() {
+        root.menuCatAbierto = false;
+    }
+
+    // Elegir una la pone en la hoja (no se manda nada hasta Guardar) y cierra.
+    function elegirCategoria(c) {
+        const h = hojaCarga.item;
+        root.cerrarCategorias();
+        if (h)
+            h.seccion = c.id;
     }
 
     function elegirPrioridad(p) {
@@ -320,7 +527,8 @@ Item {
                 root.elegido = "";
                 root.cerrarSelector();
                 root.cerrarPrioridad();
-                root.cerrarNueva();
+                root.cerrarCategorias();
+                root.cerrarHoja();
                 root.cancelarArrastre();
             } else if (root.tareas) {
                 // Se lee al abrir (y solo si lo que hay es viejo), no se sondea.
@@ -350,8 +558,15 @@ Item {
     }
 
     // Pulsar un día enseña lo suyo; pulsar otra vez el mismo, o hoy, vuelve a
-    // hoy.
+    // hoy. Con la hoja de una nueva abierta, la lleva a ese día; la de editar
+    // se cierra sin guardar.
     function elegir(dia) {
+        if (root.hojaModo === "nueva") {
+            root.elegido = dia === root.hoy ? "" : dia;
+            root.hojaDia = dia;
+            return;
+        }
+        root.cerrarHoja();
         root.elegido = dia === root.hoy || dia === root.elegido ? "" : dia;
     }
 
@@ -394,17 +609,17 @@ Item {
         return Theme.colorPrioridad(tipo);
     }
 
-    // Lo que va a la derecha de una fila: cuándo venció si es de otro día, la
-    // hora si la tiene, y si no, su área o su sección («Clase» en las entregas
-    // de Aules).
-    function etiqueta(e) {
+    // Lo que va entre el título y la categoría: cuándo venció si es de otro
+    // día, «vencida», o la hora si la tiene («09:00–10:00», o solo la de
+    // inicio si no tiene fin); si no, nada.
+    function detalle(e) {
         if (e.deAntes)
             return "venció " + Formato.diaCorto(e.dia);
         if (Formato.tipo(e, root.hoy) === "vencida")
             return "vencida";
         if (!e.todoElDia && e.hora !== "")
-            return e.hora;
-        return e.area !== "" ? e.area : e.seccion;
+            return e.hora + (e.horaFin ? "–" + e.horaFin : "");
+        return "";
     }
 
     // Un botón de texto de la cabecera (el mes y el año) con su flecha de
@@ -414,9 +629,13 @@ Item {
 
         property string texto
         property bool abierto: false
+        // Todos los textos que puede llegar a tener el chip: se mide el más
+        // ancho y el chip ocupa siempre eso, para que no baile con el mes.
+        property var textosPosibles: []
+        property real anchoMaximo: 0
         signal pulsado
 
-        implicitWidth: etiquetaChip.implicitWidth + 16
+        implicitWidth: Math.max(etiquetaChip.implicitWidth, chip.anchoMaximo) + 16
         implicitHeight: 24
         radius: 8
         color: Qt.rgba(1, 1, 1, chip.abierto ? 0.14 : (chipHover.hovered ? 0.08 : 0))
@@ -426,6 +645,20 @@ Item {
         Behavior on color {
             ColorAnimation {
                 duration: 140
+            }
+        }
+
+        Repeater {
+            model: chip.textosPosibles
+
+            Text {
+                required property string modelData
+
+                visible: false
+                text: modelData + "  󰅀"
+                font: etiquetaChip.font
+                onImplicitWidthChanged: chip.anchoMaximo = Math.max(chip.anchoMaximo, implicitWidth)
+                Component.onCompleted: chip.anchoMaximo = Math.max(chip.anchoMaximo, implicitWidth)
             }
         }
 
@@ -555,6 +788,9 @@ Item {
 
                 objectName: "chipMes"
                 texto: root.mayus(root.loc.monthName(root.shown.getMonth(), Locale.LongFormat)) + " " + root.shown.getFullYear()
+                textosPosibles: Array.from({
+                    length: 12
+                }, (_, m) => root.mayus(root.loc.monthName(m, Locale.LongFormat)) + " " + root.shown.getFullYear())
                 abierto: root.selectorAbierto
                 onPulsado: root.abrirSelector()
             }
@@ -768,7 +1004,7 @@ Item {
                     cursorShape: Qt.PointingHandCursor
                 }
 
-                // Un clic elige el día; doble clic abre la línea para crear
+                // Un clic elige el día; doble clic abre la hoja para crear
                 // una tarea en él. Va en un MouseArea y no en un TapHandler
                 // porque el doble toque de un TapHandler no hay forma de
                 // provocarlo desde QtTest (separa cada clic del siguiente más
@@ -798,10 +1034,11 @@ Item {
         }
 
         // --- Lo del día -----------------------------------------------------
+        // Con la hoja de una tarea abierta, en su sitio está la hoja.
         ColumnLayout {
             objectName: "agendaDia"
             Layout.fillWidth: true
-            visible: root.agenda !== null
+            visible: root.agenda !== null && root.hojaModo === ""
             spacing: 6
 
             Rectangle {
@@ -860,19 +1097,6 @@ Item {
                 }
             }
 
-            // La línea para crear una tarea en el día (doble clic en él). Solo
-            // existe mientras está abierta.
-            Loader {
-                Layout.fillWidth: true
-                active: root.nuevaDia !== ""
-                visible: active
-                sourceComponent: lineaNueva
-                onLoaded: {
-                    root.tecladoAntes = root.Window.activeFocusItem;
-                    item.enfocar();
-                }
-            }
-
             // Las filas, con sitio para tres aunque haya menos: así pulsar un
             // día u otro casi nunca cambia el alto de la isla.
             ColumnLayout {
@@ -898,6 +1122,10 @@ Item {
                         Layout.fillWidth: true
                         Layout.preferredHeight: 16
                         spacing: 8
+
+                        // La categoría de la tarea (su sección; «Clase» en las
+                        // entregas de Aules): su color es el de la barrita.
+                        readonly property var categoria: Formato.categoria(fila.modelData)
 
                         // Se puede editar: con el panel al alcance y con id
                         // (lo que viene del fichero del cajón no lo tiene).
@@ -938,6 +1166,19 @@ Item {
 
                         Component.onDestruction: if (dragFila.active)
                             root.cancelarArrastre()
+
+                        // La barrita con el color de la categoría. Sin color
+                        // (una sección que no lo tiene) deja el hueco.
+                        Rectangle {
+                            objectName: "categoriaBarra"
+                            Layout.alignment: Qt.AlignVCenter
+                            Layout.preferredWidth: 3
+                            Layout.preferredHeight: 14
+                            Layout.rightMargin: -3
+                            radius: 1.5
+                            color: fila.categoria.color !== "" ? fila.categoria.color : "transparent"
+                            opacity: fila.modelData.hecha ? 0.45 : 1
+                        }
 
                         // El punto, con el color de la prioridad de hoy. Pulsado
                         // abre el menú de prioridades; la zona que se pulsa es
@@ -982,25 +1223,51 @@ Item {
                             }
                         }
 
+                        // Pulsado, abre la hoja para editarla. Arrastrar desde
+                        // él sigue moviéndola: el TapHandler suelta en cuanto
+                        // el DragHandler de la fila echa a andar.
                         Text {
                             objectName: "tituloFila"
                             Layout.fillWidth: true
                             text: fila.modelData.titulo
                             elide: Text.ElideRight
                             textFormat: Text.PlainText
-                            color: fila.modelData.hecha ? Theme.faint : Theme.text
+                            color: fila.modelData.hecha ? Theme.faint : (tituloHover.hovered ? Theme.strong : Theme.text)
                             font.family: Theme.font
                             font.pixelSize: 11
                             font.strikeout: fila.modelData.hecha
+
+                            HoverHandler {
+                                id: tituloHover
+                                enabled: fila.movible
+                            }
+
+                            TapHandler {
+                                enabled: fila.movible
+                                onTapped: root.abrirEdicion(fila.modelData)
+                            }
+                        }
+
+                        Text {
+                            objectName: "detalleFila"
+                            Layout.maximumWidth: 80
+                            visible: text !== ""
+                            text: root.detalle(fila.modelData)
+                            elide: Text.ElideRight
+                            textFormat: Text.PlainText
+                            color: fila.tipo === "vencida" ? Theme.prioMaxima : Theme.faint
+                            font.family: Theme.font
+                            font.pixelSize: 10
                         }
 
                         Text {
                             objectName: "etiquetaFila"
-                            Layout.maximumWidth: 110
-                            text: root.etiqueta(fila.modelData)
+                            Layout.maximumWidth: 64
+                            visible: text !== ""
+                            text: fila.categoria.nombre
                             elide: Text.ElideRight
                             textFormat: Text.PlainText
-                            color: fila.tipo === "vencida" ? Theme.prioMaxima : Theme.faint
+                            color: Theme.faint
                             font.family: Theme.font
                             font.pixelSize: 10
                         }
@@ -1064,6 +1331,42 @@ Item {
                 }
             }
         }
+
+        // --- La hoja de una tarea --------------------------------------------
+        // Solo existe mientras está abierta. Coge el teclado al aparecer y se
+        // lo devuelve a quien lo tenía al cerrarse (cerrarHoja).
+        Loader {
+            id: hojaCarga
+
+            Layout.fillWidth: true
+            active: root.hojaModo !== ""
+            visible: active
+            sourceComponent: Component {
+                HojaTarea {
+                    objectName: "hoja"
+                    modo: root.hojaModo
+                    dia: root.hojaDia
+                    inicial: root.hojaInicial
+                    prioridades: root.prioridades
+                    categorias: root.hojaCategorias
+                    menuAbierto: root.menuCatAbierto
+                    ocupada: root.guardando
+                    error: root.hojaError
+                    conPanel: root.puedeEscribir || root.guardando
+                    borrable: root.hojaBorrable
+                    onGuardar: valores => root.guardarHoja(valores)
+                    onEliminar: root.eliminarHoja()
+                    onCancelar: root.cerrarHoja()
+                    onTocada: root.hojaError = ""
+                    onAbrirCategorias: control => root.abrirCategorias(control)
+                    onCerrarMenu: root.cerrarCategorias()
+                }
+            }
+            onLoaded: {
+                root.tecladoAntes = root.Window.activeFocusItem;
+                hojaCarga.item.enfocar();
+            }
+        }
     }
 
     Timer {
@@ -1072,7 +1375,7 @@ Item {
         onTriggered: root.aviso = ""
     }
 
-    // --- Lo que flota: el desplegable de mes y año y el menú de prioridades ----
+    // --- Lo que flota: el desplegable de mes y año, el menú de prioridades y la lista de categorías ----
     // Pulsar fuera de ellos (pero dentro del calendario) los cierra; pulsar
     // fuera de la isla la cierra entera, como siempre. Con el desplegable
     // abierto, la cabecera sigue a mano: el chip lo cierra y las flechas
@@ -1081,10 +1384,11 @@ Item {
         anchors.fill: parent
         anchors.topMargin: root.selectorAbierto ? content.y + cabecera.y + cabecera.height : 0
         z: 4
-        enabled: root.selectorAbierto || root.menuDe !== null
+        enabled: root.selectorAbierto || root.menuDe !== null || root.menuCatAbierto
         onPressed: {
             root.cerrarSelector();
             root.cerrarPrioridad();
+            root.cerrarCategorias();
         }
     }
 
@@ -1377,79 +1681,171 @@ Item {
                         cursorShape: Qt.PointingHandCursor
                     }
 
-                    TapHandler {
-                        onTapped: root.elegirPrioridad(opcionPrio.modelData)
+                    // MouseArea y no TapHandler: el toque no se cuela al punto o
+                    // la fila que queda debajo del menú (como en la lista de
+                    // categorías).
+                    MouseArea {
+                        anchors.fill: parent
+                        onClicked: root.elegirPrioridad(opcionPrio.modelData)
                     }
                 }
             }
         }
     }
 
-    // --- La línea para crear una tarea -----------------------------------------
-    // Coge el teclado al aparecer (el onLoaded de su Loader) y se lo devuelve a
-    // quien lo tenía al cerrarse (cerrarNueva). Intro crea; Escape cierra sin crear. Mientras el panel
-    // contesta no se puede escribir en ella; si falla, se queda con el texto y
-    // el aviso dice por qué.
-    Component {
-        id: lineaNueva
+    // La lista de categorías de la hoja (al pulsar su control). Como menuPrio,
+    // pero con scroll si no caben todas; la actual va en negrita y con la marca.
+    Rectangle {
+        id: menuCat
 
-        Rectangle {
-            id: linea
+        // Si sale encima del control (crece desde abajo) o debajo.
+        property bool arriba: true
+        readonly property int alto: 22
+        // Seis filas y a partir de ahí, scroll.
+        readonly property int maxFilas: 6
 
-            implicitHeight: 26
-            radius: 8
-            color: campo.activeFocus ? Qt.rgba(1, 1, 1, 0.09) : Qt.rgba(1, 1, 1, 0.05)
-            border.width: 1
-            border.color: campo.activeFocus ? Qt.rgba(1, 1, 1, 0.3) : Theme.rule
-            opacity: root.creando ? 0.6 : 1
+        objectName: "menuCategorias"
+        z: 5
+        width: 150
+        height: Math.min(root.hojaCategorias.length, menuCat.maxFilas) * (menuCat.alto + 2) - 2 + 12
+        radius: 10
+        color: Theme.glassDense
+        border.width: 1
+        border.color: Qt.rgba(1, 1, 1, 0.18)
+        opacity: 0
+        scale: 0.9
+        transformOrigin: menuCat.arriba ? Item.BottomLeft : Item.TopLeft
+        visible: opacity > 0
+
+        states: State {
+            name: "abierto"
+            when: root.menuCatAbierto
+            PropertyChanges {
+                menuCat.opacity: 1
+                menuCat.scale: 1.0
+            }
+        }
+
+        transitions: [
+            Transition {
+                to: "abierto"
+                NumberAnimation {
+                    properties: "opacity,scale"
+                    duration: 320
+                    easing.type: Easing.OutBack
+                    easing.overshoot: 1.9
+                }
+            },
+            Transition {
+                from: "abierto"
+                NumberAnimation {
+                    properties: "opacity,scale"
+                    duration: 200
+                    easing.type: Easing.InOutQuint
+                }
+            }
+        ]
+
+        MouseArea {
+            anchors.fill: parent
+        }
+
+        ListView {
+            id: menuCatLista
+
+            objectName: "listaCategorias"
+            anchors.fill: parent
+            anchors.margins: 6
             clip: true
+            spacing: 2
+            boundsBehavior: Flickable.StopAtBounds
+            model: root.hojaCategorias
 
-            Behavior on border.color {
-                ColorAnimation {
-                    duration: 140
+            delegate: Rectangle {
+                id: opcionCat
+
+                required property var modelData
+
+                readonly property bool actual: hojaCarga.item !== null && hojaCarga.item.seccion === opcionCat.modelData.id
+
+                objectName: "categoriaOpcion"
+                // Dentro de la lista, que a veces tiene scroll.
+                width: ListView.view.width - (menuCatLista.contentHeight > menuCatLista.height ? 6 : 0)
+                height: menuCat.alto
+                radius: 6
+                // Solo el de debajo del puntero lleva lámina: la actual se
+                // marca con la negrita y el visto, para que nunca haya dos
+                // «elegidas» a mitad de una transición.
+                color: Qt.rgba(1, 1, 1, opcionCatArea.containsMouse ? 0.08 : 0)
+
+                Behavior on color {
+                    ColorAnimation {
+                        duration: 120
+                    }
+                }
+
+                Rectangle {
+                    anchors.left: parent.left
+                    anchors.leftMargin: 8
+                    anchors.verticalCenter: parent.verticalCenter
+                    width: 6
+                    height: 6
+                    radius: 3
+                    color: opcionCat.modelData.color !== "" ? opcionCat.modelData.color : Theme.faint
+                }
+
+                Text {
+                    objectName: "etiquetaCategoria"
+                    anchors.left: parent.left
+                    anchors.leftMargin: 22
+                    anchors.right: parent.right
+                    anchors.rightMargin: opcionCat.actual ? 26 : 8
+                    anchors.verticalCenter: parent.verticalCenter
+                    text: opcionCat.modelData.nombre
+                    elide: Text.ElideRight
+                    textFormat: Text.PlainText
+                    color: opcionCat.actual || opcionCatArea.containsMouse ? Theme.strong : Theme.text
+                    font.family: Theme.font
+                    font.pixelSize: 11
+                    font.bold: opcionCat.actual
+                }
+
+                Text {
+                    objectName: "marcaCategoria"
+                    anchors.right: parent.right
+                    anchors.rightMargin: 8
+                    anchors.verticalCenter: parent.verticalCenter
+                    visible: opcionCat.actual
+                    text: "󰄬"
+                    color: Theme.strong
+                    font.family: Theme.font
+                    font.pixelSize: 12
+                }
+
+                // Un MouseArea y no un TapHandler: el TapHandler deja pasar
+                // el toque a lo que haya debajo de la lista (la fila de la
+                // prioridad), y elegir una categoría no puede cambiarla.
+                MouseArea {
+                    id: opcionCatArea
+
+                    anchors.fill: parent
+                    hoverEnabled: true
+                    cursorShape: Qt.PointingHandCursor
+                    onClicked: root.elegirCategoria(opcionCat.modelData)
                 }
             }
+        }
 
-            function enfocar() {
-                campo.forceActiveFocus();
-            }
-
-            Text {
-                objectName: "pistaNueva"
-                anchors.fill: campo
-                verticalAlignment: Text.AlignVCenter
-                visible: campo.text === "" && campo.preeditText === ""
-                text: root.nuevaDia === root.hoy ? "Nueva tarea para hoy…" : root.nuevaDia === root.desdeHoy(1) ? "Nueva tarea para mañana…" : "Nueva tarea para el " + (Formato.fechaDe(root.nuevaDia) || new Date()).getDate() + "…"
-                elide: Text.ElideRight
-                color: Theme.faint
-                font.family: Theme.font
-                font.pixelSize: 11
-            }
-
-            TextInput {
-                id: campo
-
-                objectName: "campoNueva"
-                anchors.fill: parent
-                anchors.leftMargin: 10
-                anchors.rightMargin: 10
-                verticalAlignment: TextInput.AlignVCenter
-                // Lo mismo que acepta el panel: una línea de hasta 300.
-                maximumLength: 300
-                readOnly: root.creando
-                selectByMouse: true
-                color: Theme.strong
-                selectionColor: Qt.rgba(1, 1, 1, 0.3)
-                selectedTextColor: Theme.strong
-                font.family: Theme.font
-                font.pixelSize: 11
-
-                onAccepted: root.crearNueva(campo.text)
-                Keys.onEscapePressed: event => {
-                    event.accepted = true;
-                    root.cerrarNueva();
-                }
-            }
+        // Una rayita a la derecha que dice que hay más abajo (o arriba).
+        Rectangle {
+            objectName: "scrollCategorias"
+            visible: menuCatLista.contentHeight > menuCatLista.height
+            x: parent.width - 6
+            y: 6 + menuCatLista.visibleArea.yPosition * menuCatLista.height
+            width: 2
+            height: Math.max(12, menuCatLista.visibleArea.heightRatio * menuCatLista.height)
+            radius: 1
+            color: Qt.rgba(1, 1, 1, 0.3)
         }
     }
 

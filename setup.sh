@@ -18,10 +18,18 @@
 #      nota al momento. Las carpetas de CARPETAS se enlazan enteras; del resto,
 #      cada fichero. Lo que hubiera en su sitio y no sea ese enlace se aparta a
 #      ~/.local/share/set-up-apartado/<fecha>/, no se borra.
-#   3. El fondo de pantalla, sólo si la máquina no tiene ya hyprpaper.conf.
-#   4. Los servicios de usuario del repo.
-#   5. fish como shell.
-#   6. Lo del equipo: si la rama trae equipo.sh (sólo las ramas de cada
+#   3. El tema del escritorio: la carpeta donde tema.sh guarda el tema activo
+#      (${XDG_STATE_HOME:-~/.local/state}/escritorio). El tema no se toca: sin
+#      fichero, es default.
+#   4. El fondo de pantalla, sólo si la máquina no tiene ya hyprpaper.conf.
+#   5. Los servicios de usuario del repo.
+#   6. Memoria: earlyoom (mata antes el navegador que Hyprland si se agota la
+#      RAM) y, si la máquina usa zram, los sysctl que recomienda la Arch Wiki.
+#      Escribe en /etc, así que usa sudo.
+#   7. Zen Browser: si hay perfil, enlaza .config/zen/user.js en el perfil por
+#      defecto (ajustes de memoria). No toca prefs.js ni nada más del perfil.
+#   8. fish como shell.
+#   9. Lo del equipo: si la rama trae equipo.sh (sólo las ramas de cada
 #      máquina), se ejecuta al final con los mismos argumentos, igual que
 #      hyprland.lua carga equipo.lua.
 #
@@ -68,6 +76,8 @@ PACMAN=(
 	# Lo que usan la barra y los scripts
 	grim slurp satty wl-clipboard jq libnotify pacman-contrib pavucontrol
 	playerctl btop
+	# Mata el proceso más gordo (antes el navegador) si se agota la memoria
+	earlyoom
 	# El panel del homelab (quickshell/homelab): la contraseña de cada equipo
 	# va en el llavero y se lee con secret-tool
 	gnome-keyring libsecret
@@ -94,6 +104,12 @@ CARPETAS=(
 	.config/hypr/scripts
 	.config/quickshell
 	.config/nvim
+)
+
+# Se enlazan aparte, no con el resto de .config: .config/zen es el perfil vivo
+# de Zen y user.js se enlaza dentro del perfil por defecto (paso 7).
+SIN_ENLAZAR=(
+	.config/zen
 )
 
 # El fondo de las dos máquinas.
@@ -195,6 +211,15 @@ enlazar() {
 	fi
 }
 
+# Si un camino del repo está dentro de SIN_ENLAZAR.
+aparte() {
+	local c
+	for c in "${SIN_ENLAZAR[@]}"; do
+		[[ $1 == "$c"/* ]] && return 0
+	done
+	return 1
+}
+
 # Si un camino del repo está dentro de una de CARPETAS.
 en_carpeta() {
 	local c
@@ -210,7 +235,7 @@ for c in "${CARPETAS[@]}"; do
 done
 while IFS= read -r f; do
 	r=${f#"$repo"/}
-	en_carpeta "$r" || enlazar "$r"
+	en_carpeta "$r" || aparte "$r" || enlazar "$r"
 done < <(find "$repo/.config" "$repo/.local/bin" \( -type f -o -type l \) 2>/dev/null | sort)
 echo "  todos los enlaces en su sitio"
 if ! $comprobar && (($(find "$HOME/.local/share/set-up-apartado" -mindepth 1 -maxdepth 1 2>/dev/null | wc -l) > antes)); then
@@ -218,7 +243,22 @@ if ! $comprobar && (($(find "$HOME/.local/share/set-up-apartado" -mindepth 1 -ma
 fi
 
 # ---------------------------------------------------------------------------
-paso "3. Fondo de pantalla"
+paso "3. Tema del escritorio"
+
+# tema.sh (SUPER+SHIFT+T) guarda aquí el tema activo, y la paleta de
+# Quickshell (shared/Theme.qml) vigila el fichero para cambiar en caliente. La
+# carpeta tiene que existir antes de que arranque Quickshell: su vigilante no
+# ve aparecer un fichero en una carpeta que no existía. El tema en sí no se
+# toca; sin fichero, es default.
+estado_tema="${XDG_STATE_HOME:-$HOME/.local/state}/escritorio"
+if [[ -d $estado_tema ]]; then
+	echo "  $estado_tema ya está (tema: $("$repo/.config/hypr/scripts/tema.sh"))"
+else
+	hacer mkdir -p "$estado_tema"
+fi
+
+# ---------------------------------------------------------------------------
+paso "4. Fondo de pantalla"
 
 # hyprpaper.conf es de cada máquina y no va en el repo: si ya existe, se
 # respeta. sddm/install.sh lee de aquí el "path" para el fondo del login.
@@ -249,7 +289,7 @@ EOF
 fi
 
 # ---------------------------------------------------------------------------
-paso "4. Servicios de usuario"
+paso "5. Servicios de usuario"
 
 hacer systemctl --user daemon-reload
 for t in "$repo"/.config/systemd/user/*.timer; do
@@ -263,7 +303,115 @@ for t in "$repo"/.config/systemd/user/*.timer; do
 done
 
 # ---------------------------------------------------------------------------
-paso "5. fish como shell"
+paso "6. Memoria"
+
+# Escribe un fichero de /etc con sudo si no tiene ya ese contenido.
+poner_etc() {
+	local destino=$1 contenido=$2
+	if [[ -f $destino && $(<"$destino") == "${contenido%$'\n'}" ]]; then
+		echo "  $destino ya está"
+	elif $comprobar; then
+		echo "  escribiría $destino"
+	else
+		printf '%s\n' "$contenido" | sudo tee "$destino" >/dev/null &&
+			echo "  escrito $destino"
+	fi
+}
+
+# earlyoom, con la configuración por defecto salvo a quién mata primero. Casan
+# con el nombre del proceso (comm, 15 letras como mucho), en regex extendida.
+# Sin comillas ni espacios: systemd parte EARLYOOM_ARGS por los espacios y no
+# interpreta las comillas de dentro. "Web.Content" es "Web Content" y
+# "Isolated.Web" es "Isolated Web Co", los procesos de pestaña de Zen.
+EARLYOOM_CONF='# Lo escribe set-up/setup.sh.
+# Antes el navegador y las apps Electron que el escritorio.
+EARLYOOM_ARGS="-r 3600 --avoid ^(Hyprland|Xwayland|systemd|sddm|uwsm)$ --prefer ^(zen|zen-bin|Isolated.Web|Web.Content|WebExtensions|chromium|electron|Discord|discord|obsidian)$"'
+if pacman -Q earlyoom >/dev/null 2>&1 || ! $comprobar; then
+	poner_etc /etc/default/earlyoom "$EARLYOOM_CONF"
+else
+	echo "  escribiría /etc/default/earlyoom (cuando esté instalado earlyoom)"
+fi
+if systemctl is-enabled earlyoom >/dev/null 2>&1 &&
+	systemctl is-active earlyoom >/dev/null 2>&1; then
+	echo "  earlyoom ya activo"
+else
+	hacer sudo systemctl enable --now earlyoom
+fi
+
+# Con zram, la Arch Wiki recomienda otros valores: cambiar a swap comprimida en
+# RAM sale casi gratis, así que se favorece frente a soltar la caché.
+if [[ -d /sys/block/zram0 ]]; then
+	ZRAM_CONF='# Lo escribe set-up/setup.sh. Valores de la Arch Wiki para zram.
+vm.swappiness = 180
+vm.page-cluster = 0
+vm.watermark_boost_factor = 0
+vm.watermark_scale_factor = 125'
+	if [[ -f /etc/sysctl.d/99-zram.conf && $(</etc/sysctl.d/99-zram.conf) == "$ZRAM_CONF" ]]; then
+		echo "  /etc/sysctl.d/99-zram.conf ya está"
+		# Si el fichero está pero el kernel aún no lo aplicó (p. ej. otro
+		# valor puesto a mano después), se vuelve a aplicar.
+		if [[ $(sysctl -n vm.swappiness 2>/dev/null) != 180 ]]; then
+			hacer sudo sysctl --system
+		fi
+	else
+		poner_etc /etc/sysctl.d/99-zram.conf "$ZRAM_CONF"
+		hacer sudo sysctl --system
+	fi
+else
+	echo "  sin zram: no se tocan los sysctl"
+fi
+
+# ---------------------------------------------------------------------------
+paso "7. Zen Browser"
+
+# El perfil por defecto sale de profiles.ini: el Default= de la sección
+# [Install*] (el que usa el Zen instalado) o, si no, el [Profile*] con
+# Default=1. La ruta es relativa a ~/.config/zen salvo IsRelative=0.
+zen_ini="$HOME/.config/zen/profiles.ini"
+zen_perfil() {
+	awk '
+		/^\[/ { sec = $0; ruta = ""; next }
+		{ k = $0; sub(/=.*/, "", k); v = $0; sub(/^[^=]*=/, "", v) }
+		sec ~ /^\[Install/ && k == "Default" { inst = v }
+		sec ~ /^\[Profile/ && k == "Path" { ruta = v; if (pd[sec]) alt = ruta }
+		sec ~ /^\[Profile/ && k == "Default" && v == 1 { pd[sec] = 1; if (ruta != "") alt = ruta }
+		END { print (inst != "" ? inst : alt) }' "$zen_ini"
+}
+if [[ ! -f $zen_ini ]]; then
+	echo "  Zen sin perfil todavía (no hay $zen_ini); abre Zen una vez y repite"
+else
+	ruta=$(zen_perfil)
+	if [[ -z $ruta ]]; then
+		aviso "  no encuentro el perfil por defecto en profiles.ini"
+	else
+		[[ $ruta == /* ]] || ruta="$HOME/.config/zen/$ruta"
+		origen="$repo/.config/zen/user.js"
+		destino="$ruta/user.js"
+		if [[ ! -d $ruta ]]; then
+			aviso "  el perfil $ruta no existe; abre Zen una vez y repite"
+		elif [[ -L $destino && $(readlink "$destino") == "$origen" ]]; then
+			echo "  user.js ya enlazado en el perfil"
+		else
+			if [[ -e $destino || -L $destino ]]; then
+				if $comprobar; then
+					echo "  apartaría el user.js del perfil"
+				else
+					mkdir -p "$apartado/zen"
+					mv "$destino" "$apartado/zen/user.js"
+					aviso "  user.js apartado en $apartado/zen"
+				fi
+			fi
+			if $comprobar; then
+				echo "  enlazaría $destino"
+			else
+				ln -s "$origen" "$destino" && echo "  enlazado  $destino (vale al reiniciar Zen)"
+			fi
+		fi
+	fi
+fi
+
+# ---------------------------------------------------------------------------
+paso "8. fish como shell"
 
 shell=$(getent passwd "$USER" | cut -d: -f7)
 if [[ $shell == */fish ]]; then
@@ -276,10 +424,10 @@ fi
 
 # ---------------------------------------------------------------------------
 if [[ -x $repo/equipo.sh ]]; then
-	paso "6. Lo de este equipo (equipo.sh)"
+	paso "9. Lo de este equipo (equipo.sh)"
 	"$repo/equipo.sh" $($comprobar && echo --comprobar)
 else
-	paso "6. Sin equipo.sh en esta rama: sólo lo común"
+	paso "9. Sin equipo.sh en esta rama: sólo lo común"
 fi
 
 echo

@@ -82,27 +82,165 @@ hl.env("HYPRCURSOR_SIZE", "24")
 -- hl.permission("/usr/(lib|libexec|lib64)/xdg-desktop-portal-hyprland", "screencopy", "allow")
 -- hl.permission("/usr/(bin|local/bin)/hyprpm", "plugin", "allow")
 
+---------------
+---- TEMAS ----
+---------------
+
+-- El escritorio tiene temas intercambiables. El activo es una palabra en
+-- ${XDG_STATE_HOME:-~/.local/state}/escritorio/tema, que escribe
+-- scripts/tema.sh (SUPER+SHIFT+T abre el selector; SUPER+SHIFT+CTRL+T alterna) y que también lee la paleta de
+-- Quickshell (quickshell/shared/Theme.qml). Si falta, está vacío o dice algo
+-- que no está en esta tabla, vale "default". tema.sh hace "hyprctl reload
+-- config-only" después de escribirlo, y este fichero lo vuelve a leer.
+--
+-- Cada tema da las mismas claves: así, al volver de uno a otro, no se queda
+-- puesto nada del anterior (ni se cuela un valor por defecto de Hyprland que
+-- default no tuviera). pruebas/temas/prueba.sh lo comprueba.
+local temas = {
+	-- El de siempre: cristal negro esmerilado y un filo blanco.
+	default = {
+		gaps_in = 5,
+		gaps_out = 20,
+		border_size = 2,
+		-- Glassmorphism: un solo blanco puro (#ffffff) en todo el borde; lo
+		-- que cambia a lo largo del gradiente es el alfa, no el tono. El
+		-- borde arranca casi opaco en la esquina superior izquierda y se
+		-- desvanece hacia la inferior derecha, que es como el cristal
+		-- esmerilado recoge la luz: un filo brillante que se apaga.
+		active_border = { colors = { "rgba(ffffffe6)", "rgba(ffffff26)" }, angle = 45 },
+		-- La ventana inactiva conserva el filo, pero apenas insinuado.
+		inactive_border = "rgba(ffffff1a)",
+		rounding = 10,
+		rounding_power = 2,
+		shadow = {
+			enabled = true,
+			range = 4,
+			render_power = 3,
+			color = 0xee1a1a1a,
+		},
+		blur = {
+			enabled = true,
+			size = 8,
+			passes = 3,
+			vibrancy = 0.25,
+			noise = 0.02, -- frosted-glass grain
+			new_optimizations = true,
+		},
+		-- Lo que tarda el borde en cambiar de color (al cambiar el foco).
+		border_speed = 5.39,
+		-- El umbral de los layer_rule de Quickshell, más abajo.
+		ignore_alpha = 0.5,
+		-- Sin aberración cromática.
+		aberracion = nil,
+	},
+
+	-- Cristal claro, a la manera del Liquid Glass de Apple. El cristal de las
+	-- superficies de Quickshell es blanco azulado y muy translúcido (alfa
+	-- 0.26-0.34, ver Theme.qml), así que:
+	--   - ignore_alpha baja a 0.15: con 0.5, Hyprland dejaría de desenfocar
+	--     ese cristal. Lo que no deba desenfocarse tiene que ir por debajo de
+	--     0.15 (Theme.ignoreAlpha lo dice en QML).
+	--   - El blur es más grande, con una pasada más y el doble de vibrancy:
+	--     el fondo se lee como luz de colores detrás de una lente, no como
+	--     una mancha gris. Casi sin grano: el Liquid Glass es liso.
+	--   - Esquinas más grandes y casi de squircle (rounding_power 3): las
+	--     "continuous corners" de Apple, que no son un arco de círculo.
+	--   - Borde con un filo de luz arriba a la izquierda, un valle tenue y un
+	--     reflejo abajo a la derecha, apenas frío; sombra amplia y suave.
+	--   - Aberración cromática: a ratos, el filo se separa en rojo y cian
+	--     (ver ABERRACIÓN, abajo).
+	liquido = {
+		gaps_in = 7,
+		gaps_out = 24,
+		border_size = 2,
+		active_border = { colors = { "rgba(ffffffd9)", "rgba(dce8ff38)", "rgba(ffffff80)" }, angle = 45 },
+		inactive_border = "rgba(dce8ff1f)",
+		rounding = 18,
+		rounding_power = 3,
+		shadow = {
+			enabled = true,
+			range = 26,
+			render_power = 2,
+			color = 0x40081020,
+		},
+		blur = {
+			enabled = true,
+			size = 12,
+			passes = 4,
+			vibrancy = 0.5,
+			noise = 0.008,
+			new_optimizations = true,
+		},
+		-- Más rápido que en default, para que los pulsos de aberración (150 a
+		-- 600 ms) lleguen a verse enteros.
+		border_speed = 2.5,
+		ignore_alpha = 0.15,
+		-- Los bordes del pulso de aberración: el blanco del filo, con una
+		-- franja roja en un extremo y una cian en el otro (las mismas de
+		-- Theme.franjaRoja y Theme.franjaCian). Dos, con las franjas cambiadas
+		-- de lado, para que un pulso de dos parpadeos tiemble.
+		aberracion = {
+			{ colors = { "rgba(ff3b6b99)", "rgba(ffffffe6)", "rgba(3be8ff99)" }, angle = 45 },
+			{ colors = { "rgba(3be8ff99)", "rgba(ffffffe6)", "rgba(ff3b6b99)" }, angle = 45 },
+		},
+	},
+}
+
+local function temaGuardado()
+	local base = os.getenv("XDG_STATE_HOME")
+	if not base or base == "" then
+		base = (os.getenv("HOME") or "") .. "/.local/state"
+	end
+	-- Tolerante: sin fichero, sin permiso o con basura dentro, default.
+	local ok, f = pcall(io.open, base .. "/escritorio/tema", "r")
+	if not ok or not f then
+		return "default"
+	end
+	local texto = f:read("a") or ""
+	f:close()
+	local nombre = texto:match("^%s*(%S+)%s*$")
+	if nombre and temas[nombre] then
+		return nombre
+	end
+	return "default"
+end
+
+local nombreTema = temaGuardado()
+local tema = temas[nombreTema]
+
+-- Para scripts/aberracion.sh, por "hyprctl eval": hyprctl eval corre en el
+-- mismo Lua que este fichero, así que el demonio no tiene que saberse los
+-- colores. escritorio.aberracion(n) pone el borde n del pulso del tema activo
+-- (1, 2, 3… dan la vuelta) y escritorio.aberracion(0), el borde normal. En un
+-- tema sin aberración, cualquier n deja el borde normal.
+escritorio = {
+	tema = nombreTema,
+	aberracion = function(paso)
+		local borde = tema.active_border
+		local franjas = tema.aberracion
+		if franjas and paso and paso > 0 then
+			borde = franjas[(paso - 1) % #franjas + 1]
+		end
+		hl.config({ general = { col = { active_border = borde } } })
+	end,
+}
+
 -----------------------
 ---- LOOK AND FEEL ----
 -----------------------
 
 -- Refer to https://wiki.hypr.land/Configuring/Basics/Variables/
+-- Los valores que cambian con el tema salen de la tabla `temas`, arriba.
 hl.config({
 	general = {
-		gaps_in = 5,
-		gaps_out = 20,
+		gaps_in = tema.gaps_in,
+		gaps_out = tema.gaps_out,
 
-		border_size = 2,
+		border_size = tema.border_size,
 
 		col = {
-			-- Glassmorphism: un solo blanco puro (#ffffff) en todo el borde; lo
-			-- que cambia a lo largo del gradiente es el alfa, no el tono. El
-			-- borde arranca casi opaco en la esquina superior izquierda y se
-			-- desvanece hacia la inferior derecha, que es como el cristal
-			-- esmerilado recoge la luz: un filo brillante que se apaga.
-			active_border = { colors = { "rgba(ffffffe6)", "rgba(ffffff26)" }, angle = 45 },
-			-- La ventana inactiva conserva el filo, pero apenas insinuado.
-			inactive_border = "rgba(ffffff1a)",
+			active_border = tema.active_border,
+			inactive_border = tema.inactive_border,
 		},
 
 		-- Set to true to enable resizing windows by clicking and dragging on borders and gaps
@@ -115,28 +253,16 @@ hl.config({
 	},
 
 	decoration = {
-		rounding = 10,
-		rounding_power = 2,
+		rounding = tema.rounding,
+		rounding_power = tema.rounding_power,
 
 		-- Change transparency of focused and unfocused windows
 		active_opacity = 1.0,
 		inactive_opacity = 1.0,
 
-		shadow = {
-			enabled = true,
-			range = 4,
-			render_power = 3,
-			color = 0xee1a1a1a,
-		},
+		shadow = tema.shadow,
 
-		blur = {
-			enabled = true,
-			size = 8,
-			passes = 3,
-			vibrancy = 0.25,
-			noise = 0.02, -- frosted-glass grain
-			new_optimizations = true,
-		},
+		blur = tema.blur,
 	},
 
 	animations = {
@@ -167,7 +293,7 @@ hl.curve("subtleBounce", { type = "spring", mass = 1, stiffness = 200, dampening
 hl.curve("easeInOutQuint", { type = "bezier", points = { { 0.83, 0 }, { 0.17, 1 } } })
 
 hl.animation({ leaf = "global", enabled = true, speed = 10, bezier = "default" })
-hl.animation({ leaf = "border", enabled = true, speed = 5.39, bezier = "easeOutQuint" })
+hl.animation({ leaf = "border", enabled = true, speed = tema.border_speed, bezier = "easeOutQuint" })
 hl.animation({ leaf = "windows", enabled = true, speed = 4.79, spring = "easy" })
 hl.animation({ leaf = "windowsIn", enabled = true, speed = 4.1, spring = "easy", style = "popin 87%" })
 hl.animation({ leaf = "windowsOut", enabled = true, speed = 1.49, bezier = "linear", style = "popin 87%" })
@@ -361,6 +487,15 @@ hl.bind(
 	)
 )
 
+-- El abecedario ruso (quickshell/alfabeto). Mismo interruptor que el lanzador:
+-- si el proceso no está, se arranca ya abierto.
+hl.bind(
+	mainMod .. " + Y",
+	hl.dsp.exec_cmd(
+		"qs -c alfabeto ipc call alfabeto toggle >/dev/null 2>&1 || ALFABETO_ABRIR=1 qs -c alfabeto -d --no-duplicate"
+	)
+)
+
 -- Move focus with mainMod + arrow keys
 hl.bind(mainMod .. " + left", hl.dsp.focus({ direction = "left" }))
 hl.bind(mainMod .. " + right", hl.dsp.focus({ direction = "right" }))
@@ -484,6 +619,21 @@ hl.bind(mainMod .. " + T", hl.dsp.window.float({ action = "toggle" }))
 -- no podía animar nada.
 hl.bind(mainMod .. " + SHIFT + V", hl.dsp.exec_cmd(os.getenv("HOME") .. "/.config/hypr/scripts/barra.sh"))
 
+-- Cambiar de tema con SUPER+SHIFT+CTRL+T: pasa al siguiente de la lista (hoy,
+-- de default a liquido y vuelta). El script guarda el tema, recarga esta configuración y avisa; la
+-- barra y los demás Quickshell se enteran solos (ver TEMAS, arriba).
+hl.bind(mainMod .. " + SHIFT + CTRL + T", hl.dsp.exec_cmd(os.getenv("HOME") .. "/.config/hypr/scripts/tema.sh alternar"))
+
+-- SUPER+SHIFT+T abre el selector de tema (quickshell/temas): una tarjeta con
+-- los temas y su vista previa. Mismo interruptor que el recordatorio: si ya
+-- está abierto, se cierra. No arranca con la sesión.
+hl.bind(
+	mainMod .. " + SHIFT + T",
+	hl.dsp.exec_cmd(
+		"sh -c 'if qs list --all 2>/dev/null | grep -q /temas/shell.qml; then qs kill -c temas; else qs -c temas; fi'"
+	)
+)
+
 -- SUPER + C centers the window (close is now on SUPER + W above)
 hl.bind(mainMod .. " + C", hl.dsp.window.center())
 
@@ -571,16 +721,34 @@ hl.window_rule({
 -- })
 -- overlayLayerRule:set_enabled(false)
 
+-- El umbral de desenfoque de todas las superficies de Quickshell: donde el alfa
+-- de lo pintado queda por debajo, Hyprland no desenfoca. Un solo número para
+-- todas, y por tema (0.5 en default, 0.15 en liquido): el cristal de cada tema
+-- tiene que quedar por encima, y lo transparente o un velo para oscurecer, por
+-- debajo. Theme.ignoreAlpha lleva el mismo número a QML.
+local ignoreAlpha = tema.ignore_alpha
+
 -- The launcher is a fullscreen transparent Quickshell surface that animates its
 -- own card in QML, so the compositor must not animate the surface itself.
 -- ignore_alpha keeps the blur on the card (alpha 0.72) and off the dim layer
--- behind it (alpha 0.32).
+-- behind it (alpha 0.32). En liquido (umbral 0.15) ese velo se desenfoca
+-- también, salvo que el lanzador lo baje de 0.15.
 hl.layer_rule({
 	name = "launcher-anim",
 	match = { namespace = "^launcher$" },
 	no_anim = true,
 	blur = true,
-	ignore_alpha = 0.5,
+	ignore_alpha = ignoreAlpha,
+})
+
+-- El abecedario ruso: igual que el lanzador, la tarjeta se anima sola y el
+-- desenfoque se mantiene bajo el cristal.
+hl.layer_rule({
+	name = "alfabeto-anim",
+	match = { namespace = "^alfabeto$" },
+	no_anim = true,
+	blur = true,
+	ignore_alpha = ignoreAlpha,
 })
 
 -- El aviso de paquetes pendientes es un disco centrado que anima su propia
@@ -592,7 +760,7 @@ hl.layer_rule({
 	match = { namespace = "^updates$" },
 	no_anim = true,
 	blur = true,
-	ignore_alpha = 0.5,
+	ignore_alpha = ignoreAlpha,
 })
 
 -- La pila de notificaciones. Mismo trato que las demás superficies de
@@ -604,7 +772,7 @@ hl.layer_rule({
 	match = { namespace = "^notifications$" },
 	no_anim = true,
 	blur = true,
-	ignore_alpha = 0.5,
+	ignore_alpha = ignoreAlpha,
 })
 
 -- La ventana de recordatorio rápido, que anima su propia tarjeta.
@@ -613,7 +781,16 @@ hl.layer_rule({
 	match = { namespace = "^reminder$" },
 	no_anim = true,
 	blur = true,
-	ignore_alpha = 0.5,
+	ignore_alpha = ignoreAlpha,
+})
+
+-- El selector de tema, que anima su propia tarjeta como el recordatorio.
+hl.layer_rule({
+	name = "temas-anim",
+	match = { namespace = "^temas$" },
+	no_anim = true,
+	blur = true,
+	ignore_alpha = ignoreAlpha,
 })
 
 -- La isla: el bloque central de la barra, que crece hasta convertirse en el
@@ -633,7 +810,7 @@ hl.layer_rule({
 	match = { namespace = "^isla$" },
 	no_anim = true,
 	blur = true,
-	ignore_alpha = 0.5,
+	ignore_alpha = ignoreAlpha,
 })
 
 -- Los bloques de los lados de la barra (escritorios a la izquierda, telemetría
@@ -646,7 +823,7 @@ hl.layer_rule({
 	match = { namespace = "^barra$" },
 	no_anim = true,
 	blur = true,
-	ignore_alpha = 0.5,
+	ignore_alpha = ignoreAlpha,
 })
 
 -- El panel del homelab (quickshell/homelab): una columna pegada al borde
@@ -659,7 +836,7 @@ hl.layer_rule({
 	match = { namespace = "^homelab$" },
 	no_anim = true,
 	blur = true,
-	ignore_alpha = 0.5,
+	ignore_alpha = ignoreAlpha,
 })
 
 -- Hyprland-run windowrule
@@ -712,7 +889,31 @@ hl.on("hyprland.start", function()
 	-- arriba. El script espera a que haya red antes de contar y no enseña nada
 	-- si no hay ninguno, así que puede lanzarse sin más.
 	hl.exec_cmd("~/.config/hypr/scripts/updates-notify.sh")
+	-- La aberración cromática del borde, sólo en los temas que la tienen (ver
+	-- ABERRACIÓN, abajo).
+	if tema.aberracion then
+		hl.exec_cmd("~/.config/hypr/scripts/aberracion.sh")
+	end
 end)
+
+--------------------
+---- ABERRACIÓN ----
+--------------------
+
+-- En liquido, el filo de la ventana activa se separa a ratos en una franja
+-- roja y otra cian, como el canto de una lente. Hyprland no tiene aberración
+-- cromática en los bordes, así que es el mismo borde en degradado con otros
+-- colores (temas.liquido.aberracion), puesto a pulsos por
+-- scripts/aberracion.sh: cada 4 a 25 s, al azar, y cuatro de cada diez veces
+-- nada; cada pulso dura de 150 a 600 ms, con uno o dos parpadeos, y vuelve al
+-- borde normal. El demonio llama a escritorio.aberracion(n) con hyprctl eval
+-- (hyprctl keyword no vale con la configuración en Lua).
+--
+-- Arranca con la sesión (arriba) si el tema la tiene, y tema.sh lo arranca o
+-- lo para al cambiar de tema; él solo se para si el tema deja de ser liquido.
+-- ABERRACION=0 en el entorno (por ejemplo hl.env("ABERRACION", "0") en
+-- equipo.lua) lo apaga. No se duplica: guarda un cerrojo en
+-- $XDG_RUNTIME_DIR.
 
 
 ----------------

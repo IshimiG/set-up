@@ -4,12 +4,16 @@ import Quickshell.Io
 import "shared/AgendaFormato.js" as Formato
 
 // El cliente mínimo del panel del NUC para el calendario: lee las tareas con
-// fecha (GET /api/tareas), crea una para un día (POST /api/tareas) y cambia
-// una de día, de prioridad o su 🚫🤖 «Claude no la hace» (POST
-// /api/tareas/{id} con { fecha }, { prioridad } o { claude_off }). Es el
-// equivalente reducido de lo que hace homelab/Api.qml, que es otro proceso de
-// qs y no se comparte: el cajón sigue siendo quien escribe el fichero de la
-// agenda, y esto solo se usa mientras el calendario está abierto.
+// fecha (GET /api/tareas), crea una para un día (POST /api/tareas, con sus
+// horas si las tiene y en la sección que se elija) y cambia una de día, de
+// prioridad o su 🚫🤖 «Claude no la hace» (POST /api/tareas/{id} con
+// { fecha }, { prioridad } o { claude_off }), la borra (DELETE
+// /api/tareas/{id}) o lo que se haya tocado en la hoja de editarla (cambiar():
+// el texto, las horas, la prioridad, el 🚫🤖 y la categoría, que es la
+// sección: { seccion }, y la pasa a otra). Es el equivalente
+// reducido de lo que hace homelab/Api.qml, que es otro proceso de qs y no se
+// comparte: el cajón sigue siendo quien escribe el fichero de la agenda, y
+// esto solo se usa mientras el calendario está abierto.
 //
 // Las credenciales, como en el cajón: el usuario de Caddy sale del llavero
 // («secret-tool search servicio homelab-panel»), la contraseña se lee una vez
@@ -19,15 +23,16 @@ import "shared/AgendaFormato.js" as Formato
 //
 // Sin sondeo: se lee al abrir el calendario (refrescar()), si lo que hay tiene
 // más de frescoMs, y después de cada escritura, que ya contesta con el estado
-// nuevo. Mover, la prioridad y el 🚫🤖 son optimistas: la vista cambia al
-// momento y, si el POST falla, se revierte a lo anterior. Crear no: la tarea
+// nuevo. Mover, la prioridad, el 🚫🤖 y editar en la hoja son optimistas: la
+// vista cambia al momento y, si el POST falla, se revierte a lo anterior.
+// Crear no: la tarea
 // sale cuando el panel la ha escrito, que es cuando tiene id (y se puede
 // mover).
 //
 // datos tiene el mismo formato que bar/Agenda.qml (shared/AgendaFormato.js, con
-// el id de cada evento) y dos campos más en cada evento, que el fichero no
-// lleva: claudeOff y prioridadPropia (abajo, en agendaDe); null mientras no se
-// haya podido leer nada.
+// el id de cada evento, sus horas) y cuatro campos más en cada
+// evento, que el fichero no lleva: claudeOff, prioridadPropia, texto y
+// seccionId (abajo, en agendaDe); null mientras no se haya podido leer nada.
 Scope {
     id: cli
 
@@ -41,6 +46,15 @@ Scope {
     readonly property bool puedeEscribir: p.estado === "conectado" && p.datos !== null && !p.escribiendo
     // Lo último que salió mal al escribir, o "".
     readonly property string error: p.error
+    // Las categorías que se pueden elegir en la hoja, en el orden del panel:
+    // { id, nombre, color ("#rrggbb" o "") }. «Clase» sale solo si el panel
+    // distingue las entregas de Aules (su campo «aules»: panelNuevo); con uno
+    // viejo no, porque no se sabría cuáles son de solo lectura. No sale «En
+    // pausa» (es un aparcamiento, no una categoría de trabajo: no se elige al
+    // crear). Las tareas que ya están en pausa siguen saliendo en el
+    // calendario de la barra (AgendaFormato.deTareas las deja con la
+    // prioridad «pausa»); la hoja de una de ellas enseña su categoría igual.
+    readonly property var categorias: cli.categoriasDe(p.crudas)
 
     property string baseUrl: (Quickshell.env("HOMELAB_PANEL_URL") || "https://panel.lab.ishimi.es").replace(/\/+$/, "")
     property int esperaPeticion: 10000
@@ -92,16 +106,41 @@ Scope {
         return suelo !== "" && cli.rangoPrio[suelo] < (cli.rangoPrio[prio] ?? 5) ? suelo : prio;
     }
 
+    // El panel manda «aules» (true o false) en sus tareas: alguna tarea de la
+    // última lectura lo trae. Sin tareas no hay cómo saberlo y se da por
+    // viejo (lo más seguro: no se ofrece Clase ni se deja borrar).
+    function panelNuevo(crudas) {
+        return ((crudas && crudas.sections) || []).some(s => (s.tasks || []).some(t => typeof t.aules === "boolean"));
+    }
+
+    // «Clase» sin color en el panel lleva el violeta fijo de las entregas.
+    // Las secciones «Repaso de pendientes (…)» son texto de 00 Inicio, no
+    // proyectos: no se ofrecen como categoría.
+    function categoriasDe(crudas) {
+        const nuevo = cli.panelNuevo(crudas);
+        return ((crudas && crudas.sections) || []).filter(s => s.id !== "en-pausa" && !/^repaso de pendientes/i.test(String(s.title || s.id)) && (nuevo || s.id !== "clase")).map(s => ({
+                    id: String(s.id),
+                    nombre: String(s.title || s.id),
+                    color: /^#[0-9a-fA-F]{6}$/.test(s.color || "") ? s.color : (s.id === "clase" ? Formato.COLOR_CLASE : "")
+                }));
+    }
+
     function plano(texto) {
         return String(texto || "").replace(/\[\[([^\]|]+)(?:\|([^\]]+))?\]\]/g, (_, a, b) => (b || a.split("#")[0].split("/").pop()).trim()).replace(/\[([^\]]+)\]\((https?:\/\/[^\s)]+)\)/g, "$1").replace(/\*\*|~~|`/g, "");
     }
 
-    // De la respuesta de /api/tareas a la agenda del calendario. Cada evento
-    // con id lleva además lo que el calendario necesita para editarlo y el
-    // fichero de la agenda no lleva (shared/AgendaFormato.js lo quitaría al
-    // leerlo): claudeOff, el 🚫🤖 «Claude no la hace», y prioridadPropia, la
-    // que tiene puesta ("maxima".."minima" o ""), que puede no ser la del
-    // punto: esa es la de hoy, que el panel sube cerca de la fecha.
+    // De la respuesta de /api/tareas a la agenda del calendario. Las horas
+    // (time_start y time_end) de cada tarea pasan por
+    // AgendaFormato.deTareas como horaInicio y horaFin. Cada
+    // evento con id lleva además lo que el calendario necesita para editarlo y
+    // el fichero de la agenda no lleva (shared/AgendaFormato.js lo quitaría al
+    // leerlo): claudeOff, el 🚫🤖 «Claude no la hace»; prioridadPropia, la que
+    // tiene puesta ("maxima".."minima" o ""), que puede no ser la del punto:
+    // esa es la de hoy, que el panel sube cerca de la fecha; y texto, el de la
+    // nota tal cual, con su Markdown, que es lo que se edita en la hoja (el
+    // título va sin él); seccionId, el id de su sección (la categoría); y
+    // aules, true si es una entrega de Aules (solo lectura), false si es
+    // propia, o undefined si el panel no lo manda (uno viejo).
     function agendaDe(d, conectado) {
         if (!d || typeof d !== "object")
             return null;
@@ -118,7 +157,10 @@ Scope {
                         if (t.id)
                             propias[String(t.id)] = {
                                 claudeOff: t.claude_off === true,
-                                prioridad: cli.nombrePrio[t.priority] || ""
+                                prioridad: cli.nombrePrio[t.priority] || "",
+                                texto: String(t.text || ""),
+                                seccion: String(s.id),
+                                aules: typeof t.aules === "boolean" ? t.aules : undefined
                             };
                         return {
                             id: String(t.id || ""),
@@ -129,7 +171,9 @@ Scope {
                             vencida: !hecha && vence !== "" && hoy !== "" && vence < hoy,
                             prioridad: cli.nombrePrio[t.priority] || "",
                             efectiva: cli.nombrePrio[t.effective] || "",
-                            area: String(t.area || "")
+                            area: String(t.area || ""),
+                            horaInicio: String(t.time_start || ""),
+                            horaFin: String(t.time_end || "")
                         };
                     })
                 }));
@@ -143,16 +187,19 @@ Scope {
             const x = propias[e.id];
             e.claudeOff = !!x && x.claudeOff;
             e.prioridadPropia = x ? x.prioridad : "";
+            e.texto = x ? x.texto : e.titulo;
+            e.seccionId = x ? x.seccion : "";
+            e.aules = x ? x.aules : undefined;
         }
         return agenda;
     }
 
     // La sección en la que entra una tarea creada desde el calendario: la
     // misma que el cajón cuando no se elige (General, o la primera que no
-    // esté en pausa).
+    // sea una oculta: ni En pausa ni Clase).
     function seccionPorDefecto() {
         const ss = (p.crudas && p.crudas.sections) || [];
-        const s = ss.find(x => x.id === "general") || ss.find(x => x.id !== "en-pausa") || ss[0];
+        const s = ss.find(x => x.id === "general") || ss.find(x => x.id !== "en-pausa" && x.id !== "clase") || ss[0];
         return s ? String(s.id) : "";
     }
 
@@ -280,31 +327,65 @@ Scope {
         }, "No se pudo cambiar «Claude no la hace»", alAcabar);
     }
 
-    // Crea una tarea con el texto `texto` para el día `dia`, en la sección de
-    // siempre (seccionPorDefecto), sin área, con prioridad media y sin 🚫🤖.
-    // No es optimista: la tarea aparece cuando el panel contesta con la lista
-    // nueva, que ya la lleva con su id. alAcabar(ok) al terminar.
-    function crear(texto, dia, alAcabar) {
+    // Por qué no se puede mandar un cuerpo de POST (con los nombres del panel:
+    // texto, prioridad, hora_inicio, hora_fin y seccion), o "". Lo mismo que
+    // rechazaría el panel; la hoja del calendario ya no deja llegar aquí nada
+    // de esto, pero el cliente no se fía.
+    function motivoDe(cuerpo) {
+        if ("texto" in cuerpo && (cuerpo.texto === "" || cuerpo.texto.length > 300))
+            return "El texto debe tener entre 1 y 300 caracteres";
+        if ("prioridad" in cuerpo && cuerpo.prioridad !== "" && !(cuerpo.prioridad in cli.rangoPrio))
+            return "Prioridad no válida";
+        if ("seccion" in cuerpo && !((p.crudas && p.crudas.sections) || []).some(s => String(s.id) === cuerpo.seccion))
+            return "Categoría no válida";
+        if ("hora_inicio" in cuerpo || "hora_fin" in cuerpo) {
+            const m = Formato.motivoHoras(cuerpo.hora_inicio, cuerpo.hora_fin);
+            if (m !== "")
+                return m;
+        }
+        return "";
+    }
+
+    // Crea una tarea para un día, en la sección que se diga o, si no, la de
+    // siempre (seccionPorDefecto), y sin área. `d`: { texto, dia
+    // ("2026-10-30") y, si se quiere, seccion (el id), prioridad (la del panel; media si no se dice, "" sin ninguna), claudeOff
+    // (apagado si no se dice), horaInicio y horaFin ("HH:MM", las dos o
+    // ninguna: todo el día) }. Las horas solo van en el cuerpo si las hay. No es optimista:
+    // la tarea aparece cuando el panel contesta con la lista nueva, que ya la
+    // lleva con su id. alAcabar(ok) al terminar; si no, error dice por qué.
+    function crear(d, alAcabar) {
         const fin = ok => {
             if (alAcabar)
                 alAcabar(ok);
         };
-        const limpio = String(texto || "").replace(/\s+/g, " ").trim();
-        const seccion = cli.seccionPorDefecto();
-        if (!cli.puedeEscribir || limpio === "" || !/^\d{4}-\d\d-\d\d$/.test(dia) || seccion === "") {
+        d = d || {};
+        const dia = String(d.dia || "");
+        const seccion = String(d.seccion || "") || cli.seccionPorDefecto();
+        const cuerpo = {
+            seccion: seccion,
+            texto: String(d.texto || "").replace(/\s+/g, " ").trim(),
+            area: "",
+            fecha: dia,
+            prioridad: d.prioridad === undefined ? "medium" : String(d.prioridad || ""),
+            claude_off: d.claudeOff === true
+        };
+        const inicio = String(d.horaInicio || "");
+        const final = String(d.horaFin || "");
+        if (inicio !== "" || final !== "") {
+            cuerpo.hora_inicio = inicio;
+            cuerpo.hora_fin = final;
+        }
+        // Sin ninguna sección en la que crearla, se dice y no se manda.
+        const motivo = seccion === "" ? "No hay ninguna sección en la que crearla" : cli.motivoDe(cuerpo);
+        if (!cli.puedeEscribir || motivo !== "" || !/^\d{4}-\d\d-\d\d$/.test(dia)) {
+            if (motivo !== "")
+                p.error = motivo;
             fin(false);
             return;
         }
         p.error = "";
         p.escribiendo = true;
-        cli.pedir("POST", "/api/tareas", {
-            seccion: seccion,
-            texto: limpio,
-            area: "",
-            fecha: dia,
-            prioridad: "medium",
-            claude_off: false
-        }, (estado, respuesta) => {
+        cli.pedir("POST", "/api/tareas", cuerpo, (estado, respuesta) => {
             p.escribiendo = false;
             if (cli.aceptada(estado, respuesta)) {
                 fin(true);
@@ -315,9 +396,90 @@ Scope {
         });
     }
 
-    // Lo común de mover, la prioridad y el 🚫🤖: cambia la tarea `id` en una
-    // copia de lo último leído con aplicar(t) (sobre la tarea tal como la
-    // devuelve el panel), la enseña, y manda `cuerpo` a POST /api/tareas/{id}.
+    // Lo que se ha tocado en la hoja de editar la tarea `id`, de una vez:
+    // `c` lleva solo lo que cambia, de { texto, prioridad (la del panel, o ""
+    // para quitarla), claudeOff, seccion (el id de la categoría a la que pasa),
+    // horaInicio y horaFin (las dos juntas; "" las dos para dejarla de todo el
+    // día) }. Lo que no
+    // trae no se toca ni se manda. Optimista, como mover.
+    function cambiar(id, c, alAcabar) {
+        c = c || {};
+        const cuerpo = {};
+        if ("texto" in c)
+            cuerpo.texto = String(c.texto || "").replace(/\s+/g, " ").trim();
+        if ("prioridad" in c)
+            cuerpo.prioridad = String(c.prioridad || "");
+        if ("claudeOff" in c)
+            cuerpo.claude_off = c.claudeOff === true;
+        if ("seccion" in c)
+            cuerpo.seccion = String(c.seccion || "");
+        if ("horaInicio" in c || "horaFin" in c) {
+            cuerpo.hora_inicio = String(c.horaInicio || "");
+            cuerpo.hora_fin = String(c.horaFin || "");
+        }
+        const motivo = Object.keys(cuerpo).length === 0 ? "No hay nada que cambiar" : cli.motivoDe(cuerpo);
+        if (motivo !== "") {
+            p.error = motivo;
+            if (alAcabar)
+                alAcabar(false);
+            return;
+        }
+        const hoy = String((p.crudas && p.crudas.today) || "").slice(0, 10);
+        cli.editar(id, cuerpo, (t, nuevas) => {
+            if ("texto" in cuerpo)
+                t.text = cuerpo.texto;
+            if ("prioridad" in cuerpo) {
+                t.priority = cuerpo.prioridad;
+                t.effective = cli.efectiva(cuerpo.prioridad, String(t.due || "").slice(0, 10), hoy);
+            }
+            if ("claude_off" in cuerpo)
+                t.claude_off = cuerpo.claude_off;
+            if ("hora_inicio" in cuerpo) {
+                t.time_start = cuerpo.hora_inicio;
+                t.time_end = cuerpo.hora_fin;
+            }
+            // A la otra sección, al final (como la deja el panel).
+            if ("seccion" in cuerpo) {
+                const secs = nuevas.sections || [];
+                const origen = secs.find(s => (s.tasks || []).includes(t));
+                const destino = secs.find(s => String(s.id) === cuerpo.seccion);
+                if (origen && destino && origen !== destino) {
+                    origen.tasks.splice(origen.tasks.indexOf(t), 1);
+                    destino.tasks = (destino.tasks || []).concat([t]);
+                }
+            }
+        }, "No se pudo guardar la tarea", alAcabar);
+    }
+
+    // Borra la tarea `id` (DELETE /api/tareas/{id}). No es optimista, como
+    // crear: la tarea se va cuando el panel contesta con la lista nueva. Sin
+    // cuerpo. alAcabar(ok) al terminar; si no, error dice por qué.
+    function eliminar(id, alAcabar) {
+        const fin = ok => {
+            if (alAcabar)
+                alAcabar(ok);
+        };
+        if (!cli.puedeEscribir || !id) {
+            fin(false);
+            return;
+        }
+        p.error = "";
+        p.escribiendo = true;
+        cli.pedir("DELETE", "/api/tareas/" + encodeURIComponent(id), undefined, (estado, respuesta) => {
+            p.escribiendo = false;
+            if (cli.aceptada(estado, respuesta)) {
+                fin(true);
+                return;
+            }
+            cli.rechazada(estado, respuesta, "No se pudo eliminar la tarea");
+            fin(false);
+        });
+    }
+
+    // Lo común de mover, la prioridad, el 🚫🤖 y la hoja: cambia la tarea `id` en una
+    // copia de lo último leído con aplicar(t, nuevas) (sobre la tarea tal como
+    // la devuelve el panel, y la copia entera por si hay que cambiarla de
+    // sección), la enseña, y manda `cuerpo` a POST /api/tareas/{id}.
     // Si falla, vuelve lo anterior y `que` dice qué no se pudo hacer.
     function editar(id, cuerpo, aplicar, que, alAcabar) {
         const fin = ok => {
@@ -330,14 +492,15 @@ Scope {
         }
         const antes = p.crudas;
         const nuevas = JSON.parse(JSON.stringify(antes));
-        let hallada = false;
+        let hallada = null;
         for (const s of nuevas.sections || [])
             for (const t of s.tasks || [])
-                if (String(t.id) === id) {
-                    aplicar(t);
-                    hallada = true;
-                }
+                if (String(t.id) === id && !hallada)
+                    hallada = t;
+        if (hallada)
+            aplicar(hallada, nuevas);
         if (!hallada) {
+            p.error = "La tarea ya no está en el panel";
             fin(false);
             return;
         }

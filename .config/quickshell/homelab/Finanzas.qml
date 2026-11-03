@@ -139,7 +139,7 @@ Item {
         Layout.fillWidth: true
         Layout.alignment: Qt.AlignTop
         implicitHeight: interior.implicitHeight + 20
-        radius: 10
+        radius: Theme.liquido ? Theme.radiusSmall : 10
         color: Qt.rgba(1, 1, 1, 0.05)
         border.width: 1
         border.color: Theme.rule
@@ -290,7 +290,7 @@ Item {
                 Layout.fillWidth: true
                 visible: finanzas.listo && finanzas.tr !== null && finanzas.tr.configurado && finanzas.tr.caducada
                 implicitHeight: avisoTR.implicitHeight + 20
-                radius: 10
+                radius: Theme.liquido ? Theme.radiusSmall : 10
                 color: Qt.rgba(1, 1, 1, 0.05)
                 border.width: 1
                 border.color: Theme.warn
@@ -746,7 +746,7 @@ Item {
                             Rectangle {
                                 Layout.fillWidth: true
                                 implicitHeight: filaMov.implicitHeight + 10
-                                radius: 8
+                                radius: Theme.liquido ? Theme.radiusSmall : 8
                                 color: mov.abierta ? Qt.rgba(1, 1, 1, 0.08) : (sobreMov.hovered && mov.editable ? Qt.rgba(1, 1, 1, 0.05) : "transparent")
 
                                 Behavior on color {

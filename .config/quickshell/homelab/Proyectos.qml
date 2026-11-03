@@ -121,7 +121,7 @@ FocusScope {
         readonly property var siguiente: tarjeta.p.siguiente.length ? Logica.plano(tarjeta.p.siguiente[0]) : ""
 
         implicitHeight: pila.implicitHeight + 20
-        radius: 12
+        radius: Theme.liquido ? Theme.radiusSmall : 12
         color: sobreTarjeta.hovered ? Qt.rgba(1, 1, 1, 0.08) : Qt.rgba(1, 1, 1, 0.05)
         border.width: 1
         border.color: Theme.rule
