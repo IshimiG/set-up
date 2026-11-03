@@ -18,18 +18,15 @@
 #      nota al momento. Las carpetas de CARPETAS se enlazan enteras; del resto,
 #      cada fichero. Lo que hubiera en su sitio y no sea ese enlace se aparta a
 #      ~/.local/share/set-up-apartado/<fecha>/, no se borra.
-#   3. El tema del escritorio: la carpeta donde tema.sh guarda el tema activo
-#      (${XDG_STATE_HOME:-~/.local/state}/escritorio). El tema no se toca: sin
-#      fichero, es default.
-#   4. El fondo de pantalla, sólo si la máquina no tiene ya hyprpaper.conf.
-#   5. Los servicios de usuario del repo.
-#   6. Memoria: earlyoom (mata antes el navegador que Hyprland si se agota la
+#   3. El fondo de pantalla, sólo si la máquina no tiene ya hyprpaper.conf.
+#   4. Los servicios de usuario del repo.
+#   5. Memoria: earlyoom (mata antes el navegador que Hyprland si se agota la
 #      RAM) y, si la máquina usa zram, los sysctl que recomienda la Arch Wiki.
 #      Escribe en /etc, así que usa sudo.
-#   7. Zen Browser: si hay perfil, enlaza .config/zen/user.js en el perfil por
+#   6. Zen Browser: si hay perfil, enlaza .config/zen/user.js en el perfil por
 #      defecto (ajustes de memoria). No toca prefs.js ni nada más del perfil.
-#   8. fish como shell.
-#   9. Lo del equipo: si la rama trae equipo.sh (sólo las ramas de cada
+#   7. fish como shell.
+#   8. Lo del equipo: si la rama trae equipo.sh (sólo las ramas de cada
 #      máquina), se ejecuta al final con los mismos argumentos, igual que
 #      hyprland.lua carga equipo.lua.
 #
@@ -107,7 +104,7 @@ CARPETAS=(
 )
 
 # Se enlazan aparte, no con el resto de .config: .config/zen es el perfil vivo
-# de Zen y user.js se enlaza dentro del perfil por defecto (paso 7).
+# de Zen y user.js se enlaza dentro del perfil por defecto (paso 6).
 SIN_ENLAZAR=(
 	.config/zen
 )
@@ -243,22 +240,7 @@ if ! $comprobar && (($(find "$HOME/.local/share/set-up-apartado" -mindepth 1 -ma
 fi
 
 # ---------------------------------------------------------------------------
-paso "3. Tema del escritorio"
-
-# tema.sh (SUPER+SHIFT+T) guarda aquí el tema activo, y la paleta de
-# Quickshell (shared/Theme.qml) vigila el fichero para cambiar en caliente. La
-# carpeta tiene que existir antes de que arranque Quickshell: su vigilante no
-# ve aparecer un fichero en una carpeta que no existía. El tema en sí no se
-# toca; sin fichero, es default.
-estado_tema="${XDG_STATE_HOME:-$HOME/.local/state}/escritorio"
-if [[ -d $estado_tema ]]; then
-	echo "  $estado_tema ya está (tema: $("$repo/.config/hypr/scripts/tema.sh"))"
-else
-	hacer mkdir -p "$estado_tema"
-fi
-
-# ---------------------------------------------------------------------------
-paso "4. Fondo de pantalla"
+paso "3. Fondo de pantalla"
 
 # hyprpaper.conf es de cada máquina y no va en el repo: si ya existe, se
 # respeta. sddm/install.sh lee de aquí el "path" para el fondo del login.
@@ -289,7 +271,7 @@ EOF
 fi
 
 # ---------------------------------------------------------------------------
-paso "5. Servicios de usuario"
+paso "4. Servicios de usuario"
 
 hacer systemctl --user daemon-reload
 for t in "$repo"/.config/systemd/user/*.timer; do
@@ -303,7 +285,7 @@ for t in "$repo"/.config/systemd/user/*.timer; do
 done
 
 # ---------------------------------------------------------------------------
-paso "6. Memoria"
+paso "5. Memoria"
 
 # Escribe un fichero de /etc con sudo si no tiene ya ese contenido.
 poner_etc() {
@@ -362,7 +344,7 @@ else
 fi
 
 # ---------------------------------------------------------------------------
-paso "7. Zen Browser"
+paso "6. Zen Browser"
 
 # El perfil por defecto sale de profiles.ini: el Default= de la sección
 # [Install*] (el que usa el Zen instalado) o, si no, el [Profile*] con
@@ -411,7 +393,7 @@ else
 fi
 
 # ---------------------------------------------------------------------------
-paso "8. fish como shell"
+paso "7. fish como shell"
 
 shell=$(getent passwd "$USER" | cut -d: -f7)
 if [[ $shell == */fish ]]; then
@@ -424,10 +406,10 @@ fi
 
 # ---------------------------------------------------------------------------
 if [[ -x $repo/equipo.sh ]]; then
-	paso "9. Lo de este equipo (equipo.sh)"
+	paso "8. Lo de este equipo (equipo.sh)"
 	"$repo/equipo.sh" $($comprobar && echo --comprobar)
 else
-	paso "9. Sin equipo.sh en esta rama: sólo lo común"
+	paso "8. Sin equipo.sh en esta rama: sólo lo común"
 fi
 
 echo

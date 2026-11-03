@@ -502,7 +502,7 @@ FocusScope {
                                 objectName: "contenedor-" + tarjeta.c.nombre
                                 Layout.fillWidth: true
                                 implicitHeight: filas.implicitHeight + 16
-                                radius: Theme.liquido ? Theme.radiusSmall : 10
+                                radius: 10
                                 color: Qt.rgba(1, 1, 1, 0.05)
                                 border.width: 1
                                 border.color: Theme.rule
