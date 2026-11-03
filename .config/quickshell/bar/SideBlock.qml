@@ -55,7 +55,7 @@ PanelWindow {
     // dice, su altura de ahora.
     readonly property int panelMax: block.panel ? (block.panel.alturaMax || block.panelH) : 0
 
-    readonly property int radioPanel: Theme.liquido ? Theme.radius : 18
+    readonly property int radioPanel: 18
     readonly property int anchoPastilla: Math.max(1, fila.implicitWidth + block.pillPad * 2)
 
     // Las curvas del despliegue, fijadas dentro del binding de la geometría y
@@ -97,7 +97,7 @@ PanelWindow {
     readonly property int marginTop: 3
     // El mismo margen lateral que tenía waybar (margin-left/right 12).
     readonly property int marginSide: 12
-    readonly property int radio: Theme.liquido ? block.pillH / 2 : 10
+    readonly property int radio: 10
 
     // Las mismas curvas y tiempos que la isla, que a su vez salen de las
     // animaciones de capa de hyprland.lua.
@@ -245,7 +245,7 @@ PanelWindow {
 
         // La capa exterior es sólo el canto, con el cuerpo de cristal encima dejando
         // 1px al aire: es la única forma de tener un borde con degradado en QML.
-        Cristal {
+        Rectangle {
             id: canto
 
             anchors.top: parent.top
@@ -289,6 +289,34 @@ PanelWindow {
             opacity: block.reveal
             transform: Translate {
                 y: -(1 - block.reveal) * (block.marginTop + canto.height + 6)
+            }
+
+            gradient: Gradient {
+                GradientStop {
+                    position: 0.0
+                    color: Theme.edgeTop
+                }
+                GradientStop {
+                    position: 1.0
+                    color: Theme.edgeBottom
+                }
+            }
+
+            Rectangle {
+                anchors.fill: parent
+                anchors.margins: 1
+                radius: Math.max(0, canto.radius - 1)
+
+                gradient: Gradient {
+                    GradientStop {
+                        position: 0.0
+                        color: Theme.glassTop
+                    }
+                    GradientStop {
+                        position: 1.0
+                        color: Theme.glassBottom
+                    }
+                }
             }
 
             // Pegada arriba y al borde de la pantalla, no centrada: cuando el
@@ -397,7 +425,7 @@ PanelWindow {
 
             width: textoPista.implicitWidth + 20
             height: textoPista.implicitHeight + 14
-            radius: Theme.liquido ? Theme.radiusSmall : 10
+            radius: 10
 
             color: Theme.glassTop
             border.width: 1

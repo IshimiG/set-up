@@ -30,11 +30,8 @@ PanelWindow {
     // El cristal, el texto y la tipografía salen del Theme compartido
     // (~/.config/quickshell/shared/Theme.qml), que llega por el symlink
     // "shared" de este directorio. Allí está el porqué de cada valor, incluido
-    // el alfa mínimo (Theme.ignoreAlpha: 0.5 en default, 0.15 en liquido) que el
-    // ignore_alpha del layer_rule necesita para seguir desenfocando. El lanzador
-    // no pinta ningún velo para oscurecer el fondo (ese alfa 0.32 del comentario
-    // de hyprland.lua ya no existe): toda su superficie es la tarjeta, así que
-    // con el umbral de liquido no hay nada que se desenfoque de más.
+    // el alfa mínimo de 0.5 que el ignore_alpha del layer_rule necesita para
+    // seguir desenfocando.
 
     property string query: ""
 
@@ -199,7 +196,7 @@ PanelWindow {
     // blanco y el cuerpo de cristal se dibuja encima dejando 1px al aire.
     // Es la única forma de conseguir un borde con degradado en QML, porque
     // un Rectangle solo admite un border.color plano.
-    Cristal {
+    Rectangle {
         id: card
         anchors.centerIn: parent
 
@@ -207,6 +204,38 @@ PanelWindow {
         height: root.shown ? root.cardH : root.seed
         radius: root.shown ? 24 : root.seed / 2
         clip: true
+
+        gradient: Gradient {
+            GradientStop {
+                position: 0.0
+                color: Theme.edgeTop
+            }
+            GradientStop {
+                position: 1.0
+                color: Theme.edgeBottom
+            }
+        }
+
+        // El cuerpo esmerilado. Va declarado antes que "content", así que
+        // queda por debajo: en QML los hermanos se pintan en orden.
+        Rectangle {
+            id: glass
+            anchors.fill: parent
+            anchors.margins: 1
+            radius: Math.max(0, card.radius - 1)
+            clip: true
+
+            gradient: Gradient {
+                GradientStop {
+                    position: 0.0
+                    color: Theme.glassTop
+                }
+                GradientStop {
+                    position: 1.0
+                    color: Theme.glassBottom
+                }
+            }
+        }
 
         opacity: root.shown ? 1 : 0
 
@@ -355,7 +384,7 @@ PanelWindow {
                 // encima: tinte del acento más un filo blanco que la levanta
                 // de la superficie en vez de limitarse a colorearla.
                 highlight: Rectangle {
-                    radius: Theme.liquido ? Theme.radiusSmall : 12
+                    radius: 12
                     color: Qt.rgba(Theme.accent.r, Theme.accent.g, Theme.accent.b, 0.14)
                     border.width: 1
                     border.color: Qt.rgba(1, 1, 1, 0.22)

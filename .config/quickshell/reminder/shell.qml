@@ -47,8 +47,8 @@ PanelWindow {
     // El cristal, el texto y la tipografía salen del Theme compartido
     // (~/.config/quickshell/shared/Theme.qml), que llega por el symlink
     // "shared" de este directorio. Allí está el porqué de cada valor, incluido
-    // el alfa mínimo (Theme.ignoreAlpha: 0.5 en default, 0.15 en liquido) que el
-    // ignore_alpha del layer_rule necesita para seguir desenfocando.
+    // el alfa mínimo de 0.5 que el ignore_alpha del layer_rule necesita para
+    // seguir desenfocando.
     readonly property int cardW: 460
     readonly property int pad: 22
 
@@ -92,13 +92,24 @@ PanelWindow {
 
     // La capa exterior es *solo* el canto: se pinta entera con el degradado
     // blanco y el cuerpo de cristal se dibuja encima dejando 1px al aire.
-    Cristal {
+    Rectangle {
         id: card
 
         anchors.centerIn: parent
         width: root.cardW
         height: content.implicitHeight + root.pad * 2
-        radius: Theme.liquido ? Theme.radius : 20
+        radius: 20
+
+        gradient: Gradient {
+            GradientStop {
+                position: 0.0
+                color: Theme.edgeTop
+            }
+            GradientStop {
+                position: 1.0
+                color: Theme.edgeBottom
+            }
+        }
 
         // Entra rebotando y se va encogiendo con el mismo gesto leído al revés,
         // que es el vocabulario del resto del escritorio: lo que aparece se
@@ -118,6 +129,23 @@ PanelWindow {
             NumberAnimation {
                 duration: root.shown ? 140 : Theme.animOut - 60
                 easing.type: root.shown ? Easing.OutCubic : Easing.InCubic
+            }
+        }
+
+        Rectangle {
+            anchors.fill: parent
+            anchors.margins: 1
+            radius: Math.max(0, card.radius - 1)
+
+            gradient: Gradient {
+                GradientStop {
+                    position: 0.0
+                    color: Theme.glassTop
+                }
+                GradientStop {
+                    position: 1.0
+                    color: Theme.glassBottom
+                }
             }
         }
 
