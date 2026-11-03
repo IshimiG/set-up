@@ -177,7 +177,7 @@ PanelWindow {
 
     // La capa exterior es sólo el canto con degradado; el cristal se dibuja
     // encima dejando 1px al aire (igual que el lanzador).
-    Cristal {
+    Rectangle {
         id: card
         anchors.centerIn: parent
         width: root.cardW
@@ -199,6 +199,34 @@ PanelWindow {
                 duration: root.shown ? Theme.animIn : 180
                 easing.type: root.shown ? Easing.OutBack : Easing.InCubic
                 easing.overshoot: 1.6
+            }
+        }
+
+        gradient: Gradient {
+            GradientStop {
+                position: 0.0
+                color: Theme.edgeTop
+            }
+            GradientStop {
+                position: 1.0
+                color: Theme.edgeBottom
+            }
+        }
+
+        Rectangle {
+            anchors.fill: parent
+            anchors.margins: 1
+            radius: card.radius - 1
+
+            gradient: Gradient {
+                GradientStop {
+                    position: 0.0
+                    color: Theme.glassTop
+                }
+                GradientStop {
+                    position: 1.0
+                    color: Theme.glassBottom
+                }
             }
         }
 

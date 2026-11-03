@@ -395,7 +395,7 @@ FocusScope {
         property bool resaltada: false
 
         implicitHeight: pila.implicitHeight + 20
-        radius: Theme.liquido ? Theme.radiusSmall : 12
+        radius: 12
         color: Qt.rgba(1, 1, 1, resaltada ? 0.08 : 0.05)
         border.width: 1
         border.color: resaltada ? Qt.rgba(1, 1, 1, 0.3) : Theme.rule

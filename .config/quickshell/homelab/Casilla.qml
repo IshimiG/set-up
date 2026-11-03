@@ -17,14 +17,6 @@ Rectangle {
     radius: casilla.lado / 2
     color: casilla.marcada ? Qt.rgba(casilla.tinte.r, casilla.tinte.g, casilla.tinte.b, 0.3) : (sobre.hovered ? Qt.rgba(1, 1, 1, 0.1) : "transparent")
     border.width: 1.5
-    scale: Theme.liquido ? (pulsada.pressed ? 0.92 : (sobre.hovered ? 1.1 : 1)) : 1
-
-    Behavior on scale {
-        NumberAnimation {
-            duration: 120
-            easing.type: Easing.OutCubic
-        }
-    }
     border.color: casilla.marcada ? casilla.tinte : Theme.muted
 
     Behavior on color {
@@ -48,8 +40,6 @@ Rectangle {
     }
 
     TapHandler {
-        id: pulsada
-
         gesturePolicy: TapHandler.ReleaseWithinBounds
         onTapped: casilla.activado()
     }

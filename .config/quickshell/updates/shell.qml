@@ -97,8 +97,8 @@ PanelWindow {
     // El cristal, el texto y la tipografía salen del Theme compartido
     // (~/.config/quickshell/shared/Theme.qml), que llega por el symlink
     // "shared" de este directorio. Allí está el porqué de cada valor, incluido
-    // el alfa mínimo (Theme.ignoreAlpha: 0.5 en default, 0.15 en liquido) que el
-    // ignore_alpha del layer_rule necesita para seguir desenfocando.
+    // el alfa mínimo de 0.5 que el ignore_alpha del layer_rule necesita para
+    // seguir desenfocando.
 
     readonly property int cardW: 320
     readonly property int pad: 22
@@ -164,15 +164,13 @@ PanelWindow {
         signal pulsado
 
         implicitHeight: 40
-        radius: Theme.liquido ? Theme.radiusPill : 12
+        radius: 12
 
         color: Qt.rgba(1, 1, 1, (boton.principal ? 0.12 : 0.03) + (tap.pressed ? 0.14 : hover.hovered ? 0.08 : 0))
         border.width: 1
         border.color: Qt.rgba(1, 1, 1, (boton.principal ? 0.22 : 0.10) + (hover.hovered ? 0.16 : 0))
 
-        // En liquido, al pasar el ratón el botón crece un pelín (el cristal
-        // reacciona al acercarse); en default, igual que siempre.
-        scale: tap.pressed ? 0.97 : Theme.liquido && hover.hovered ? 1.04 : 1
+        scale: tap.pressed ? 0.97 : 1
 
         Behavior on color {
             ColorAnimation {
@@ -251,7 +249,7 @@ PanelWindow {
     // blanco y el cuerpo de cristal se dibuja encima dejando 1px al aire. Es la
     // única forma de conseguir un borde con degradado en QML, porque un
     // Rectangle solo admite un border.color plano.
-    Cristal {
+    Rectangle {
         id: card
 
         anchors.horizontalCenter: parent.horizontalCenter
@@ -260,7 +258,18 @@ PanelWindow {
 
         width: root.cardW
         height: content.implicitHeight + root.pad * 2
-        radius: Theme.liquido ? Theme.radius : 20
+        radius: 20
+
+        gradient: Gradient {
+            GradientStop {
+                position: 0.0
+                color: Theme.edgeTop
+            }
+            GradientStop {
+                position: 1.0
+                color: Theme.edgeBottom
+            }
+        }
 
         // Cae desde el borde de arriba: el origen de la escala es la parte
         // superior, así que la tarjeta se despliega hacia abajo en vez de
@@ -296,6 +305,23 @@ PanelWindow {
             NumberAnimation {
                 duration: root.cardVisible ? 160 : Theme.animOut - 60
                 easing.type: root.cardVisible ? Easing.OutCubic : Easing.InCubic
+            }
+        }
+
+        Rectangle {
+            anchors.fill: parent
+            anchors.margins: 1
+            radius: Math.max(0, card.radius - 1)
+
+            gradient: Gradient {
+                GradientStop {
+                    position: 0.0
+                    color: Theme.glassTop
+                }
+                GradientStop {
+                    position: 1.0
+                    color: Theme.glassBottom
+                }
             }
         }
 
@@ -408,7 +434,7 @@ PanelWindow {
     // Se pinta con el mismo doble Rectangle que la tarjeta —el canto fuera, el
     // cristal dentro dejando 1px— porque es la misma lámina, sólo que casi
     // toda ella metida detrás de la barra.
-    Cristal {
+    Rectangle {
         id: tab
 
         anchors.horizontalCenter: parent.horizontalCenter
@@ -418,6 +444,17 @@ PanelWindow {
         width: 58
         height: 22
         radius: 11
+
+        gradient: Gradient {
+            GradientStop {
+                position: 0.0
+                color: Theme.edgeTop
+            }
+            GradientStop {
+                position: 1.0
+                color: Theme.edgeBottom
+            }
+        }
 
         transformOrigin: Item.Top
         scale: root.tabVisible ? 1 : 0.6
@@ -435,6 +472,23 @@ PanelWindow {
             NumberAnimation {
                 duration: root.tabVisible ? 160 : Theme.animOut - 60
                 easing.type: root.tabVisible ? Easing.OutCubic : Easing.InCubic
+            }
+        }
+
+        Rectangle {
+            anchors.fill: parent
+            anchors.margins: 1
+            radius: Math.max(0, tab.radius - 1)
+
+            gradient: Gradient {
+                GradientStop {
+                    position: 0.0
+                    color: Theme.glassTop
+                }
+                GradientStop {
+                    position: 1.0
+                    color: Theme.glassBottom
+                }
             }
         }
 

@@ -54,7 +54,7 @@ ColumnLayout {
             objectName: "notaReciente"
             Layout.fillWidth: true
             implicitHeight: pila.implicitHeight + 14
-            radius: Theme.liquido ? Theme.radiusSmall : 10
+            radius: 10
             color: sobre.hovered ? Qt.rgba(1, 1, 1, 0.08) : Qt.rgba(1, 1, 1, 0.04)
             border.width: 1
             border.color: Theme.rule

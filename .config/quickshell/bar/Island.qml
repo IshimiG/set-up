@@ -80,8 +80,8 @@ PanelWindow {
     readonly property int marginTop: 3
     // El radio de la pastilla es el border-radius de los bloques de waybar; el
     // del panel, el de las tarjetas del escritorio.
-    readonly property int radiusPill: Theme.liquido ? island.pillH / 2 : 10
-    readonly property int radiusPanel: Theme.liquido ? Theme.radius : 18
+    readonly property int radiusPill: 10
+    readonly property int radiusPanel: 18
 
     // --- Los tiempos y las curvas -----------------------------------------
     // Salen del vocabulario que ya usa el escritorio en hyprland.lua, para que
@@ -321,7 +321,7 @@ PanelWindow {
     // blanco y el cuerpo de cristal se dibuja encima dejando 1px al aire. Es la
     // única forma de tener un borde con degradado en QML, porque un Rectangle
     // sólo admite un border.color plano.
-    Cristal {
+    Rectangle {
         id: glassEdge
 
         anchors.horizontalCenter: parent.horizontalCenter
@@ -334,6 +334,17 @@ PanelWindow {
         height: island.conCurva(island.open, island.open ? island.pillH + island.panelH : island.pillH)
         radius: island.open ? island.radiusPanel : island.radiusPill
         clip: true
+
+        gradient: Gradient {
+            GradientStop {
+                position: 0.0
+                color: Theme.edgeTop
+            }
+            GradientStop {
+                position: 1.0
+                color: Theme.edgeBottom
+            }
+        }
 
         // Esconderse y salir: se va hacia arriba, por detrás del borde de la
         // pantalla, igual que hace waybar con su animación de capa "slide". No
@@ -374,6 +385,22 @@ PanelWindow {
 
         // El cuerpo esmerilado. Declarado antes que el contenido, así que queda
         // por debajo: en QML los hermanos se pintan en orden.
+        Rectangle {
+            anchors.fill: parent
+            anchors.margins: 1
+            radius: Math.max(0, glassEdge.radius - 1)
+
+            gradient: Gradient {
+                GradientStop {
+                    position: 0.0
+                    color: Theme.glassTop
+                }
+                GradientStop {
+                    position: 1.0
+                    color: Theme.glassBottom
+                }
+            }
+        }
 
         // --- La pastilla: lo que se ve siempre ---
         RowLayout {

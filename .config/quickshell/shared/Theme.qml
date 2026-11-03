@@ -2,7 +2,6 @@ pragma Singleton
 
 import QtQuick
 import Quickshell
-import Quickshell.Io
 
 // Paleta y medidas del escritorio. Única fuente de verdad.
 //
@@ -24,154 +23,54 @@ import Quickshell.Io
 // configuración, el vigilante de ficheros de Quickshell no sigue el symlink,
 // avisa de "unresolvable import" y se pierde la recarga en caliente al tocar
 // este fichero.
-//
-// --- Temas ---------------------------------------------------------------
-// Los valores que cambian con el tema (el cristal, el texto, los radios, el
-// brillo…) no se escriben aquí arriba sino en una Paleta por tema, al final
-// del fichero. Las propiedades públicas son siempre las mismas y apuntan a la
-// paleta del tema activo, así que cambiar de tema repinta en caliente los 50
-// y tantos ficheros que usan Theme sin tocar ninguno.
-//
-// El tema activo es una palabra en ${XDG_STATE_HOME:-~/.local/state}/
-// escritorio/tema, que escribe ~/.config/hypr/scripts/tema.sh (SUPER+SHIFT+T
-// alterna). El mismo fichero lo lee hyprland.lua para el borde, el blur y el
-// ignore_alpha de las superficies. Si falta, está vacío o dice algo que no es
-// un tema, vale "default". No va en el repo: es de cada máquina.
-//
-// Para añadir un tema: una Paleta más abajo, con su `nombre` y sólo lo que
-// cambie respecto a default (lo que no se toca sale de los valores de
-// Paleta, que son los de default), metida en `paletas`; su tabla en `temas`
-// de hyprland.lua y su nombre en TEMAS de tema.sh. Lo explica el README.
 Singleton {
-    id: theme
-
-    // --- Tema activo -------------------------------------------------------
-    // El fichero de estado. La carpeta la crea setup.sh (y tema.sh si falta):
-    // el vigilante de FileView no ve aparecer un fichero en una carpeta que no
-    // existía cuando arrancó Quickshell.
-    readonly property string rutaEstado: {
-        const xdg = Quickshell.env("XDG_STATE_HOME");
-        return (xdg ? xdg : Quickshell.env("HOME") + "/.local/state") + "/escritorio/tema";
-    }
-
-    // Los temas que hay, en el orden de `tema.sh lista`.
-    readonly property var paletas: [paletaDefault, paletaLiquido]
-    readonly property var temas: theme.paletas.map(p => p.nombre)
-
-    // El nombre del tema activo: lo que diga el fichero si es un tema que
-    // existe; si no, "default".
-    readonly property string nombreTema: {
-        const leido = estado.text().trim();
-        return theme.temas.indexOf(leido) >= 0 ? leido : "default";
-    }
-    // Atajo para el único otro tema que hay hoy: el cristal claro.
-    readonly property bool liquido: theme.nombreTema === "liquido"
-
-    readonly property Paleta activo: theme.paletas.find(p => p.nombre === theme.nombreTema) ?? paletaDefault
-
-    FileView {
-        id: estado
-
-        path: theme.rutaEstado
-        // El vigilante avisa al crearse, al reemplazarse (tema.sh escribe un
-        // temporal y lo renombra encima) y al borrarse.
-        watchChanges: true
-        onFileChanged: estado.reload()
-        // La primera lectura bloquea: es una palabra, y así ninguna superficie
-        // se pinta un fotograma con default antes de saber el tema.
-        blockLoading: true
-        // Que no exista es lo normal en una máquina que nunca cambió de tema.
-        printErrors: false
-    }
-
     // --- Cristal ---------------------------------------------------------
-    // El cuerpo de una lámina de cristal: un degradado vertical de glassTop a
-    // glassBottom, algo más denso arriba, donde la lámina recoge la luz. En
-    // default es negro translúcido; en liquido, blanco azulado.
+    // El cuerpo es negro translúcido con un degradado vertical: algo más denso
+    // arriba, donde la lámina recoge la luz.
     //
-    // El alfa no puede bajar de ignoreAlpha. Los layer_rule de
-    // ~/.config/hypr/hyprland.lua usan ese ignore_alpha, y por debajo de ese
+    // El alfa no puede bajar de 0.5. Los layer_rule de
+    // ~/.config/hypr/hyprland.lua usan ignore_alpha = 0.5, y por debajo de ese
     // umbral Hyprland deja de desenfocar la superficie: el cristal se queda
-    // liso y se pierde el frosted. Al revés, lo que no deba desenfocarse (un
-    // velo para oscurecer el fondo, una sombra) tiene que ir por debajo.
-    readonly property color glassTop: theme.activo.glassTop
-    readonly property color glassBottom: theme.activo.glassBottom
-    // La variante "clear" del cristal de Apple: más transparente, para ir
-    // sobre algo con mucho color (una imagen, el fondo) y siempre con el
-    // texto en strong. En default es el mismo cuerpo que glassBottom.
-    readonly property color glassClear: theme.activo.glassClear
+    // liso y se pierde el frosted.
+    readonly property color glassTop: Qt.rgba(0, 0, 0, 0.76)
+    readonly property color glassBottom: Qt.rgba(0, 0, 0, 0.64)
     // Lo que flota sobre el propio contenido de una superficie (la ayuda de
     // atajos o un aviso del cajón) va casi opaco: debajo no hay un fondo
-    // desenfocado sino texto, y se leería a través. Por eso nunca es cristal:
-    // el cristal no se pone encima de otro cristal.
-    readonly property color glassDense: theme.activo.glassDense
-    // El umbral de desenfoque, el mismo número que el ignore_alpha de los
-    // layer_rule de hyprland.lua en este tema: 0.5 en default, 0.15 en
-    // liquido.
-    readonly property real ignoreAlpha: theme.activo.ignoreAlpha
+    // desenfocado sino texto, y se leería a través.
+    readonly property color glassDense: Qt.rgba(0, 0, 0, 0.92)
 
     // Canto: blanco puro, igual que el borde de ventana de Hyprland. Sólo
-    // varía el alfa, y en default va muy contenido porque un filo brillante
-    // sobre negro se lee como un subrayado. En liquido el de arriba es el
-    // filo de luz que define la lámina.
-    readonly property color edgeTop: theme.activo.edgeTop
-    readonly property color edgeBottom: theme.activo.edgeBottom
-    // El grueso del canto, en píxeles lógicos.
-    readonly property real bordeAnchura: theme.activo.bordeAnchura
-
-    // Brillo especular: un degradado de `specular` a transparente que cubre
-    // el `specularHeight` de arriba de la lámina (0 = nada, 1 = entera). Es
-    // el reflejo de la luz en la cara del cristal. En default, transparente y
-    // de altura 0: no se pinta.
-    readonly property color specular: theme.activo.specular
-    readonly property real specularHeight: theme.activo.specularHeight
-
-    // Tinte: un color que se pone encima del cuerpo, muy suave, para teñir el
-    // cristal sin cambiar su alfa. En default, transparente.
-    readonly property color tint: theme.activo.tint
-
-    // La sombra de la lámina sobre lo que tiene detrás. En default no hay
-    // (transparente y radio 0): la pone Hyprland en las ventanas, no en las
-    // superficies de Quickshell.
-    readonly property color shadowColor: theme.activo.shadowColor
-    readonly property real shadowRadius: theme.activo.shadowRadius
-
-    // Aberración cromática: el filo de liquido se separa a ratos en una franja
-    // roja y otra cian, como una lente. En las ventanas la pone
-    // ~/.config/hypr/scripts/aberracion.sh, a pulsos aleatorios; aquí sólo
-    // está el interruptor y los dos colores, los mismos de hyprland.lua, por si
-    // una superficie quiere hacer algo parecido. En default, apagada.
-    readonly property bool aberracion: theme.activo.aberracion
-    readonly property color franjaRoja: theme.activo.franjaRoja
-    readonly property color franjaCian: theme.activo.franjaCian
+    // varía el alfa, y va muy contenido porque un filo brillante sobre negro se
+    // lee como un subrayado.
+    readonly property color edgeTop: Qt.rgba(1, 1, 1, 0.30)
+    readonly property color edgeBottom: Qt.rgba(1, 1, 1, 0.08)
 
     // --- Texto -----------------------------------------------------------
-    readonly property color text: theme.activo.text
-    readonly property color strong: theme.activo.strong
+    readonly property color text: Qt.rgba(1, 1, 1, 0.78)
+    readonly property color strong: "#ffffff"
     // El mismo atenuado que usa la barra para lo que está ahí pero no reclama
     // la vista (la campana y el botón de sesión en reposo van a opacity 0.55).
-    readonly property color muted: theme.activo.muted
-    readonly property color faint: theme.activo.faint
-    readonly property color rule: theme.activo.rule
+    readonly property color muted: Qt.rgba(1, 1, 1, 0.55)
+    readonly property color faint: Qt.rgba(1, 1, 1, 0.35)
+    readonly property color rule: Qt.rgba(1, 1, 1, 0.12)
 
     // El resalte no es un color de marca: es otra lámina de cristal, blanca y
     // casi transparente, por encima de la anterior. De ahí que el acento sea
     // blanco y lo que cambie sea el alfa con el que se aplica.
-    readonly property color accent: theme.activo.accent
+    readonly property color accent: "#ffffff"
 
     // --- Acentos ---------------------------------------------------------
     // Reservados para lo que de verdad los merece: verde "algo está activo",
     // naranja aviso, rojo crítico. Son los mismos de los estados de la barra.
-    readonly property color ok: theme.activo.ok
-    readonly property color warn: theme.activo.warn
-    readonly property color danger: theme.activo.danger
+    readonly property color ok: "#6dc89e"
+    readonly property color warn: "#e59625"
+    readonly property color danger: "#e90b25"
 
     // --- Prioridades -----------------------------------------------------
     // Las de las tareas del panel del homelab, copiadas de su web (las --p-*
     // de panel/internal/panel/web/style.css, repo homelab) para que una tarea
     // se vea del mismo color en la web y en el escritorio. Las usa el cajón
-    // del panel (quickshell/homelab). En pausa es siempre azul. No cambian
-    // con el tema, por lo mismo.
+    // del panel (quickshell/homelab). En pausa es siempre azul.
     readonly property color prioMaxima: "#ff6b7c"
     readonly property color prioAlta: "#ff9a4d"
     readonly property color prioMedia: "#f2d14b"
@@ -202,14 +101,7 @@ Singleton {
 
     // --- Medidas ---------------------------------------------------------
     readonly property int cardWidth: 380
-    // El radio de una lámina (una tarjeta, el cajón, un panel).
-    readonly property int radius: theme.activo.radius
-    // El de lo que va dentro de una lámina: un botón, un campo, una fila.
-    readonly property int radiusSmall: theme.activo.radiusSmall
-    // Cápsula: con un radio mayor que medio alto, Qt redondea los dos lados
-    // enteros. Es 999 en todos los temas; está aquí para que se lea como
-    // "cápsula" y no como un número mágico.
-    readonly property int radiusPill: 999
+    readonly property int radius: 16
     readonly property int pad: 14
     readonly property int gap: 10
 
@@ -257,122 +149,9 @@ Singleton {
     // que se va toma carrerilla hacia el otro lado antes de salir (InBack, el
     // mismo gesto leído al revés). La duración es fija en vez de un muelle de
     // verdad para que varias propiedades animadas a la vez —escala, opacidad,
-    // altura— lleguen juntas. En liquido el rebote es más corto y el gesto un
-    // pelín más largo: el cristal se deforma y se asienta, no bota.
-    readonly property int animIn: theme.activo.animIn
-    readonly property int animOut: theme.activo.animOut
-    readonly property real overshootIn: theme.activo.overshootIn
-    readonly property real overshootOut: theme.activo.overshootOut
-
-    // --- Paletas ---------------------------------------------------------
-    // Lo que cambia con el tema. Los valores de Paleta son los de default, así
-    // que default es una Paleta sin tocar y cada tema sólo escribe lo suyo.
-    component Paleta: QtObject {
-        property string nombre: "default"
-
-        property color glassTop: Qt.rgba(0, 0, 0, 0.76)
-        property color glassBottom: Qt.rgba(0, 0, 0, 0.64)
-        property color glassClear: Qt.rgba(0, 0, 0, 0.64)
-        property color glassDense: Qt.rgba(0, 0, 0, 0.92)
-        property real ignoreAlpha: 0.5
-
-        property color edgeTop: Qt.rgba(1, 1, 1, 0.30)
-        property color edgeBottom: Qt.rgba(1, 1, 1, 0.08)
-        property real bordeAnchura: 1
-
-        property color specular: Qt.rgba(1, 1, 1, 0)
-        property real specularHeight: 0
-        property color tint: "transparent"
-        property color shadowColor: "transparent"
-        property real shadowRadius: 0
-
-        property bool aberracion: false
-        property color franjaRoja: "transparent"
-        property color franjaCian: "transparent"
-
-        property color text: Qt.rgba(1, 1, 1, 0.78)
-        property color strong: "#ffffff"
-        property color muted: Qt.rgba(1, 1, 1, 0.55)
-        property color faint: Qt.rgba(1, 1, 1, 0.35)
-        property color rule: Qt.rgba(1, 1, 1, 0.12)
-        property color accent: "#ffffff"
-
-        property color ok: "#6dc89e"
-        property color warn: "#e59625"
-        property color danger: "#e90b25"
-
-        property int radius: 16
-        property int radiusSmall: 8
-
-        property int animIn: 420
-        property int animOut: 300
-        property real overshootIn: 1.9
-        property real overshootOut: 1.5
-    }
-
-    // El de siempre: cristal negro esmerilado con un filo blanco contenido.
-    Paleta {
-        id: paletaDefault
-        nombre: "default"
-    }
-
-    // Cristal claro a la manera del Liquid Glass de Apple, traducido:
-    //   - Una lámina blanco azulada muy translúcida, con degradado, que deja
-    //     ver el fondo desenfocado (el blur lo pone Hyprland: más grande y con
-    //     más vibrancy en este tema). Su alfa (0.26-0.34) va por encima del
-    //     ignore_alpha de este tema (0.15), que hyprland.lua baja para eso.
-    //   - Canto blanco marcado arriba y tenue abajo, y un brillo especular en
-    //     el tercio de arriba: la luz entra por arriba y se refleja en la cara.
-    //   - Un tinte frío muy suave y una sombra amplia y difusa debajo.
-    //   - Texto blanco puro y atenuados más altos: sobre cristal claro, un
-    //     blanco al 35 % desaparece.
-    //   - Radios grandes y cápsulas (radiusPill) para los controles.
-    //   - Sólo en la capa de navegación (barra, isla, cajón, lanzador,
-    //     avisos). El contenido que flota encima (glassDense) no es cristal
-    //     sino una lámina casi opaca: el cristal no se pone sobre cristal.
-    //   - Los acentos son los colores de sistema de Apple en oscuro, que
-    //     aguantan sobre un fondo claro.
-    Paleta {
-        id: paletaLiquido
-        nombre: "liquido"
-
-        glassTop: Qt.rgba(0.84, 0.89, 1, 0.34)
-        glassBottom: Qt.rgba(0.80, 0.86, 1, 0.26)
-        glassClear: Qt.rgba(0.86, 0.91, 1, 0.18)
-        glassDense: Qt.rgba(0.08, 0.10, 0.15, 0.90)
-        ignoreAlpha: 0.15
-
-        edgeTop: Qt.rgba(1, 1, 1, 0.55)
-        edgeBottom: Qt.rgba(1, 1, 1, 0.14)
-        bordeAnchura: 1.5
-
-        specular: Qt.rgba(1, 1, 1, 0.30)
-        specularHeight: 0.33
-        tint: Qt.rgba(0.55, 0.72, 1, 0.08)
-        shadowColor: Qt.rgba(0, 0.02, 0.08, 0.35)
-        shadowRadius: 24
-
-        aberracion: true
-        franjaRoja: Qt.rgba(1, 0.23, 0.42, 0.6)
-        franjaCian: Qt.rgba(0.23, 0.91, 1, 0.6)
-
-        text: "#ffffff"
-        strong: "#ffffff"
-        muted: Qt.rgba(1, 1, 1, 0.75)
-        faint: Qt.rgba(1, 1, 1, 0.52)
-        rule: Qt.rgba(1, 1, 1, 0.22)
-        accent: "#ffffff"
-
-        ok: "#30d158"
-        warn: "#ff9f0a"
-        danger: "#ff453a"
-
-        radius: 24
-        radiusSmall: 14
-
-        animIn: 460
-        animOut: 300
-        overshootIn: 1.5
-        overshootOut: 1.3
-    }
+    // altura— lleguen juntas.
+    readonly property int animIn: 420
+    readonly property int animOut: 300
+    readonly property real overshootIn: 1.9
+    readonly property real overshootOut: 1.5
 }
