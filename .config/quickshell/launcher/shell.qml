@@ -206,6 +206,7 @@ PanelWindow {
         width: root.shown ? root.cardW : root.seed
         height: root.shown ? root.cardH : root.seed
         radius: root.shown ? 24 : root.seed / 2
+        lectura: 1
         clip: true
 
         opacity: root.shown ? 1 : 0
@@ -355,7 +356,7 @@ PanelWindow {
                 // encima: tinte del acento más un filo blanco que la levanta
                 // de la superficie en vez de limitarse a colorearla.
                 highlight: Rectangle {
-                    radius: Theme.liquido ? Theme.radiusSmall : 12
+                    radius: 12
                     color: Qt.rgba(Theme.accent.r, Theme.accent.g, Theme.accent.b, 0.14)
                     border.width: 1
                     border.color: Qt.rgba(1, 1, 1, 0.22)

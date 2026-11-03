@@ -57,6 +57,7 @@ Item {
         anchors.fill: parent
         implicitHeight: content.implicitHeight + Theme.pad * 2
         radius: Theme.radius
+        lectura: 1
 
         // Las críticas llevan un filo rojo a la izquierda. Es la única
         // concesión al color: en la barra el rojo significa exactamente esto.
@@ -185,7 +186,7 @@ Item {
                         visible: modelData.identifier !== "default"
                         width: visible ? label.implicitWidth + 22 : 0
                         height: visible ? 26 : 0
-                        radius: Theme.liquido ? Theme.radiusPill : 9
+                        radius: 9
 
                         color: Qt.rgba(1, 1, 1, actionHover.hovered ? 0.20 : 0.10)
                         border.width: 1

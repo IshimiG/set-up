@@ -63,11 +63,16 @@ PanelWindow {
             },
             "liquido": {
                 "etiqueta": "Cristal claro",
-                "vidrio": Qt.rgba(0.84, 0.89, 1, 0.38),
-                "canto": Qt.rgba(1, 1, 1, 0.65),
+                // El cuerpo, blanco al 0.2, ya mezclado con los dos colores
+                // del fondo de la muestra: translúcido, el canto blanco de
+                // debajo se vería a través y lo volvería lechoso.
+                "vidrio": Qt.tint("#5a4a72", Qt.rgba(1, 1, 1, 0.2)),
+                "vidrioIzq": Qt.tint("#3a4a7a", Qt.rgba(1, 1, 1, 0.2)),
+                "vidrioDer": Qt.tint("#7a4a6a", Qt.rgba(1, 1, 1, 0.2)),
+                "canto": Qt.rgba(1, 1, 1, 0.8),
                 "barra": Qt.rgba(1, 1, 1, 1),
-                "radio": 11,
-                "brillo": 0.33
+                "radio": 6,
+                "brillo": 0.2
             }
         })
 
@@ -118,7 +123,8 @@ PanelWindow {
         anchors.centerIn: parent
         width: root.cardW
         height: content.implicitHeight + root.pad * 2
-        radius: Theme.liquido ? Theme.radius : 20
+        radius: 20
+        lectura: 1
 
         // Mismo gesto de entrada y salida que el recordatorio y el lanzador.
         scale: root.shown ? 1 : 0.82
@@ -185,7 +191,7 @@ PanelWindow {
 
                         width: lista.width
                         height: root.filaH
-                        radius: Theme.liquido ? Theme.radiusSmall : 12
+                        radius: 12
                         color: fila.marcada ? Qt.rgba(1, 1, 1, Theme.liquido ? 0.22 : 0.10) : (hover.hovered ? Qt.rgba(1, 1, 1, 0.05) : "transparent")
                         border.width: fila.activo ? 1 : 0
                         border.color: Theme.faint
@@ -230,6 +236,23 @@ PanelWindow {
                                     anchors.margins: 1
                                     radius: Math.max(0, fila.m.radio - 1)
                                     color: fila.m.vidrio
+                                    // Una muestra con el cuerpo ya mezclado con
+                                    // el fondo lo da a los dos lados.
+                                    gradient: fila.m.vidrioIzq ? vidrioMezclado : null
+
+                                    Gradient {
+                                        id: vidrioMezclado
+
+                                        orientation: Gradient.Horizontal
+                                        GradientStop {
+                                            position: 0.0
+                                            color: fila.m.vidrioIzq ?? fila.m.vidrio
+                                        }
+                                        GradientStop {
+                                            position: 1.0
+                                            color: fila.m.vidrioDer ?? fila.m.vidrio
+                                        }
+                                    }
 
                                     Rectangle {
                                         visible: fila.m.brillo > 0

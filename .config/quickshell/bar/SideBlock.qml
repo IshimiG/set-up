@@ -55,7 +55,7 @@ PanelWindow {
     // dice, su altura de ahora.
     readonly property int panelMax: block.panel ? (block.panel.alturaMax || block.panelH) : 0
 
-    readonly property int radioPanel: Theme.liquido ? Theme.radius : 18
+    readonly property int radioPanel: 18
     readonly property int anchoPastilla: Math.max(1, fila.implicitWidth + block.pillPad * 2)
 
     // Las curvas del despliegue, fijadas dentro del binding de la geometría y
@@ -97,7 +97,7 @@ PanelWindow {
     readonly property int marginTop: 3
     // El mismo margen lateral que tenía waybar (margin-left/right 12).
     readonly property int marginSide: 12
-    readonly property int radio: Theme.liquido ? block.pillH / 2 : 10
+    readonly property int radio: 10
 
     // Las mismas curvas y tiempos que la isla, que a su vez salen de las
     // animaciones de capa de hyprland.lua.
@@ -259,6 +259,8 @@ PanelWindow {
             height: block.conCurva(block.abierto ? block.pillH + block.panelH : block.pillH)
             radius: block.conCurva(block.abierto ? block.radioPanel : block.radio)
             clip: true
+            // Desplegado cae encima de las ventanas: el velo de lectura (sólo liquido).
+            lectura: block.abierto ? 1 : 0
 
             Behavior on width {
                 enabled: block.animarPanel
@@ -397,7 +399,7 @@ PanelWindow {
 
             width: textoPista.implicitWidth + 20
             height: textoPista.implicitHeight + 14
-            radius: Theme.liquido ? Theme.radiusSmall : 10
+            radius: 10
 
             color: Theme.glassTop
             border.width: 1

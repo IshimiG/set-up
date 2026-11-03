@@ -26,11 +26,12 @@ import Quickshell.Io
 // este fichero.
 //
 // --- Temas ---------------------------------------------------------------
-// Los valores que cambian con el tema (el cristal, el texto, los radios, el
-// brillo…) no se escriben aquí arriba sino en una Paleta por tema, al final
-// del fichero. Las propiedades públicas son siempre las mismas y apuntan a la
-// paleta del tema activo, así que cambiar de tema repinta en caliente los 50
-// y tantos ficheros que usan Theme sin tocar ninguno.
+// Los valores que cambian con el tema (el cristal, el canto, el texto, el
+// brillo…; nunca las medidas) no se escriben aquí arriba sino en una Paleta
+// por tema, al final del fichero. Las propiedades públicas son siempre las
+// mismas y apuntan a la paleta del tema activo, así que cambiar de tema
+// repinta en caliente los 50 y tantos ficheros que usan Theme sin tocar
+// ninguno.
 //
 // El tema activo es una palabra en ${XDG_STATE_HOME:-~/.local/state}/
 // escritorio/tema, que escribe ~/.config/hypr/scripts/tema.sh (SUPER+SHIFT+CTRL+T
@@ -87,7 +88,7 @@ Singleton {
     // --- Cristal ---------------------------------------------------------
     // El cuerpo de una lámina de cristal: un degradado vertical de glassTop a
     // glassBottom, algo más denso arriba, donde la lámina recoge la luz. En
-    // default es negro translúcido; en liquido, blanco azulado.
+    // default es negro translúcido; en liquido, blanco muy translúcido.
     //
     // El alfa no puede bajar de ignoreAlpha. Los layer_rule de
     // ~/.config/hypr/hyprland.lua usan ese ignore_alpha, y por debajo de ese
@@ -112,8 +113,9 @@ Singleton {
 
     // Canto: blanco puro, igual que el borde de ventana de Hyprland. Sólo
     // varía el alfa, y en default va muy contenido porque un filo brillante
-    // sobre negro se lee como un subrayado. En liquido el de arriba es el
-    // filo de luz que define la lámina.
+    // sobre negro se lee como un subrayado. En liquido el canto de una lámina
+    // lo pinta el shader (ver vidrio, más abajo) y éste queda para los filos
+    // planos: un aviso, la ayuda de atajos, el respaldo sin shader.
     readonly property color edgeTop: theme.activo.edgeTop
     readonly property color edgeBottom: theme.activo.edgeBottom
     // El grueso del canto, en píxeles lógicos.
@@ -136,14 +138,37 @@ Singleton {
     readonly property color shadowColor: theme.activo.shadowColor
     readonly property real shadowRadius: theme.activo.shadowRadius
 
-    // Aberración cromática: el filo de liquido se separa a ratos en una franja
-    // roja y otra cian, como una lente. En las ventanas la pone
-    // ~/.config/hypr/scripts/aberracion.sh, a pulsos aleatorios; aquí sólo
-    // está el interruptor y los dos colores, los mismos de hyprland.lua, por si
-    // una superficie quiere hacer algo parecido. En default, apagada.
-    readonly property bool aberracion: theme.activo.aberracion
-    readonly property color franjaRoja: theme.activo.franjaRoja
-    readonly property color franjaCian: theme.activo.franjaCian
+    // Cristal de vidrio (sólo liquido): la lámina la pinta entera un shader
+    // (shared/cristal.frag, desde Cristal.qml) en vez del canto de abajo y el
+    // cuerpo de encima, porque con un cuerpo tan translúcido el canto de
+    // debajo se vería a través y lo volvería lechoso. Lo que lleva:
+    //   - rimStops: las paradas del canto, de arriba a la izquierda a abajo a
+    //     la derecha: blancos con distinto alfa, más brillante donde da la luz
+    //     y tenue abajo. Sin color: el cristal es neutro.
+    //   - rimCorner y rimMid: cuánto de ese alfa en las esquinas y en el medio
+    //     de los lados (el filo brilla más donde se curva).
+    //   - rimLight: cuánto aviva la luz (de arriba a la izquierda) el canto de
+    //     arriba y la media luna especular de dentro; rimReflect, el reflejo
+    //     del canto de abajo, el lado contrario a la luz.
+    //   - thickness: el ancho máximo del resplandor blanco de dentro del
+    //     canto, el grosor del vidrio (en una lámina baja se estrecha solo).
+    //   - sheen: el brillo ancho y muy tenue de la parte de arriba.
+    // En default, apagado (vidrio false, sin paradas y a 0): Cristal pinta el
+    // canto con degradado y el cuerpo de siempre.
+    readonly property bool vidrio: theme.activo.vidrio
+    readonly property list<color> rimStops: theme.activo.rimStops
+    readonly property real rimCorner: theme.activo.rimCorner
+    readonly property real rimMid: theme.activo.rimMid
+    readonly property real rimLight: theme.activo.rimLight
+    readonly property real rimReflect: theme.activo.rimReflect
+    readonly property real thickness: theme.activo.thickness
+    readonly property real sheen: theme.activo.sheen
+    // Un velo neutro oscuro para las láminas con mucho texto que caen encima
+    // de las ventanas (el cajón, los avisos, la isla abierta, el lanzador…):
+    // sobre una ventana clara, un cristal tan translúcido deja el texto blanco
+    // sin contraste. Lo pide cada lámina con Cristal.lectura. En default,
+    // transparente: el cuerpo negro ya basta.
+    readonly property color readingVeil: theme.activo.readingVeil
 
     // --- Texto -----------------------------------------------------------
     readonly property color text: theme.activo.text
@@ -201,11 +226,14 @@ Singleton {
     readonly property string font: "JetBrainsMono Nerd Font"
 
     // --- Medidas ---------------------------------------------------------
+    // Las mismas en todos los temas: un tema cambia el material (colores,
+    // canto, brillos, sombra), nunca la forma ni el tamaño. Por eso no están
+    // en las paletas.
     readonly property int cardWidth: 380
     // El radio de una lámina (una tarjeta, el cajón, un panel).
-    readonly property int radius: theme.activo.radius
+    readonly property int radius: 16
     // El de lo que va dentro de una lámina: un botón, un campo, una fila.
-    readonly property int radiusSmall: theme.activo.radiusSmall
+    readonly property int radiusSmall: 8
     // Cápsula: con un radio mayor que medio alto, Qt redondea los dos lados
     // enteros. Es 999 en todos los temas; está aquí para que se lea como
     // "cápsula" y no como un número mágico.
@@ -286,9 +314,15 @@ Singleton {
         property color shadowColor: "transparent"
         property real shadowRadius: 0
 
-        property bool aberracion: false
-        property color franjaRoja: "transparent"
-        property color franjaCian: "transparent"
+        property bool vidrio: false
+        property list<color> rimStops: []
+        property real rimCorner: 0
+        property real rimMid: 0
+        property real rimLight: 0
+        property real rimReflect: 0
+        property real thickness: 0
+        property real sheen: 0
+        property color readingVeil: "transparent"
 
         property color text: Qt.rgba(1, 1, 1, 0.78)
         property color strong: "#ffffff"
@@ -300,9 +334,6 @@ Singleton {
         property color ok: "#6dc89e"
         property color warn: "#e59625"
         property color danger: "#e90b25"
-
-        property int radius: 16
-        property int radiusSmall: 8
 
         property int animIn: 420
         property int animOut: 300
@@ -316,59 +347,62 @@ Singleton {
         nombre: "default"
     }
 
-    // Cristal claro a la manera del Liquid Glass de Apple, traducido:
-    //   - Una lámina blanco azulada muy translúcida, con degradado, que deja
-    //     ver el fondo desenfocado (el blur lo pone Hyprland: más grande y con
-    //     más vibrancy en este tema). Su alfa (0.26-0.34) va por encima del
-    //     ignore_alpha de este tema (0.15), que hyprland.lua baja para eso.
-    //   - Canto blanco marcado arriba y tenue abajo, y un brillo especular en
-    //     el tercio de arriba: la luz entra por arriba y se refleja en la cara.
-    //   - Un tinte frío muy suave y una sombra amplia y difusa debajo.
-    //   - Texto blanco puro y atenuados más altos: sobre cristal claro, un
-    //     blanco al 35 % desaparece.
-    //   - Radios grandes y cápsulas (radiusPill) para los controles.
+    // Cristal neutro y sencillo, a la manera del Liquid Glass de Apple (las
+    // baldosas de la pantalla de inicio de iOS 26):
+    //   - Una lámina blanca muy translúcida (al 0.17 arriba y al 0.16 abajo)
+    //     que deja ver el color del fondo desenfocado (el blur lo pone
+    //     Hyprland). Sin tinte: el color es el del fondo. Su alfa va justo por
+    //     encima del ignore_alpha de este tema (0.15), que hyprland.lua baja
+    //     para eso: por debajo, Hyprland no desenfocaría.
+    //   - Un canto fino blanco, brillante arriba a la izquierda y tenue abajo,
+    //     con un resplandor fino por dentro (el grosor del vidrio) y un brillo
+    //     especular muy discreto arriba. Lo pinta shared/cristal.frag (ver
+    //     vidrio, más arriba).
+    //   - Las medidas (radios, rellenos, huecos, cápsulas) son las de default:
+    //     el tema cambia el material, no la forma.
+    //   - Texto blanco puro y atenuados más altos que en default: sobre
+    //     cristal claro, un blanco al 35 % desaparece. Los acentos, los de
+    //     default.
+    //   - Ningún color propio: ni tinte, ni lavados, ni canto de color.
     //   - Sólo en la capa de navegación (barra, isla, cajón, lanzador,
     //     avisos). El contenido que flota encima (glassDense) no es cristal
     //     sino una lámina casi opaca: el cristal no se pone sobre cristal.
-    //   - Los acentos son los colores de sistema de Apple en oscuro, que
-    //     aguantan sobre un fondo claro.
     Paleta {
         id: paletaLiquido
         nombre: "liquido"
 
-        glassTop: Qt.rgba(0.84, 0.89, 1, 0.34)
-        glassBottom: Qt.rgba(0.80, 0.86, 1, 0.26)
-        glassClear: Qt.rgba(0.86, 0.91, 1, 0.18)
-        glassDense: Qt.rgba(0.08, 0.10, 0.15, 0.90)
+        glassTop: Qt.rgba(1, 1, 1, 0.17)
+        glassBottom: Qt.rgba(1, 1, 1, 0.16)
+        glassClear: Qt.rgba(1, 1, 1, 0.16)
+        glassDense: Qt.rgba(0.08, 0.08, 0.09, 0.90)
         ignoreAlpha: 0.15
 
+        // El canto plano, para lo que no es una lámina entera (el filo de un
+        // aviso, de la ayuda de atajos, el respaldo sin shader).
         edgeTop: Qt.rgba(1, 1, 1, 0.55)
         edgeBottom: Qt.rgba(1, 1, 1, 0.14)
         bordeAnchura: 1.5
 
-        specular: Qt.rgba(1, 1, 1, 0.30)
+        specular: Qt.rgba(1, 1, 1, 0.14)
         specularHeight: 0.33
-        tint: Qt.rgba(0.55, 0.72, 1, 0.08)
-        shadowColor: Qt.rgba(0, 0.02, 0.08, 0.35)
-        shadowRadius: 24
+        shadowColor: Qt.rgba(0, 0, 0, 0.22)
+        shadowRadius: 22
 
-        aberracion: true
-        franjaRoja: Qt.rgba(1, 0.23, 0.42, 0.6)
-        franjaCian: Qt.rgba(0.23, 0.91, 1, 0.6)
+        vidrio: true
+        rimStops: [Qt.rgba(1, 1, 1, 0.95), Qt.rgba(1, 1, 1, 0.62), Qt.rgba(1, 1, 1, 0.36), Qt.rgba(1, 1, 1, 0.22), Qt.rgba(1, 1, 1, 0.30)]
+        rimCorner: 1
+        rimMid: 0.6
+        rimLight: 0.6
+        rimReflect: 0.25
+        thickness: 4
+        sheen: 0.04
+        readingVeil: Qt.rgba(0, 0, 0, 0.16)
 
         text: "#ffffff"
         strong: "#ffffff"
         muted: Qt.rgba(1, 1, 1, 0.75)
         faint: Qt.rgba(1, 1, 1, 0.52)
         rule: Qt.rgba(1, 1, 1, 0.22)
-        accent: "#ffffff"
-
-        ok: "#30d158"
-        warn: "#ff9f0a"
-        danger: "#ff453a"
-
-        radius: 24
-        radiusSmall: 14
 
         animIn: 460
         animOut: 300

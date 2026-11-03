@@ -98,7 +98,8 @@ PanelWindow {
         anchors.centerIn: parent
         width: root.cardW
         height: content.implicitHeight + root.pad * 2
-        radius: Theme.liquido ? Theme.radius : 20
+        radius: 20
+        lectura: 1
 
         // Entra rebotando y se va encogiendo con el mismo gesto leído al revés,
         // que es el vocabulario del resto del escritorio: lo que aparece se

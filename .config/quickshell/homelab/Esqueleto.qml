@@ -32,9 +32,11 @@ Item {
     Accessible.ignored: true
 
     // Los 8 tonos, del más oscuro al más claro (#1c2128 -> #2d333b -> #444c56 -> #636e7b).
-    readonly property var tonos: Theme.liquido ? ["#7f8fb3", "#8b9bbf", "#98a8cb", "#a8b7d6", "#bac7e1", "#cdd8ee", "#e1e9f7", "#f4f7ff"] : ["#1c2128", "#232930", "#2d333b", "#394049", "#444c56", "#525b66", "#5c6672", "#636e7b"]
+    // En liquido, sobre cristal claro, los mismos pasos en grises claros y
+    // neutros (el cristal no tiene color).
+    readonly property var tonos: Theme.liquido ? ["#8a8a90", "#96969c", "#a3a3a8", "#b0b0b5", "#bdbdc1", "#cacacd", "#d8d8da", "#e6e6e8"] : ["#1c2128", "#232930", "#2d333b", "#394049", "#444c56", "#525b66", "#5c6672", "#636e7b"]
     // Color del marco (≈ #484f58).
-    readonly property string colorMarco: Theme.liquido ? "#c9d4ec" : "#484f58"
+    readonly property string colorMarco: Theme.liquido ? "#cacace" : "#484f58"
 
     // La celda de la fuente de Theme.
     TextMetrics {

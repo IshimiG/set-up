@@ -80,8 +80,8 @@ PanelWindow {
     readonly property int marginTop: 3
     // El radio de la pastilla es el border-radius de los bloques de waybar; el
     // del panel, el de las tarjetas del escritorio.
-    readonly property int radiusPill: Theme.liquido ? island.pillH / 2 : 10
-    readonly property int radiusPanel: Theme.liquido ? Theme.radius : 18
+    readonly property int radiusPill: 10
+    readonly property int radiusPanel: 18
 
     // --- Los tiempos y las curvas -----------------------------------------
     // Salen del vocabulario que ya usa el escritorio en hyprland.lua, para que
@@ -334,6 +334,8 @@ PanelWindow {
         height: island.conCurva(island.open, island.open ? island.pillH + island.panelH : island.pillH)
         radius: island.open ? island.radiusPanel : island.radiusPill
         clip: true
+        // Abierta cae encima de las ventanas: el velo de lectura (sólo liquido).
+        lectura: island.open ? 1 : 0
 
         // Esconderse y salir: se va hacia arriba, por detrás del borde de la
         // pantalla, igual que hace waybar con su animación de capa "slide". No

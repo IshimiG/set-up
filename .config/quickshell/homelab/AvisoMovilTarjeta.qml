@@ -77,7 +77,7 @@ Item {
         y: aviso.y + (aviso.actual ? 0 : -height - 16)
         width: aviso.width
         height: cuerpo.implicitHeight + 28
-        radius: Theme.liquido ? Theme.radiusSmall : 14
+        radius: 14
         color: Theme.glassDense
         border.width: 1
         border.color: Qt.rgba(1, 1, 1, 0.28)

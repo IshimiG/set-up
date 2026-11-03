@@ -164,15 +164,13 @@ PanelWindow {
         signal pulsado
 
         implicitHeight: 40
-        radius: Theme.liquido ? Theme.radiusPill : 12
+        radius: 12
 
         color: Qt.rgba(1, 1, 1, (boton.principal ? 0.12 : 0.03) + (tap.pressed ? 0.14 : hover.hovered ? 0.08 : 0))
         border.width: 1
         border.color: Qt.rgba(1, 1, 1, (boton.principal ? 0.22 : 0.10) + (hover.hovered ? 0.16 : 0))
 
-        // En liquido, al pasar el ratón el botón crece un pelín (el cristal
-        // reacciona al acercarse); en default, igual que siempre.
-        scale: tap.pressed ? 0.97 : Theme.liquido && hover.hovered ? 1.04 : 1
+        scale: tap.pressed ? 0.97 : 1
 
         Behavior on color {
             ColorAnimation {
@@ -260,7 +258,8 @@ PanelWindow {
 
         width: root.cardW
         height: content.implicitHeight + root.pad * 2
-        radius: Theme.liquido ? Theme.radius : 20
+        radius: 20
+        lectura: 1
 
         // Cae desde el borde de arriba: el origen de la escala es la parte
         // superior, así que la tarjeta se despliega hacia abajo en vez de

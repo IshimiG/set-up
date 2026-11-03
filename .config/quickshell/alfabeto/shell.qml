@@ -184,6 +184,7 @@ PanelWindow {
         height: content.implicitHeight + root.pad * 2
         radius: 24
         clip: true
+        lectura: 1
 
         opacity: root.shown ? 1 : 0
         scale: root.shown ? 1 : 0.94

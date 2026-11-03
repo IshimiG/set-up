@@ -375,13 +375,16 @@ Item {
     }
 
     // --- El cajón -----------------------------------------------------------
-    // La capa exterior es sólo el canto, con el cuerpo de cristal encima dejando
-    // 1 px al aire: la única forma de tener un borde con degradado en QML, como
-    // en la isla.
-    // Sombra suave (sólo liquido): unas capas translúcidas cada vez más
-    // anchas detrás del cajón. Barata, sin efectos; Theme.shadowRadius manda.
+    // Una lámina de Cristal (shared/Cristal.qml), como la isla: en default el
+    // canto con degradado y el cuerpo encima dejando 1 px al aire; en liquido,
+    // el cristal claro, con el velo de lectura (lleva mucho texto y cae encima
+    // de las ventanas).
+    // Sombra suave (si el tema la trae, sólo liquido): unas capas translúcidas
+    // cada vez más anchas detrás del cajón. Barata, sin efectos;
+    // Theme.shadowRadius manda. Queda por debajo del ignore_alpha, así que
+    // Hyprland no la desenfoca: sólo oscurece un poco el borde.
     Repeater {
-        model: Theme.liquido && Theme.shadowRadius > 0 ? 5 : 0
+        model: Theme.shadowRadius > 0 ? 5 : 0
 
         Rectangle {
             required property int index
@@ -396,7 +399,7 @@ Item {
         }
     }
 
-    Rectangle {
+    Cristal {
         id: canto
 
         x: cajon.xCajon
@@ -404,130 +407,9 @@ Item {
         width: cajon.ancho
         height: cajon.height - cajon.arriba - cajon.abajo
         radius: Theme.radius
+        lectura: 1
         // Escondido del todo no se pinta: está fuera de la pantalla.
         visible: cajon.progreso > 0.001 || cajon.arrastrando
-
-        gradient: Gradient {
-            GradientStop {
-                position: 0.0
-                color: Theme.edgeTop
-            }
-            GradientStop {
-                position: 1.0
-                color: Theme.edgeBottom
-            }
-        }
-
-        Rectangle {
-            id: cuerpo
-
-            anchors.fill: parent
-            anchors.margins: Theme.bordeAnchura
-            radius: Math.max(0, canto.radius - Theme.bordeAnchura)
-
-            gradient: Gradient {
-                GradientStop {
-                    position: 0.0
-                    color: Theme.glassTop
-                }
-                GradientStop {
-                    position: 1.0
-                    color: Theme.glassBottom
-                }
-            }
-
-            // Tinte frío (transparente en default) y, sólo en liquido, un velo
-            // azul oscuro que da fondo al texto: sobre un cristal claro un
-            // fondo claro se lee mal. En el fondo del cajón, que es contenido.
-            Rectangle {
-                anchors.fill: parent
-                radius: parent.radius
-                color: Theme.tint
-                visible: Theme.liquido
-            }
-
-            Rectangle {
-                anchors.fill: parent
-                radius: parent.radius
-                visible: Theme.liquido
-                color: Qt.rgba(0.04, 0.07, 0.18, 0.22)
-            }
-
-            // Brillo especular en el tercio de arriba.
-            Rectangle {
-                visible: Theme.liquido && Theme.specularHeight > 0
-                width: parent.width
-                height: parent.height * Theme.specularHeight
-                radius: parent.radius
-                gradient: Gradient {
-                    GradientStop {
-                        position: 0.0
-                        color: Theme.specular
-                    }
-                    GradientStop {
-                        position: 1.0
-                        color: Qt.rgba(1, 1, 1, 0)
-                    }
-                }
-            }
-        }
-
-        // Aberración cromática: una franja roja y otra cian muy finas en el
-        // canto, a ratos (200-500 ms cada 4-12 s). Sólo si el tema la tiene.
-        Item {
-            id: aberracion
-
-            property bool encendida: false
-
-            anchors.fill: parent
-            visible: Theme.aberracion
-            opacity: aberracion.encendida && cajon.progreso > 0.9 ? 1 : 0
-
-            Behavior on opacity {
-                NumberAnimation {
-                    duration: 120
-                }
-            }
-
-            Rectangle {
-                x: -1
-                width: parent.width
-                height: parent.height
-                radius: canto.radius
-                color: "transparent"
-                border.width: 1
-                border.color: Theme.franjaRoja
-            }
-
-            Rectangle {
-                x: 1
-                width: parent.width
-                height: parent.height
-                radius: canto.radius
-                color: "transparent"
-                border.width: 1
-                border.color: Theme.franjaCian
-            }
-
-            Timer {
-                id: pulso
-
-                running: Theme.aberracion && cajon.progreso > 0.9
-                repeat: true
-                interval: 4000 + Math.random() * 8000
-                onTriggered: {
-                    aberracion.encendida = true;
-                    apagar.interval = 200 + Math.random() * 300;
-                    apagar.restart();
-                    pulso.interval = 4000 + Math.random() * 8000;
-                }
-            }
-
-            Timer {
-                id: apagar
-                onTriggered: aberracion.encendida = false
-            }
-        }
 
         Contenido {
             id: contenido
