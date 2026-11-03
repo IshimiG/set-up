@@ -63,7 +63,7 @@ choca.
   barrita con el color de su categoría (la sección de la tarea; «Clase», en un
   violeta fijo, para Aules) y a la derecha el nombre de esa categoría; el punto
   es la prioridad), `launcher`
-  (SUPER+SPACE), `reminder` (SUPER+R), `temas` (SUPER+SHIFT+T, el selector de tema), `updates`, `homelab` (el panel del
+  (SUPER+SPACE), `reminder` (SUPER+R), `updates`, `homelab` (el panel del
   homelab: el cajón que sale del centro del borde derecho, o con SUPER+H, con
   los datos del panel del NUC; cada equipo entra con su usuario, y la contraseña
   va en el llavero: `secret-tool store --label="Panel del homelab" servicio
@@ -97,9 +97,6 @@ choca.
   de crear, editar, eliminar tareas y el color por categoría (`--guardar` deja las capturas). Levanta un panel
   falso (`panel-falso.py`, con las horas, el color de cada sección y el
   borrado del contrato de `/api/tareas`), así que necesita `python3`.
-- `pruebas/temas/panel.sh`: prueba sin pantalla del selector de tema, en los
-  dos temas (carga, lista, marca el activo, ↑/↓, Enter, clic y Escape, sin
-  ejecutar el `tema.sh` real; `--guardar` deja las capturas).
 - `pruebas/updates/prueba.sh`: prueba sin pantalla del aviso de
   actualizaciones: que la máscara de clics cubre la tarjeta entera (los dos
   botones, no sólo su canto de arriba), el cristal, la flecha de esconder, la
@@ -138,9 +135,7 @@ El escritorio tiene temas intercambiables:
 
 ### Cambiar de tema
 
-SUPER+SHIFT+T abre el selector (`quickshell/temas`: una tarjeta con los
-temas, su vista previa y el activo marcado; ↑/↓ y Enter, o un clic; Escape
-cierra) y SUPER+SHIFT+CTRL+T alterna sin abrirlo. Desde la terminal:
+SUPER+SHIFT+T alterna. Desde la terminal:
 
 ```sh
 ~/.config/hypr/scripts/tema.sh            # el activo

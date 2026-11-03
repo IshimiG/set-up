@@ -88,7 +88,7 @@ hl.env("HYPRCURSOR_SIZE", "24")
 
 -- El escritorio tiene temas intercambiables. El activo es una palabra en
 -- ${XDG_STATE_HOME:-~/.local/state}/escritorio/tema, que escribe
--- scripts/tema.sh (SUPER+SHIFT+T abre el selector; SUPER+SHIFT+CTRL+T alterna) y que también lee la paleta de
+-- scripts/tema.sh (SUPER+SHIFT+T alterna) y que también lee la paleta de
 -- Quickshell (quickshell/shared/Theme.qml). Si falta, está vacío o dice algo
 -- que no está en esta tabla, vale "default". tema.sh hace "hyprctl reload
 -- config-only" después de escribirlo, y este fichero lo vuelve a leer.
@@ -619,20 +619,10 @@ hl.bind(mainMod .. " + T", hl.dsp.window.float({ action = "toggle" }))
 -- no podía animar nada.
 hl.bind(mainMod .. " + SHIFT + V", hl.dsp.exec_cmd(os.getenv("HOME") .. "/.config/hypr/scripts/barra.sh"))
 
--- Cambiar de tema con SUPER+SHIFT+CTRL+T: pasa al siguiente de la lista (hoy,
--- de default a liquido y vuelta). El script guarda el tema, recarga esta configuración y avisa; la
+-- Cambiar de tema: pasa al siguiente de la lista (hoy, de default a liquido y
+-- vuelta). El script guarda el tema, recarga esta configuración y avisa; la
 -- barra y los demás Quickshell se enteran solos (ver TEMAS, arriba).
-hl.bind(mainMod .. " + SHIFT + CTRL + T", hl.dsp.exec_cmd(os.getenv("HOME") .. "/.config/hypr/scripts/tema.sh alternar"))
-
--- SUPER+SHIFT+T abre el selector de tema (quickshell/temas): una tarjeta con
--- los temas y su vista previa. Mismo interruptor que el recordatorio: si ya
--- está abierto, se cierra. No arranca con la sesión.
-hl.bind(
-	mainMod .. " + SHIFT + T",
-	hl.dsp.exec_cmd(
-		"sh -c 'if qs list --all 2>/dev/null | grep -q /temas/shell.qml; then qs kill -c temas; else qs -c temas; fi'"
-	)
-)
+hl.bind(mainMod .. " + SHIFT + T", hl.dsp.exec_cmd(os.getenv("HOME") .. "/.config/hypr/scripts/tema.sh alternar"))
 
 -- SUPER + C centers the window (close is now on SUPER + W above)
 hl.bind(mainMod .. " + C", hl.dsp.window.center())
@@ -779,15 +769,6 @@ hl.layer_rule({
 hl.layer_rule({
 	name = "reminder-anim",
 	match = { namespace = "^reminder$" },
-	no_anim = true,
-	blur = true,
-	ignore_alpha = ignoreAlpha,
-})
-
--- El selector de tema, que anima su propia tarjeta como el recordatorio.
-hl.layer_rule({
-	name = "temas-anim",
-	match = { namespace = "^temas$" },
 	no_anim = true,
 	blur = true,
 	ignore_alpha = ignoreAlpha,

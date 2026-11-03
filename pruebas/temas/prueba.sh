@@ -243,8 +243,8 @@ FIN
 )
 ok $([[ -z $faltan ]]; echo $?) "default: borde, redondeo, sombra, blur, huecos y animación del borde, los de siempre${faltan:+ (falta: $faltan)}"
 capas() { grep -c "^hl.layer_rule(.*ignore_alpha=$2," "$1"; }
-si "default: las 9 superficies de Quickshell con ignore_alpha 0.5" test "$(capas "$tmp/simulado/default.txt" 0.5)" = 9
-si "liquido: las 9 con ignore_alpha 0.15" test "$(capas "$tmp/simulado/liquido.txt" 0.15)" = 9
+si "default: las 8 superficies de Quickshell con ignore_alpha 0.5" test "$(capas "$tmp/simulado/default.txt" 0.5)" = 8
+si "liquido: las 8 con ignore_alpha 0.15" test "$(capas "$tmp/simulado/liquido.txt" 0.15)" = 8
 si "los dos temas dan las mismas claves de configuración" cmp -s <(grep '^config ' "$tmp/simulado/default.txt" | cut -d= -f1) <(grep '^config ' "$tmp/simulado/liquido.txt" | cut -d= -f1)
 si "fuera de lo del tema, liquido no cambia nada (mismas llamadas salvo borde, capas y la aberración)" cmp -s <(grep -vE '^(config |hl\.layer_rule|hl\.animation\(\{.*leaf="border"|aberracion\(|hl\.exec_cmd\(".*aberracion\.sh"\))' "$tmp/simulado/default.txt") <(grep -vE '^(config |hl\.layer_rule|hl\.animation\(\{.*leaf="border"|aberracion\(|hl\.exec_cmd\(".*aberracion\.sh"\))' "$tmp/simulado/liquido.txt")
 liq() { grep -F "config $1 = " "$tmp/simulado/liquido.txt" | sed 's/^[^=]*= //'; }
@@ -252,8 +252,7 @@ si "liquido: blur más grande (12), 3-4 pasadas, vibrancy 0.5 y poco grano" test
 si "liquido: más redondeo que default" test "$(liq decoration.rounding)" -gt 10
 bind=$(grep -c '^hl.bind("SUPER + SHIFT + T"' "$tmp/simulado/default.txt")
 si "SUPER+SHIFT+T está una sola vez" test "$bind" = 1
-si "  y abre/cierra el selector (qs -c temas)" grep -qE '^hl.bind\("SUPER \+ SHIFT \+ T", hl.dsp.exec_cmd\(".*qs -c temas.*"\)\)$' "$tmp/simulado/default.txt"
-si "SUPER+SHIFT+CTRL+T lanza tema.sh alternar" grep -qE '^hl.bind\("SUPER \+ SHIFT \+ CTRL \+ T", hl.dsp.exec_cmd\(".*/\.config/hypr/scripts/tema\.sh alternar"\)\)$' "$tmp/simulado/default.txt"
+si "  y lanza tema.sh alternar" grep -qE '^hl.bind\("SUPER \+ SHIFT \+ T", hl.dsp.exec_cmd\(".*/\.config/hypr/scripts/tema\.sh alternar"\)\)$' "$tmp/simulado/default.txt"
 inicio() { sed -n '/^hl.on("hyprland.start"/,/^fin "hyprland.start"/p' "$1"; }
 si "liquido arranca aberracion.sh con la sesión" grep -q 'aberracion\.sh' <(inicio "$tmp/simulado/liquido.txt")
 si "default no" eval '! grep -q "aberracion\.sh" <(inicio "$tmp/simulado/default.txt")'
