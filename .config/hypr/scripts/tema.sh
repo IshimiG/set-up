@@ -13,8 +13,7 @@
 #   - la paleta de Quickshell (quickshell/shared/Theme.qml), que lo vigila y
 #     repinta la barra, el cajón y lo demás en caliente;
 #   - hyprland.lua, al cargar: por eso, dentro de una sesión de Hyprland, este
-#     script hace "hyprctl reload config-only" después de escribirlo, y para o
-#     arranca la aberración cromática del borde (scripts/aberracion.sh).
+#     script hace "hyprctl reload config-only" después de escribirlo.
 # Fuera de una sesión (sin HYPRLAND_INSTANCE_SIGNATURE) sólo escribe el
 # estado, que vale al entrar; así se prueba (pruebas/temas/prueba.sh).
 #
@@ -128,13 +127,8 @@ poner() {
 		return
 	fi
 
-	# La aberración se para antes de recargar (deja el borde normal del tema
-	# que se va) y se vuelve a arrancar después: el propio aberracion.sh sale
-	# sin hacer nada si el tema nuevo no la tiene o si ABERRACION=0.
-	"$aqui/aberracion.sh" --parar
 	hyprctl reload config-only >/dev/null 2>&1 ||
 		echo "tema.sh: hyprctl reload ha fallado; mira hyprctl configerrors" >&2
-	setsid -f "$aqui/aberracion.sh" </dev/null >/dev/null 2>&1
 
 	local cuerpo="SUPER+SHIFT+T para cambiar"
 	# El vigilante de Theme.qml no ve aparecer el fichero si la carpeta no

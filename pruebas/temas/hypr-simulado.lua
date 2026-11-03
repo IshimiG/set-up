@@ -1,6 +1,6 @@
 -- Un Hyprland de mentira para leer lo que hace hyprland.lua sin Hyprland.
 --
---   lua hypr-simulado.lua <hyprland.lua> [aberracion]
+--   lua hypr-simulado.lua <hyprland.lua>
 --
 -- Ejecuta el fichero con un `hl` falso que apunta cada llamada y saca, una por
 -- línea y en orden estable:
@@ -9,14 +9,12 @@
 --   <hl.función>(<argumentos>)            el resto de llamadas: binds, reglas,
 --                                         animaciones, exec_cmd…
 -- Las funciones que hl.on registra se ejecutan al momento, con su evento
--- delante. Con "aberracion", al final llama a escritorio.aberracion(1), (2) y
--- (0), como hace scripts/aberracion.sh con hyprctl eval, y saca el borde que
--- queda tras cada una.
+-- delante.
 --
 -- El tema lo lee hyprland.lua de $XDG_STATE_HOME, como siempre: la prueba le
 -- da uno de mentira.
 
-local fichero, extra = arg[1], arg[2]
+local fichero = arg[1]
 
 local function ordenadas(t)
 	local claves = {}
@@ -120,15 +118,4 @@ for _, k in ipairs(ordenadas(config)) do
 end
 for _, l in ipairs(llamadas) do
 	print(l)
-end
-
-if extra == "aberracion" then
-	if type(escritorio) ~= "table" or type(escritorio.aberracion) ~= "function" then
-		print("sin escritorio.aberracion")
-		os.exit(1)
-	end
-	for _, paso in ipairs({ 1, 2, 3, 0 }) do
-		escritorio.aberracion(paso)
-		print("aberracion(" .. paso .. ") " .. serie(config["general.col.active_border"]))
-	end
 end

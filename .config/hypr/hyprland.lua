@@ -135,15 +135,12 @@ local temas = {
 		border_speed = 5.39,
 		-- El umbral de los layer_rule de Quickshell, más abajo.
 		ignore_alpha = 0.5,
-		-- Sin aberración cromática.
-		aberracion = nil,
 	},
 
 	-- Cristal neutro y translúcido, a la manera del Liquid Glass de iOS 26: el
 	-- fondo colorido se transparenta y el borde es un canto fino blanco sin
 	-- color. Mismas medidas que default (huecos, grosor del borde, redondeo y
-	-- su potencia): sólo cambia el material. El único color es la aberración
-	-- cromática (rojo y cian, ver ABERRACIÓN, abajo), en los pulsos.
+	-- su potencia): sólo cambia el material. Sin ningún color.
 	--   - ignore_alpha baja a 0.15: con 0.5, Hyprland dejaría de desenfocar
 	--     el cristal claro de Quickshell. Lo que no deba desenfocarse tiene que
 	--     ir por debajo de 0.15 (Theme.ignoreAlpha lo dice en QML).
@@ -176,18 +173,8 @@ local temas = {
 			noise = 0.008,
 			new_optimizations = true,
 		},
-		-- Más rápido que en default, para que los pulsos de aberración (150 a
-		-- 600 ms) lleguen a verse enteros.
-		border_speed = 2.5,
+		border_speed = 5.39,
 		ignore_alpha = 0.15,
-		-- Los bordes del pulso de aberración: el blanco del filo, con una
-		-- franja roja en un extremo y una cian en el otro (las mismas de
-		-- Theme.franjaRoja y Theme.franjaCian). Dos, con las franjas cambiadas
-		-- de lado, para que un pulso de dos parpadeos tiemble.
-		aberracion = {
-			{ colors = { "rgba(ff3b6b99)", "rgba(ffffffe6)", "rgba(3be8ff99)" }, angle = 45 },
-			{ colors = { "rgba(3be8ff99)", "rgba(ffffffe6)", "rgba(ff3b6b99)" }, angle = 45 },
-		},
 	},
 }
 
@@ -212,23 +199,6 @@ end
 
 local nombreTema = temaGuardado()
 local tema = temas[nombreTema]
-
--- Para scripts/aberracion.sh, por "hyprctl eval": hyprctl eval corre en el
--- mismo Lua que este fichero, así que el demonio no tiene que saberse los
--- colores. escritorio.aberracion(n) pone el borde n del pulso del tema activo
--- (1, 2, 3… dan la vuelta) y escritorio.aberracion(0), el borde normal. En un
--- tema sin aberración, cualquier n deja el borde normal.
-escritorio = {
-	tema = nombreTema,
-	aberracion = function(paso)
-		local borde = tema.active_border
-		local franjas = tema.aberracion
-		if franjas and paso and paso > 0 then
-			borde = franjas[(paso - 1) % #franjas + 1]
-		end
-		hl.config({ general = { col = { active_border = borde } } })
-	end,
-}
 
 -----------------------
 ---- LOOK AND FEEL ----
@@ -894,32 +864,7 @@ hl.on("hyprland.start", function()
 	-- arriba. El script espera a que haya red antes de contar y no enseña nada
 	-- si no hay ninguno, así que puede lanzarse sin más.
 	hl.exec_cmd("~/.config/hypr/scripts/updates-notify.sh")
-	-- La aberración cromática del borde, sólo en los temas que la tienen (ver
-	-- ABERRACIÓN, abajo).
-	if tema.aberracion then
-		hl.exec_cmd("~/.config/hypr/scripts/aberracion.sh")
-	end
 end)
-
---------------------
----- ABERRACIÓN ----
---------------------
-
--- En liquido, el filo de la ventana activa se separa a ratos en una franja
--- roja y otra cian, como el canto de una lente. Hyprland no tiene aberración
--- cromática en los bordes, así que es el mismo borde en degradado con otros
--- colores (temas.liquido.aberracion), puesto a pulsos por
--- scripts/aberracion.sh: cada 4 a 25 s, al azar, y cuatro de cada diez veces
--- nada; cada pulso dura de 150 a 600 ms, con uno o dos parpadeos, y vuelve al
--- borde normal. El demonio llama a escritorio.aberracion(n) con hyprctl eval
--- (hyprctl keyword no vale con la configuración en Lua).
---
--- Arranca con la sesión (arriba) si el tema la tiene, y tema.sh lo arranca o
--- lo para al cambiar de tema; él solo se para si el tema deja de ser liquido.
--- ABERRACION=0 en el entorno (por ejemplo hl.env("ABERRACION", "0") en
--- equipo.lua) lo apaga. No se duplica: guarda un cerrojo en
--- $XDG_RUNTIME_DIR.
-
 
 ----------------
 ---- EQUIPO ----

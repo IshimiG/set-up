@@ -41,7 +41,7 @@ choca.
 - `.config/hypr/hyprland.lua`: Hyprland, en Lua (0.56+).
 - `.config/hypr/hyprlock.conf`: la pantalla de bloqueo.
 - `.config/hypr/scripts/`: barra, capturas, notificaciones, recordatorios,
-  aviso de actualizaciones, `tema.sh` y `aberracion.sh` (ver [Temas](#temas))
+  aviso de actualizaciones, `tema.sh` (ver [Temas](#temas))
   y `paquetes.sh` (lista los paquetes instalados a
   propósito y los desinstala con `sudo pacman -Rns`; se niega con los
   protegidos: núcleo, arranque, pacman, sudo, Hyprland, Quickshell, Ghostty…).
@@ -115,10 +115,9 @@ choca.
   ghostty, pacman y sudo de mentira en el `PATH` (`--guardar` deja las
   capturas). Ninguna desinstala nada.
 - `pruebas/temas/prueba.sh`: prueba sin pantalla de los temas: `tema.sh` (con
-  un `$XDG_STATE_HOME` de prueba), `tema.sh` y `aberracion.sh` en una sesión
-  de mentira (`hyprctl`, `notify-send` y `sleep` falsos: recarga, aviso, el
-  demonio que pulsa, no se duplica y se para), `aberracion.sh --en-seco` con
-  sus tiempos, `hyprland.lua` con un Hyprland de mentira
+  un `$XDG_STATE_HOME` de prueba), `tema.sh` en una sesión
+  de mentira (`hyprctl` y `notify-send` falsos: recarga y aviso),
+  `hyprland.lua` con un Hyprland de mentira
   (`hypr-simulado.lua`: default da los valores de siempre y los dos temas las
   mismas claves, y liquido con las mismas medidas) y con `Hyprland
   --verify-config`, los fragmentos de Ghostty (`ghostty +validate-config`, colores
@@ -140,8 +139,7 @@ El escritorio tiene temas intercambiables:
   - Hyprland: borde activo blanco con alfa (neutro), inactivo blanco tenue,
     blur con mucha vibrancy (0,8) y contraste y brillo neutros (1,0) para que
     los colores del fondo traspasen sin oscurecer ni emblanquecer, sombra
-    neutra. El único color es la aberración cromática: franjas roja `#ff3b6b`
-    y cian `#3be8ff` en el borde, sólo durante los pulsos aleatorios.
+    neutra. Sin ningún color y sin aberración cromática.
   - Ghostty: los mismos colores que `default`, sólo más translúcida (0,70 en
     vez de 0,85) (`.config/ghostty/temas/liquido.ghostty`).
   - hyprlock: fondo desenfocado más vivo y campo de contraseña con borde
@@ -167,12 +165,10 @@ de cada máquina: no va en el repo. Si falta o dice algo que no es un tema,
 vale `default`. `tema.sh` lo escribe de una vez (un temporal que renombra
 encima) y, dentro de la sesión:
 
-1. Para la aberración cromática si estaba en marcha.
-2. `hyprctl reload config-only`: `hyprland.lua` vuelve a leer el tema y pone
+1. `hyprctl reload config-only`: `hyprland.lua` vuelve a leer el tema y pone
    el borde, el redondeo, la sombra, el blur, los huecos, la velocidad del
    borde y el `ignore_alpha` de las superficies de Quickshell de ese tema.
-3. Arranca la aberración si el tema la tiene.
-4. Avisa con una notificación.
+2. Avisa con una notificación.
 
 Y `tema.sh` deja en esa misma carpeta los fragmentos del tema para lo que no
 sabe leer la palabra (los copia del repo; `tema.sh aplicar` los vuelve a
@@ -195,29 +191,6 @@ barra, la isla, el cajón del homelab y lo demás cambian en caliente. Fuera
 de una sesión, `tema.sh` sólo escribe el estado, que vale al entrar. La
 carpeta la crea `setup.sh` (paso 3); si Quickshell arrancó cuando no
 existía, no ve el primer cambio hasta que se reinicia (tema.sh lo avisa).
-
-### Aberración cromática
-
-Sólo en `liquido`. Hyprland no tiene aberración cromática en los bordes, así
-que es el mismo borde en degradado con una franja roja y otra cian a los
-lados del blanco, puesto a pulsos por `scripts/aberracion.sh`: cada 4 a 25 s
-al azar, y cuatro de cada diez veces nada; cada pulso dura de 150 a 600 ms,
-con uno o dos parpadeos (el segundo con las franjas al revés), y vuelve al
-borde normal. Los colores están en `hyprland.lua` (`temas.liquido.aberracion`)
-y el demonio los pone con `hyprctl eval 'escritorio.aberracion(n)'` (`hyprctl
-keyword` no funciona con la configuración en Lua; 0 es el borde normal).
-
-Arranca con la sesión si el tema es `liquido` y lo arranca y para `tema.sh`;
-se para solo en cuanto el tema deja de ser `liquido` y no se duplica (cerrojo
-con el PID en `$XDG_RUNTIME_DIR/escritorio-aberracion.lock`). Para apagarlo:
-`ABERRACION=0` en el entorno (en una máquina, `hl.env("ABERRACION", "0")` en
-su `equipo.lua`), o pararlo a mano con `aberracion.sh --parar`.
-`aberracion.sh --en-seco` no toca nada: imprime las órdenes y las esperas
-(`ABERRACION_TURNOS` y `ABERRACION_SEMILLA` lo hacen corto y repetible).
-`--parar` espera a que el demonio recién arrancado escriba su PID, éste
-instala su `trap` antes de escribirlo y, si sale solo porque el tema ya no es
-`liquido`, también deja el borde normal: así tema.sh nunca recarga con un
-borde de aberración puesto.
 
 ### El contrato de `Theme`
 
@@ -275,8 +248,6 @@ Reglas de cualquier tema, traducidas del Liquid Glass:
    lo que cambia (lo demás sale de `default`), metida en `paletas`.
 2. `hyprland.lua`: su tabla en `temas`, con las mismas claves que `default`
    (la prueba lo exige; así al volver de un tema no se queda nada puesto).
-   Con `aberracion` (una lista de bordes) tiene aberración, y entonces su
-   nombre va también en `CON_ABERRACION` de `scripts/aberracion.sh`.
 3. `scripts/tema.sh`: su nombre en `TEMAS`, que es el orden de `lista` y de
    `alternar`.
 4. `pruebas/temas/`: lo que el tema nuevo no pueda romper.

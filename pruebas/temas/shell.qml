@@ -77,7 +77,6 @@ ShellRoot {
         prueba.ok(Theme.specular.a === 0 && Theme.specularHeight === 0 && Theme.tint.a === 0, donde + ": sin brillo especular ni tinte (transparentes, altura 0)");
         prueba.ok(Theme.shadowColor.a === 0 && Theme.shadowRadius === 0, donde + ": sin sombra (transparente, radio 0)");
         prueba.ok(Theme.bordeAnchura === 1, donde + ": bordeAnchura 1");
-        prueba.ok(!Theme.aberracion && Theme.franjaRoja.a === 0 && Theme.franjaCian.a === 0, donde + ": sin aberración");
         prueba.ok(prueba.mismo(Theme.glassClear, Theme.glassBottom), donde + ": glassClear es el cuerpo de siempre");
         prueba.ok(prueba.cerca(Theme.ignoreAlpha, Number(Quickshell.env("PRUEBA_IA_DEFAULT"))), donde + ": ignoreAlpha (" + Theme.ignoreAlpha + ") es el de hyprland.lua en default (" + Quickshell.env("PRUEBA_IA_DEFAULT") + ")");
     }
@@ -100,8 +99,6 @@ ShellRoot {
         prueba.ok(Theme.tint.a > 0 && Theme.tint.a <= 0.15 && Theme.tint.b > Theme.tint.r, donde + ": tinte frío y sutil");
         prueba.ok(Theme.shadowColor.a > 0 && Theme.shadowRadius > 0, donde + ": sombra suave");
         prueba.ok(prueba.mismo(Theme.text, "#ffffff") && prueba.mismo(Theme.strong, "#ffffff"), donde + ": texto blanco puro");
-        prueba.ok(Theme.aberracion, donde + ": con aberración");
-        prueba.ok(String(Theme.franjaRoja) === Quickshell.env("PRUEBA_FRANJA_ROJA") && String(Theme.franjaCian) === Quickshell.env("PRUEBA_FRANJA_CIAN"), donde + ": las franjas (" + Theme.franjaRoja + ", " + Theme.franjaCian + ") son las del borde de hyprland.lua (" + Quickshell.env("PRUEBA_FRANJA_ROJA") + ", " + Quickshell.env("PRUEBA_FRANJA_CIAN") + ")");
         prueba.ok(prueba.mismo(Theme.prioAlta, "#ff9a4d") && Theme.font === "JetBrainsMono Nerd Font" && Theme.pad === 14 && Theme.dropTop === 38, donde + ": lo que no es del tema (prioridades, letra, medidas) no cambia");
     }
 
