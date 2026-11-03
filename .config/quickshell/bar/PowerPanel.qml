@@ -236,7 +236,7 @@ Item {
             // tinte del acento más un filo blanco que la levanta de la
             // superficie en vez de limitarse a colorearla.
             highlight: Rectangle {
-                radius: 10
+                radius: Theme.liquido ? Theme.radiusSmall : 10
                 color: Qt.rgba(Theme.accent.r, Theme.accent.g, Theme.accent.b, 0.14)
                 border.width: 1
                 border.color: Qt.rgba(1, 1, 1, 0.22)

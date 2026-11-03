@@ -20,7 +20,7 @@ Rectangle {
     readonly property color tinte: Theme.colorPrioridad(tarjeta.t.pausa ? "pausa" : tarjeta.t.efectiva)
 
     implicitHeight: pila.implicitHeight + 24
-    radius: 12
+    radius: Theme.liquido ? Theme.radiusSmall : 12
     color: tarjeta.elegida ? Qt.rgba(1, 1, 1, 0.09) : Qt.rgba(1, 1, 1, 0.05)
     border.width: 1
     border.color: tarjeta.elegida ? Qt.rgba(1, 1, 1, 0.3) : Theme.rule
