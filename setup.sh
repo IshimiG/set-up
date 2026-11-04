@@ -20,7 +20,10 @@
 #      ~/.local/share/set-up-apartado/<fecha>/, no se borra.
 #   3. El tema del escritorio: la carpeta donde tema.sh guarda el tema activo
 #      (${XDG_STATE_HOME:-~/.local/state}/escritorio). El tema no se toca: sin
-#      fichero, es default.
+#      fichero, es default. Lo de las aplicaciones (Ghostty, Neovim, fuzzel,
+#      foot, btop) se escribe para el tema activo con tema-apps.sh, y btop se
+#      apunta a él: themes/escritorio.theme y color_theme = "escritorio" en
+#      btop.conf (lo que hubiera se aparta antes, como en los enlaces).
 #   4. El fondo de pantalla, sólo si la máquina no tiene ya hyprpaper.conf.
 #   5. Los servicios de usuario del repo.
 #   6. Memoria: earlyoom (mata antes el navegador que Hyprland si se agota la
@@ -84,8 +87,10 @@ PACMAN=(
 	# Terminal, shell y editor
 	ghostty fish starship zoxide eza direnv fastfetch neovim tree-sitter-cli
 	nodejs npm ripgrep fd lazygit git curl
-	# Letras: Noto Sans Mono para la terminal, JetBrainsMono para la barra
-	noto-fonts ttf-jetbrains-mono-nerd
+	# Letras: Noto Sans Mono para la terminal, JetBrainsMono para la barra, y
+	# las de la terminal en los temas (.config/escritorio/temas): Fira Code en
+	# tokyonight, Hack en gruvbox y Terminus (Terminess Nerd Font) en phosphor
+	noto-fonts ttf-jetbrains-mono-nerd ttf-fira-code ttf-hack ttf-terminus-nerd
 	# El gestor de archivos de SUPER+E
 	dolphin
 )
@@ -104,6 +109,7 @@ CARPETAS=(
 	.config/hypr/scripts
 	.config/quickshell
 	.config/nvim
+	.config/escritorio
 )
 
 # Se enlazan aparte, no con el resto de .config: .config/zen es el perfil vivo
@@ -255,6 +261,62 @@ if [[ -d $estado_tema ]]; then
 	echo "  $estado_tema ya está (tema: $("$repo/.config/hypr/scripts/tema.sh"))"
 else
 	hacer mkdir -p "$estado_tema"
+fi
+
+# Lo de las aplicaciones, para el tema activo: lo que cargan config.ghostty,
+# Neovim, fuzzel.ini y foot.ini (estos dos dan error si falta su include). Si
+# ya está igual, tema-apps.sh no toca nada.
+if $comprobar; then
+	echo "  haría: tema-apps.sh (Ghostty, Neovim, fuzzel, foot y btop con el tema activo)"
+elif "$repo/.config/hypr/scripts/tema-apps.sh"; then
+	echo "  aplicaciones con el tema activo"
+else
+	aviso "  tema-apps.sh ha fallado: las aplicaciones no tienen el tema"
+fi
+
+# btop no tiene include: su tema es un fichero de themes/ y su nombre va en
+# color_theme. themes/escritorio.theme apunta al que escribe tema-apps.sh.
+btop_dir="${XDG_CONFIG_HOME:-$HOME/.config}/btop"
+btop_tema="$btop_dir/themes/escritorio.theme"
+if [[ -L $btop_tema && $(readlink "$btop_tema") == "$estado_tema/btop.theme" ]]; then
+	echo "  btop: themes/escritorio.theme ya enlazado"
+else
+	if [[ -e $btop_tema || -L $btop_tema ]]; then
+		if $comprobar; then
+			echo "  apartaría $btop_tema"
+		else
+			mkdir -p "$apartado/btop/themes"
+			mv "$btop_tema" "$apartado/btop/themes/"
+			aviso "  $btop_tema apartado en $apartado/btop/themes"
+		fi
+	fi
+	if $comprobar; then
+		echo "  enlazaría $btop_tema"
+	else
+		mkdir -p "$btop_dir/themes" && ln -s "$estado_tema/btop.theme" "$btop_tema" &&
+			echo "  enlazado  $btop_tema"
+	fi
+fi
+# btop escribe su btop.conf al salir: si está abierto, pisaría el cambio.
+btop_conf="$btop_dir/btop.conf"
+if [[ -f $btop_conf ]] && grep -qx 'color_theme = "escritorio"' "$btop_conf"; then
+	echo "  btop.conf ya usa el tema del escritorio"
+elif $comprobar; then
+	echo "  pondría color_theme = \"escritorio\" en $btop_conf"
+elif pgrep -u "$(id -u)" -x btop >/dev/null; then
+	aviso "  btop está abierto: ciérralo y repite para ponerle el tema del escritorio"
+elif [[ -f $btop_conf ]]; then
+	mkdir -p "$apartado/btop" && cp -p "$btop_conf" "$apartado/btop/btop.conf"
+	if grep -q '^color_theme *=' "$btop_conf"; then
+		sed -i 's/^color_theme *=.*/color_theme = "escritorio"/' "$btop_conf"
+	else
+		printf 'color_theme = "escritorio"\n' >>"$btop_conf"
+	fi
+	aviso "  btop.conf con color_theme = \"escritorio\" (el de antes, copiado en $apartado/btop)"
+else
+	mkdir -p "$btop_dir" &&
+		printf '# Lo empezó set-up/setup.sh; btop pone lo demás al salir.\ncolor_theme = "escritorio"\n' >"$btop_conf" &&
+		echo "  escrito $btop_conf (sólo color_theme)"
 fi
 
 # ---------------------------------------------------------------------------

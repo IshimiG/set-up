@@ -1,7 +1,9 @@
 #!/usr/bin/env bash
-# Prueba sin pantalla de los temas del escritorio. Cinco partes:
+# Prueba sin pantalla de los temas del escritorio. Seis partes:
 #   - tema.sh, fuera de sesión: el tema activo, lista, poner, alternar, lo que
 #     no es un tema, el fichero con basura y que escribe de una vez;
+#   - el tema en las aplicaciones (Ghostty, Neovim, fuzzel, foot y btop): lo
+#     prueba apps.sh, y aquí se suma;
 #   - tema.sh y aberracion.sh "dentro" de una sesión de mentira (hyprctl,
 #     notify-send y sleep falsos en el PATH): recarga, aviso, el demonio que
 #     arranca, pulsa, no se duplica, se para solo al cambiar el tema y con
@@ -41,9 +43,10 @@ mkdir -p "$tmp/estado" "$tmp/bin" "$tmp/simulado"
 mkdir -m 700 "$tmp/run"
 sleep_real=$(command -v sleep)
 
-# Nada de esto puede llegar a la sesión de verdad.
+# Nada de esto puede llegar a la sesión de verdad (tema-apps.sh tampoco avisa
+# a Ghostty ni a btop: el estado no es el suyo, y TEMA_APPS_RECARGAR=0).
 unset HYPRLAND_INSTANCE_SIGNATURE WAYLAND_DISPLAY DBUS_SESSION_BUS_ADDRESS ABERRACION ABERRACION_TURNOS ABERRACION_SEMILLA
-export XDG_STATE_HOME=$tmp/estado XDG_RUNTIME_DIR=$tmp/run
+export XDG_STATE_HOME=$tmp/estado XDG_RUNTIME_DIR=$tmp/run TEMA_APPS_RECARGAR=0
 fichero=$XDG_STATE_HOME/escritorio/tema
 cerrojo=$XDG_RUNTIME_DIR/escritorio-aberracion.lock
 
@@ -77,7 +80,7 @@ trap acabar EXIT
 seccion "tema.sh, sin sesión"
 
 si "sin fichero, el tema es default" test "$("$tema_sh")" = default
-si "lista: los dos temas, default marcado" test "$("$tema_sh" lista)" = $'* default\n  liquido'
+si "lista: los siete temas, en orden, default marcado" test "$("$tema_sh" lista)" = $'* default\n  liquido\n  catppuccin\n  tokyonight\n  gruvbox\n  kanagawa\n  phosphor'
 salida=$("$tema_sh" liquido)
 si "tema.sh liquido sale bien" test $? = 0
 si "y dice que se aplica al entrar" grep -q "sin sesión" <<<"$salida"
@@ -88,10 +91,13 @@ ino=$(stat -c %i "$fichero")
 "$tema_sh" liquido >/dev/null
 si "poner el mismo tema otra vez sale bien y no reescribe el fichero" test "$(stat -c %i "$fichero")" = "$ino"
 "$tema_sh" alternar >/dev/null
-si "alternar: de liquido a default" test "$("$tema_sh")" = default
+si "alternar: de liquido a catppuccin" test "$("$tema_sh")" = catppuccin
+"$tema_sh" phosphor >/dev/null 2>&1
+"$tema_sh" alternar >/dev/null
+si "alternar: del último (phosphor) vuelve a default" test "$("$tema_sh")" = default
 "$tema_sh" alternar >/dev/null
 si "alternar: de default a liquido" test "$("$tema_sh")" = liquido
-si "lista: liquido marcado" test "$("$tema_sh" lista)" = $'  default\n* liquido'
+si "lista: liquido marcado" test "$("$tema_sh" lista)" = $'  default\n* liquido\n  catppuccin\n  tokyonight\n  gruvbox\n  kanagawa\n  phosphor'
 "$tema_sh" foo >/dev/null 2>"$tmp/error"
 ok $(($? == 0)) "un tema que no existe falla"
 si "y lo dice" grep -q "no hay ningún tema «foo»" "$tmp/error"
@@ -101,6 +107,17 @@ si "con basura en el fichero, el tema es default" test "$("$tema_sh")" = default
 "$tema_sh" alternar >/dev/null
 si "y alternar desde la basura va a liquido" test "$(cat "$fichero")" = liquido
 si "no quedan temporales en la carpeta" test -z "$(find "${fichero%/*}" -name '.tema.*')"
+si "tema.sh escribe al lado lo de las aplicaciones (tema-apps.sh)" test -s "${fichero%/*}/ghostty.conf" -a -s "${fichero%/*}/nvim.lua"
+
+# ---------------------------------------------------------------------------
+seccion "Las aplicaciones (pruebas/temas/apps.sh)"
+
+# Lo prueba entero apps.sh, con su propio HOME; aquí se cuentan sus resultados.
+salida_apps=$("$aqui/apps.sh" 2>&1)
+grep -E '^(OK|FALLO|OMITIDA) ' <<<"$salida_apps"
+total=$((total + $(grep -c '^OK ' <<<"$salida_apps") + $(grep -c '^FALLO ' <<<"$salida_apps")))
+fallos=$((fallos + $(grep -c '^FALLO ' <<<"$salida_apps")))
+si "apps.sh llega al final" grep -q '^Resultado:' <<<"$salida_apps"
 
 # ---------------------------------------------------------------------------
 seccion "tema.sh y aberracion.sh, en una sesión de mentira"

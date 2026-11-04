@@ -55,7 +55,7 @@ Singleton {
     }
 
     // Los temas que hay, en el orden de `tema.sh lista`.
-    readonly property var paletas: [paletaDefault, paletaLiquido]
+    readonly property var paletas: [paletaDefault, paletaLiquido, paletaCatppuccin, paletaTokyonight, paletaGruvbox, paletaKanagawa, paletaPhosphor]
     readonly property var temas: theme.paletas.map(p => p.nombre)
 
     // El nombre del tema activo: lo que diga el fichero si es un tema que
@@ -165,6 +165,9 @@ Singleton {
     readonly property color ok: theme.activo.ok
     readonly property color warn: theme.activo.warn
     readonly property color danger: theme.activo.danger
+
+    // Los diez colores de los puntos de escritorio de la barra, del 1 al 10.
+    readonly property var workspaceColores: theme.activo.workspaces
 
     // --- Prioridades -----------------------------------------------------
     // Las de las tareas del panel del homelab, copiadas de su web (las --p-*
@@ -301,6 +304,8 @@ Singleton {
         property color warn: "#e59625"
         property color danger: "#e90b25"
 
+        property var workspaces: ["#e90b25", "#e59625", "#ffd966", "#deffa0", "#6dc89e", "#40e0d0", "#00aef2", "#bf3e81", "#df6280", "#ffe9ff"]
+
         property int radius: 16
         property int radiusSmall: 8
 
@@ -374,5 +379,209 @@ Singleton {
         animOut: 300
         overshootIn: 1.5
         overshootOut: 1.3
+    }
+
+    // Catppuccin Mocha: cristal malva-oscuro (base #1e1e2e), texto lavanda
+    // claro, acento mauve y radios grandes.
+    Paleta {
+        id: paletaCatppuccin
+        nombre: "catppuccin"
+
+        glassTop: Qt.alpha("#1e1e2e", 0.74)
+        glassBottom: Qt.alpha("#1e1e2e", 0.62)
+        glassClear: Qt.alpha("#1e1e2e", 0.50)
+        glassDense: Qt.alpha("#11111b", 0.94)
+        ignoreAlpha: 0.3
+
+        edgeTop: Qt.alpha("#cba6f7", 0.45)
+        edgeBottom: Qt.alpha("#89b4fa", 0.14)
+        bordeAnchura: 1.5
+
+        specular: Qt.alpha("#f5e0dc", 0.08)
+        specularHeight: 0.25
+        shadowColor: Qt.alpha("#11111b", 0.5)
+        shadowRadius: 20
+
+        text: "#cdd6f4"
+        strong: "#f5e0dc"
+        muted: "#a6adc8"
+        faint: "#6c7086"
+        rule: Qt.alpha("#cdd6f4", 0.12)
+        accent: "#cba6f7"
+
+        ok: "#a6e3a1"
+        warn: "#fab387"
+        danger: "#f38ba8"
+
+        workspaces: ["#f38ba8", "#fab387", "#f9e2af", "#a6e3a1", "#94e2d5", "#89dceb", "#89b4fa", "#cba6f7", "#f5c2e7", "#f5e0dc"]
+
+        radius: 20
+        radiusSmall: 12
+
+        animIn: 460
+        animOut: 300
+        overshootIn: 2.0
+        overshootOut: 1.5
+    }
+
+    // Tokyo Night (night): cristal índigo, canto azul eléctrico y una sombra
+    // azul que hace de resplandor.
+    Paleta {
+        id: paletaTokyonight
+        nombre: "tokyonight"
+
+        glassTop: Qt.alpha("#1a1b26", 0.72)
+        glassBottom: Qt.alpha("#16161e", 0.60)
+        glassClear: Qt.alpha("#1a1b26", 0.48)
+        glassDense: Qt.alpha("#16161e", 0.94)
+        ignoreAlpha: 0.3
+
+        edgeTop: Qt.alpha("#7aa2f7", 0.65)
+        edgeBottom: Qt.alpha("#bb9af7", 0.25)
+        bordeAnchura: 1.5
+
+        tint: Qt.alpha("#7aa2f7", 0.04)
+        shadowColor: Qt.alpha("#7aa2f7", 0.35)
+        shadowRadius: 30
+
+        text: "#c0caf5"
+        strong: "#e0e6ff"
+        muted: "#a9b1d6"
+        faint: "#565f89"
+        rule: Qt.alpha("#7aa2f7", 0.18)
+        accent: "#7aa2f7"
+
+        ok: "#9ece6a"
+        warn: "#e0af68"
+        danger: "#f7768e"
+
+        workspaces: ["#f7768e", "#ff9e64", "#e0af68", "#9ece6a", "#1abc9c", "#7dcfff", "#7aa2f7", "#bb9af7", "#9d7cd8", "#c0caf5"]
+
+        radius: 12
+        radiusSmall: 8
+
+        animIn: 380
+        animOut: 260
+        overshootIn: 1.6
+        overshootOut: 1.3
+    }
+
+    // Gruvbox dark hard: plano, mate y opaco. Sin blur no hay cristal que
+    // valga, así que el cuerpo es casi sólido, el canto un filo sólido de
+    // papel viejo, y cero radio, brillo y sombra.
+    Paleta {
+        id: paletaGruvbox
+        nombre: "gruvbox"
+
+        glassTop: Qt.alpha("#282828", 0.98)
+        glassBottom: Qt.alpha("#282828", 0.98)
+        glassClear: Qt.alpha("#282828", 0.94)
+        glassDense: "#1d2021"
+        ignoreAlpha: 0.5
+
+        edgeTop: "#665c54"
+        edgeBottom: "#504945"
+        bordeAnchura: 2
+
+        text: "#ebdbb2"
+        strong: "#fbf1c7"
+        muted: "#a89984"
+        faint: "#7c6f64"
+        rule: "#504945"
+        accent: "#fe8019"
+
+        ok: "#b8bb26"
+        warn: "#fabd2f"
+        danger: "#fb4934"
+
+        workspaces: ["#fb4934", "#fe8019", "#fabd2f", "#b8bb26", "#8ec07c", "#83a598", "#458588", "#d3869b", "#b16286", "#ebdbb2"]
+
+        radius: 0
+        radiusSmall: 0
+
+        animIn: 160
+        animOut: 120
+        overshootIn: 0
+        overshootOut: 0
+    }
+
+    // Kanagawa Wave: tinta sumi, cristal sobrio y contraste moderado, canto
+    // fino y apagado, radios medios y poco rebote.
+    Paleta {
+        id: paletaKanagawa
+        nombre: "kanagawa"
+
+        glassTop: Qt.alpha("#1f1f28", 0.82)
+        glassBottom: Qt.alpha("#1f1f28", 0.72)
+        glassClear: Qt.alpha("#1f1f28", 0.58)
+        glassDense: Qt.alpha("#16161d", 0.95)
+        ignoreAlpha: 0.3
+
+        edgeTop: Qt.alpha("#54546d", 0.85)
+        edgeBottom: Qt.alpha("#363646", 0.6)
+        bordeAnchura: 1
+
+        shadowColor: Qt.alpha("#16161d", 0.5)
+        shadowRadius: 14
+
+        text: "#dcd7ba"
+        strong: "#fffbe0"
+        muted: "#c8c093"
+        faint: "#727169"
+        rule: Qt.alpha("#dcd7ba", 0.12)
+        accent: "#7e9cd8"
+
+        ok: "#98bb6c"
+        warn: "#ffa066"
+        danger: "#e46876"
+
+        workspaces: ["#e46876", "#ffa066", "#e6c384", "#98bb6c", "#7aa89f", "#7fb4ca", "#7e9cd8", "#957fb8", "#d27e99", "#dcd7ba"]
+
+        radius: 10
+        radiusSmall: 6
+
+        animIn: 380
+        animOut: 260
+        overshootIn: 1.2
+        overshootOut: 1.1
+    }
+
+    // Terminal de fósforo verde, brutalista: negro puro, una sola tinta, filo
+    // duro, cero radio, cero sombra y animaciones secas. Sólo el aviso y el
+    // peligro se salen del verde, porque tienen que distinguirse.
+    Paleta {
+        id: paletaPhosphor
+        nombre: "phosphor"
+
+        glassTop: "#000000"
+        glassBottom: "#020a02"
+        glassClear: Qt.alpha("#000000", 0.92)
+        glassDense: "#000000"
+        ignoreAlpha: 0.5
+
+        edgeTop: "#00a600"
+        edgeBottom: "#0a3a0a"
+        bordeAnchura: 1
+
+        text: "#00d900"
+        strong: "#00ff00"
+        muted: "#00a600"
+        faint: "#006a00"
+        rule: "#0a3a0a"
+        accent: "#23ff18"
+
+        ok: "#00ff00"
+        warn: "#e5e500"
+        danger: "#e50000"
+
+        workspaces: ["#006a00", "#008a00", "#00a600", "#00c000", "#00d900", "#00ee00", "#00ff00", "#23ff18", "#66ff66", "#b3ffb3"]
+
+        radius: 0
+        radiusSmall: 0
+
+        animIn: 90
+        animOut: 70
+        overshootIn: 0
+        overshootOut: 0
     }
 }

@@ -24,5 +24,7 @@ de una máquina.
 - Antes de cada commit, `git fetch` y comprobar que todo está bien. Los commits
   van en español, como el resto del repo.
 - La terminal (Ghostty: Horizon con los colores de caelestia, `#131317` al 85 %,
-  Noto Sans Mono) la eligió el usuario: no se cambia sin preguntar.
+  Noto Sans Mono) la eligió el usuario: el aspecto del tema `default` no se
+  cambia sin preguntar. Los demás temas sí cambian Ghostty por diseño (lo
+  pidió el usuario el 2026-11-04).
 - Se documenta en el vault, en `30 Áreas/Escritorio/set-up-comun-y-por-equipo.md`.

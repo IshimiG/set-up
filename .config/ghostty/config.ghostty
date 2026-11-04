@@ -1,6 +1,15 @@
 # Ghostty: la estética que tenía la torre antes de unificar el set-up. El
 # 2026-10-12 se probó un cristal negro (#000000 al 80 % con el desenfoque de
 # Hyprland) y se volvió a ésta.
+#
+# Los colores, la letra, la transparencia y el blur son del tema del escritorio
+# (SUPER+SHIFT+T): los pone ~/.local/state/escritorio/ghostty.conf, que
+# escribe hypr/scripts/tema-apps.sh desde .config/escritorio/temas/<tema>.conf
+# y se carga al final (config-file, abajo), así que manda sobre esto. Al
+# cambiar de tema, tema-apps.sh manda SIGUSR2 a Ghostty, que recarga la
+# configuración en las ventanas abiertas. Lo de aquí es el tema default tal
+# cual, por si ese fichero aún no existe: tiene que ser igual que
+# temas/default.conf (lo comprueba pruebas/temas/prueba.sh).
 
 theme = Horizon
 
@@ -56,6 +65,11 @@ copy-on-select = clipboard
 confirm-close-surface = false
 # Sin el aviso de "copiado al portapapeles" cada vez que se selecciona algo.
 app-notifications = no-clipboard-copy
+
+# El tema del escritorio (ver arriba), si existe. Los config-file se cargan
+# después de todo este fichero y en este orden: primero el tema, luego lo del
+# equipo.
+config-file = ?~/.local/state/escritorio/ghostty.conf
 
 # Lo de cada equipo (el tamaño de letra del portátil, a escala 2), si existe.
 # Va al final para poder sobrescribir lo de arriba, como equipo.lua.

@@ -114,7 +114,7 @@ ShellRoot {
 
     readonly property var pasosCambio: [function () {
             prueba.ok(prueba.alNacer === "default", "sin fichero, Theme arranca en default");
-            prueba.ok(Theme.temas.join(",") === "default,liquido", "temas: " + Theme.temas.join(", "));
+            prueba.ok(Theme.temas.join(",") === "default,liquido,catppuccin,tokyonight,gruvbox,kanagawa,phosphor", "temas: " + Theme.temas.join(", "));
             prueba.comprobarDefault("sin fichero");
             prueba.lanzar([prueba.temaSh, "liquido"]);
         }, function () {
