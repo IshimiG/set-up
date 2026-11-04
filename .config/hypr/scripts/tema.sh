@@ -115,7 +115,17 @@ poner() {
 		cuerpo="Es la primera vez: si la barra no cambia, reinicia Quickshell o la sesión."
 		echo "  $cuerpo"
 	fi
-	notify-send -a Escritorio -i preferences-desktop-theme "Tema: $nuevo" "$cuerpo" 2>/dev/null || true
+	# Un solo aviso, que se sustituye: el servidor de Quickshell no entiende el
+	# hint x-canonical-private-synchronous, pero sí replaces_id (-r), así que
+	# se guarda el id del último aviso y el siguiente lo reemplaza. Sin icono:
+	# uno que no exista sale como el cuadro rosa y negro de «falta el icono».
+	local fid=${XDG_STATE_HOME:-$HOME/.local/state}/escritorio/aviso-id id= prev=
+	[[ -r $fid ]] && prev=$(head -n1 "$fid" 2>/dev/null)
+	[[ $prev =~ ^[0-9]+$ ]] || prev=
+	id=$(notify-send -a Escritorio -p ${prev:+-r "$prev"} -h string:x-canonical-private-synchronous:tema \
+		"Tema: $nuevo" "$cuerpo" 2>/dev/null) || true
+	[[ $id =~ ^[0-9]+$ ]] && printf '%s\n' "$id" >"$fid" 2>/dev/null
+	return 0
 }
 
 case "${1:-}" in

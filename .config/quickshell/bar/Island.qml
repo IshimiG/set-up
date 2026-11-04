@@ -80,8 +80,8 @@ PanelWindow {
     readonly property int marginTop: 3
     // El radio de la pastilla es el border-radius de los bloques de waybar; el
     // del panel, el de las tarjetas del escritorio.
-    readonly property int radiusPill: Theme.liquido ? island.pillH / 2 : 10
-    readonly property int radiusPanel: Theme.liquido ? Theme.radius : 18
+    readonly property int radiusPill: 10
+    readonly property int radiusPanel: 18
 
     // --- Los tiempos y las curvas -----------------------------------------
     // Salen del vocabulario que ya usa el escritorio en hyprland.lua, para que

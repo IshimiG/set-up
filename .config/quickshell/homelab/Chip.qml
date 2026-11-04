@@ -21,7 +21,7 @@ Rectangle {
 
     implicitWidth: fila.implicitWidth + 18
     implicitHeight: 26
-    radius: Theme.liquido ? Theme.radiusPill : 8
+    radius: 8
     opacity: chip.encendido ? 1 : 0.4
     // Liquido: al pasar el ratón crece un pelo y al pulsar se hunde.
     scale: Theme.liquido && chip.encendido ? (pulsado.pressed ? 0.96 : (sobre.hovered ? 1.04 : 1)) : 1

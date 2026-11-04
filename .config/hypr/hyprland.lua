@@ -152,13 +152,13 @@ local temas = {
 	--   - Aberración cromática: a ratos, el filo se separa en rojo y cian
 	--     (ver ABERRACIÓN, abajo).
 	liquido = {
-		gaps_in = 7,
-		gaps_out = 24,
+		gaps_in = 5,
+		gaps_out = 20,
 		border_size = 2,
 		active_border = { colors = { "rgba(ffffffd9)", "rgba(dce8ff38)", "rgba(ffffff80)" }, angle = 45 },
 		inactive_border = "rgba(dce8ff1f)",
-		rounding = 18,
-		rounding_power = 3,
+		rounding = 10,
+		rounding_power = 2,
 		opacidad_activa = 1.0,
 		opacidad_inactiva = 1.0,
 		shadow = {
@@ -192,13 +192,13 @@ local temas = {
 	-- squircle, huecos generosos, vidrio ligero y un borde que va de mauve a
 	-- azul. Opacidad algo baja en todas las ventanas.
 	catppuccin = {
-		gaps_in = 6,
-		gaps_out = 14,
+		gaps_in = 5,
+		gaps_out = 20,
 		border_size = 2,
 		active_border = { colors = { "rgba(cba6f7ff)", "rgba(89b4faff)" }, angle = 45 },
 		inactive_border = "rgba(313244ff)",
-		rounding = 16,
-		rounding_power = 3,
+		rounding = 10,
+		rounding_power = 2,
 		opacidad_activa = 0.95,
 		opacidad_inactiva = 0.88,
 		shadow = {
@@ -225,8 +225,8 @@ local temas = {
 	-- hace de resplandor. Sin aberración cromática: el brillo ya hace de neón
 	-- y el demonio de aberracion.sh es cosa de liquido.
 	tokyonight = {
-		gaps_in = 4,
-		gaps_out = 10,
+		gaps_in = 5,
+		gaps_out = 20,
 		border_size = 2,
 		active_border = { colors = { "rgba(7aa2f7ff)", "rgba(bb9af7ff)", "rgba(7dcfffff)" }, angle = 60 },
 		inactive_border = "rgba(414868ff)",
@@ -256,12 +256,12 @@ local temas = {
 	-- Gruvbox dark hard: plano y retro. Cero redondeo, huecos mínimos, sin
 	-- blur ni sombra, bordes gruesos y sólidos, ventanas opacas.
 	gruvbox = {
-		gaps_in = 2,
-		gaps_out = 4,
-		border_size = 3,
+		gaps_in = 5,
+		gaps_out = 20,
+		border_size = 2,
 		active_border = "rgba(fe8019ff)",
 		inactive_border = "rgba(504945ff)",
-		rounding = 0,
+		rounding = 10,
 		rounding_power = 2,
 		opacidad_activa = 1.0,
 		opacidad_inactiva = 1.0,
@@ -288,11 +288,11 @@ local temas = {
 	-- débil, sombra suave y un degradado muy sutil de violeta a azul.
 	kanagawa = {
 		gaps_in = 5,
-		gaps_out = 10,
+		gaps_out = 20,
 		border_size = 2,
 		active_border = { colors = { "rgba(957fb8ff)", "rgba(7e9cd8ff)" }, angle = 45 },
 		inactive_border = "rgba(363646ff)",
-		rounding = 8,
+		rounding = 10,
 		rounding_power = 2,
 		opacidad_activa = 0.94,
 		opacidad_inactiva = 0.88,
@@ -318,12 +318,12 @@ local temas = {
 	-- Phosphor: terminal de fósforo verde, brutalista. Sin huecos, sin
 	-- redondeo, sin blur ni sombra, borde duro de un solo verde y negro puro.
 	phosphor = {
-		gaps_in = 0,
-		gaps_out = 0,
+		gaps_in = 5,
+		gaps_out = 20,
 		border_size = 2,
 		active_border = "rgba(00ff00ff)",
 		inactive_border = "rgba(0a3a0aff)",
-		rounding = 0,
+		rounding = 10,
 		rounding_power = 2,
 		opacidad_activa = 1.0,
 		opacidad_inactiva = 1.0,

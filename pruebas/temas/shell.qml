@@ -86,8 +86,8 @@ ShellRoot {
     // afinarlos sin tocar la prueba), sí lo que no se puede romper.
     function comprobarLiquido(donde) {
         prueba.ok(Theme.nombreTema === "liquido" && Theme.liquido, donde + ": nombreTema es liquido y liquido, true");
-        prueba.ok(Theme.radius === 24 && Theme.radiusSmall === 14 && Theme.radiusPill === 999, donde + ": radios 24, 14 y 999");
-        prueba.ok(Theme.bordeAnchura === 1.5, donde + ": bordeAnchura 1.5");
+        prueba.ok(Theme.radius === 16 && Theme.radiusSmall === 8 && Theme.radiusPill === 999, donde + ": radios 16, 8 y 999, los de default");
+        prueba.ok(Theme.bordeAnchura === 1, donde + ": bordeAnchura 1, el de default");
         prueba.ok(prueba.cerca(Theme.ignoreAlpha, Number(Quickshell.env("PRUEBA_IA_LIQUIDO"))), donde + ": ignoreAlpha (" + Theme.ignoreAlpha + ") es el de hyprland.lua en liquido (" + Quickshell.env("PRUEBA_IA_LIQUIDO") + ")");
         const cuerpo = [Theme.glassTop.a, Theme.glassBottom.a];
         prueba.ok(cuerpo.every(a => a >= 0.25 - 0.002 && a <= 0.4 + 0.002), donde + ": el cristal va de 0.25 a 0.4 de alfa (" + cuerpo.map(a => a.toFixed(2)).join(", ") + ")");
@@ -105,10 +105,16 @@ ShellRoot {
         prueba.ok(prueba.mismo(Theme.prioAlta, "#ff9a4d") && Theme.font === "JetBrainsMono Nerd Font" && Theme.pad === 14 && Theme.dropTop === 38, donde + ": lo que no es del tema (prioridades, letra, medidas) no cambia");
     }
 
+    // La geometría (radios y grosor del canto) es la de default en todos los
+    // temas: lo que cambia es color, transparencia y brillo.
+    function comprobarGeometria(donde) {
+        prueba.ok(Theme.radius === 16 && Theme.radiusSmall === 8 && Theme.bordeAnchura === 1, donde + ": radios 16 y 8 y canto de 1 px (" + Theme.radius + ", " + Theme.radiusSmall + ", " + Theme.bordeAnchura + ")");
+    }
+
     readonly property var pasos: prueba.modo === "inicio" ? pasosInicio : pasosCambio
 
     readonly property var pasosInicio: [function () {
-            prueba.ok(prueba.alNacer === "liquido" && prueba.radiusAlNacer === 24, "al arrancar con el fichero en liquido, Theme ya es liquido desde el primer momento (" + prueba.alNacer + ", radio " + prueba.radiusAlNacer + ")");
+            prueba.ok(prueba.alNacer === "liquido" && prueba.radiusAlNacer === 16, "al arrancar con el fichero en liquido, Theme ya es liquido desde el primer momento (" + prueba.alNacer + ", radio " + prueba.radiusAlNacer + ")");
             prueba.comprobarLiquido("al arrancar");
         }]
 
@@ -119,6 +125,7 @@ ShellRoot {
             prueba.lanzar([prueba.temaSh, "liquido"]);
         }, function () {
             prueba.comprobarLiquido("tema.sh liquido, en caliente");
+            prueba.comprobarGeometria("liquido");
             prueba.lanzar(["sh", "-c", "printf 'basura\\n' >\"$1\"", "sh", Theme.rutaEstado]);
         }, function () {
             prueba.comprobarDefault("con basura en el fichero");
@@ -128,6 +135,22 @@ ShellRoot {
             prueba.lanzar([prueba.temaSh, "default"]);
         }, function () {
             prueba.comprobarDefault("tema.sh default, en caliente");
+            prueba.lanzar([prueba.temaSh, "catppuccin"]);
+        }, function () {
+            prueba.ok(Theme.nombreTema === "catppuccin", "tema.sh catppuccin, en caliente");
+            prueba.comprobarGeometria("catppuccin");
+            prueba.lanzar([prueba.temaSh, "tokyonight"]);
+        }, function () {
+            prueba.comprobarGeometria("tokyonight");
+            prueba.lanzar([prueba.temaSh, "gruvbox"]);
+        }, function () {
+            prueba.comprobarGeometria("gruvbox");
+            prueba.lanzar([prueba.temaSh, "kanagawa"]);
+        }, function () {
+            prueba.comprobarGeometria("kanagawa");
+            prueba.lanzar([prueba.temaSh, "phosphor"]);
+        }, function () {
+            prueba.comprobarGeometria("phosphor");
         }]
 
     Timer {

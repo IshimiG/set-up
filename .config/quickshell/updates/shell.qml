@@ -164,7 +164,7 @@ PanelWindow {
         signal pulsado
 
         implicitHeight: 40
-        radius: Theme.liquido ? Theme.radiusPill : 12
+        radius: 12
 
         color: Qt.rgba(1, 1, 1, (boton.principal ? 0.12 : 0.03) + (tap.pressed ? 0.14 : hover.hovered ? 0.08 : 0))
         border.width: 1
@@ -260,7 +260,7 @@ PanelWindow {
 
         width: root.cardW
         height: content.implicitHeight + root.pad * 2
-        radius: Theme.liquido ? Theme.radius : 20
+        radius: 20
 
         // Cae desde el borde de arriba: el origen de la escala es la parte
         // superior, así que la tarjeta se despliega hacia abajo en vez de

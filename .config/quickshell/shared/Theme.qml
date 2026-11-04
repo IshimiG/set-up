@@ -349,7 +349,6 @@ Singleton {
 
         edgeTop: Qt.rgba(1, 1, 1, 0.55)
         edgeBottom: Qt.rgba(1, 1, 1, 0.14)
-        bordeAnchura: 1.5
 
         specular: Qt.rgba(1, 1, 1, 0.30)
         specularHeight: 0.33
@@ -372,8 +371,6 @@ Singleton {
         warn: "#ff9f0a"
         danger: "#ff453a"
 
-        radius: 24
-        radiusSmall: 14
 
         animIn: 460
         animOut: 300
@@ -395,7 +392,6 @@ Singleton {
 
         edgeTop: Qt.alpha("#cba6f7", 0.45)
         edgeBottom: Qt.alpha("#89b4fa", 0.14)
-        bordeAnchura: 1.5
 
         specular: Qt.alpha("#f5e0dc", 0.08)
         specularHeight: 0.25
@@ -415,8 +411,6 @@ Singleton {
 
         workspaces: ["#f38ba8", "#fab387", "#f9e2af", "#a6e3a1", "#94e2d5", "#89dceb", "#89b4fa", "#cba6f7", "#f5c2e7", "#f5e0dc"]
 
-        radius: 20
-        radiusSmall: 12
 
         animIn: 460
         animOut: 300
@@ -438,7 +432,6 @@ Singleton {
 
         edgeTop: Qt.alpha("#7aa2f7", 0.65)
         edgeBottom: Qt.alpha("#bb9af7", 0.25)
-        bordeAnchura: 1.5
 
         tint: Qt.alpha("#7aa2f7", 0.04)
         shadowColor: Qt.alpha("#7aa2f7", 0.35)
@@ -457,8 +450,6 @@ Singleton {
 
         workspaces: ["#f7768e", "#ff9e64", "#e0af68", "#9ece6a", "#1abc9c", "#7dcfff", "#7aa2f7", "#bb9af7", "#9d7cd8", "#c0caf5"]
 
-        radius: 12
-        radiusSmall: 8
 
         animIn: 380
         animOut: 260
@@ -481,7 +472,6 @@ Singleton {
 
         edgeTop: "#665c54"
         edgeBottom: "#504945"
-        bordeAnchura: 2
 
         text: "#ebdbb2"
         strong: "#fbf1c7"
@@ -496,8 +486,6 @@ Singleton {
 
         workspaces: ["#fb4934", "#fe8019", "#fabd2f", "#b8bb26", "#8ec07c", "#83a598", "#458588", "#d3869b", "#b16286", "#ebdbb2"]
 
-        radius: 0
-        radiusSmall: 0
 
         animIn: 160
         animOut: 120
@@ -519,7 +507,6 @@ Singleton {
 
         edgeTop: Qt.alpha("#54546d", 0.85)
         edgeBottom: Qt.alpha("#363646", 0.6)
-        bordeAnchura: 1
 
         shadowColor: Qt.alpha("#16161d", 0.5)
         shadowRadius: 14
@@ -537,8 +524,6 @@ Singleton {
 
         workspaces: ["#e46876", "#ffa066", "#e6c384", "#98bb6c", "#7aa89f", "#7fb4ca", "#7e9cd8", "#957fb8", "#d27e99", "#dcd7ba"]
 
-        radius: 10
-        radiusSmall: 6
 
         animIn: 380
         animOut: 260
@@ -561,7 +546,6 @@ Singleton {
 
         edgeTop: "#00a600"
         edgeBottom: "#0a3a0a"
-        bordeAnchura: 1
 
         text: "#00d900"
         strong: "#00ff00"
@@ -576,8 +560,6 @@ Singleton {
 
         workspaces: ["#006a00", "#008a00", "#00a600", "#00c000", "#00d900", "#00ee00", "#00ff00", "#23ff18", "#66ff66", "#b3ffb3"]
 
-        radius: 0
-        radiusSmall: 0
 
         animIn: 90
         animOut: 70

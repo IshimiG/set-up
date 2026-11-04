@@ -421,7 +421,7 @@ Flickable {
                 objectName: "subDetalle-" + sub.modelData.titulo
                 Layout.fillWidth: true
                 implicitHeight: lineasSub.implicitHeight + 12
-                radius: Theme.liquido ? Theme.radiusSmall : 8
+                radius: 8
                 color: sobreSub.hovered ? Qt.rgba(1, 1, 1, 0.08) : Qt.rgba(1, 1, 1, 0.04)
 
                 HoverHandler {
@@ -590,7 +590,7 @@ Flickable {
                     objectName: "github-" + item.it.numero
                     Layout.fillWidth: true
                     implicitHeight: lineasItem.implicitHeight + 12
-                    radius: Theme.liquido ? Theme.radiusSmall : 8
+                    radius: 8
                     color: sobreItem.hovered ? Qt.rgba(1, 1, 1, 0.08) : Qt.rgba(1, 1, 1, 0.04)
 
                     HoverHandler {

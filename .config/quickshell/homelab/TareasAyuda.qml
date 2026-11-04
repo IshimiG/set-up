@@ -78,7 +78,7 @@ Rectangle {
         anchors.centerIn: parent
         width: Math.min(parent.width - 24, 330)
         height: lista.implicitHeight + 36
-        radius: Theme.liquido ? Theme.radiusSmall : 14
+        radius: 14
         color: Theme.glassDense
         border.width: 1
         border.color: Theme.edgeTop
