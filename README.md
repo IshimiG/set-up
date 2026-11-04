@@ -125,7 +125,7 @@ choca.
 
 ## Temas
 
-El escritorio tiene temas intercambiables:
+El escritorio tiene siete temas intercambiables:
 
 - `default`: el de siempre, cristal negro esmerilado con un filo blanco.
 - `liquido`: cristal claro a la manera del Liquid Glass de Apple. Lámina
@@ -135,6 +135,32 @@ El escritorio tiene temas intercambiables:
   Hyprland: blur más grande (12, 4 pasadas, vibrancy 0,5, casi sin grano),
   esquinas de squircle (`rounding_power` 3), más aire entre ventanas y
   aberración cromática a ratos en el borde.
+- `catppuccin`: Catppuccin Mocha, pastel suave con el malva de acento.
+- `tokyonight`: Tokyo Night, índigo nocturno con acentos eléctricos.
+- `gruvbox`: Gruvbox Dark hard, cálido, mate y plano, sin transparencia.
+- `kanagawa`: Kanagawa Wave, tinta sumi sobre papel, tonos apagados de arroz
+  y ámbar.
+- `phosphor`: terminal de fósforo verde sobre negro puro, brutalista, opaco y
+  con letra Terminus.
+
+Además de Quickshell y Hyprland, `tema.sh` aplica el tema a las aplicaciones
+con `scripts/tema-apps.sh`, que lee los datos de cada tema en
+`.config/escritorio/temas/<id>.conf` y escribe lo que cambia en
+`${XDG_STATE_HOME:-~/.local/state}/escritorio`:
+
+| Aplicación | Qué recibe | En caliente |
+| --- | --- | --- |
+| Ghostty | colores, opacidad, blur y letra (`config-file` al final de `config.ghostty`) | sí (SIGUSR2) |
+| Neovim | el colorscheme (`lua/config/tema.lua` vigila el fichero) | sí |
+| btop | `temas/btop/<tema>.theme` (como `escritorio`) | sí (SIGUSR2) |
+| fuzzel | los `[colors]` | se lee en cada apertura |
+| foot | los `[colors-dark]` | no recarga en caliente: vale en las ventanas nuevas |
+
+`default` deja la terminal como siempre. Las letras de los temas las instala
+`setup.sh` (`ttf-fira-code`, `ttf-hack` y `ttf-terminus-nerd`, además de
+JetBrains Mono Nerd Font); si una no está instalada, Ghostty usa la de
+`default`. `tema-apps.sh` también se ejecuta al iniciar sesión, para que un
+`git pull` que cambie los datos de un tema se note.
 
 ### Cambiar de tema
 
@@ -246,7 +272,10 @@ Reglas de cualquier tema, traducidas del Liquid Glass:
    nombre va también en `CON_ABERRACION` de `scripts/aberracion.sh`.
 3. `scripts/tema.sh`: su nombre en `TEMAS`, que es el orden de `lista` y de
    `alternar`.
-4. `pruebas/temas/`: lo que el tema nuevo no pueda romper.
+4. `.config/escritorio/temas/<id>.conf`: sus datos para las aplicaciones
+   (colores, paleta ANSI, letra, colorscheme de Neovim, fuzzel y btop; mira
+   la cabecera de `tema-apps.sh`).
+5. `pruebas/temas/`: lo que el tema nuevo no pueda romper.
 
 ## Instalación
 

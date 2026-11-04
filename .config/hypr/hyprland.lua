@@ -1032,6 +1032,10 @@ hl.window_rule({
 -- hypridle) arranca desde su equipo.lua.
 hl.on("hyprland.start", function()
 	hl.exec_cmd("pkill hyprpaper; hyprpaper")
+	-- El tema en las aplicaciones (Ghostty, Neovim, fuzzel, foot, btop): si un
+	-- git pull ha cambiado los datos de un tema, se nota al iniciar sesión.
+	-- Sólo escribe lo que cambia, y si falla no pasa nada.
+	hl.exec_cmd("~/.config/hypr/scripts/tema-apps.sh >/dev/null 2>&1 || true")
 	-- La isla central de la barra, que lleva dentro el daemon de
 	-- notificaciones. Va antes que nada de lo que pueda querer notificar: es
 	-- quien toma org.freedesktop.Notifications en el bus, y sin él ninguna
