@@ -49,8 +49,8 @@ PanelWindow {
 
     // Las muestras de la vista previa. Theme sólo expone los valores del tema
     // ACTIVO, así que aquí van unas pocas fijas por tema, a mano: si cambian
-    // los colores de un tema en shared/Theme.qml (cristal, canto, radio,
-    // brillo), actualízalas aquí. Un tema que no esté en esta tabla sale con
+    // los colores de un tema en shared/Theme.qml (cristal, canto,
+    // brillo; el radio es el mismo en todos), actualízalas aquí. Un tema que no esté en esta tabla sale con
     // la muestra de default. Se buscan por nombre, no por posición.
     readonly property var muestras: ({
             "default": {
@@ -69,7 +69,7 @@ PanelWindow {
                 "vidrio": Qt.rgba(0.84, 0.89, 1, 0.38),
                 "canto": Qt.rgba(1, 1, 1, 0.65),
                 "barra": Qt.rgba(1, 1, 1, 1),
-                "radio": 11,
+                "radio": 6,
                 "brillo": 0.33,
                 "puntos": ["#ffffff", "#30d158", "#ff453a"]
             },
@@ -79,7 +79,7 @@ PanelWindow {
                 "vidrio": Qt.rgba(0.118, 0.118, 0.180, 0.80),
                 "canto": "#cba6f7",
                 "barra": "#cba6f7",
-                "radio": 10,
+                "radio": 6,
                 "brillo": 0.2,
                 "puntos": ["#cba6f7", "#a6e3a1", "#f38ba8"]
             },
@@ -89,7 +89,7 @@ PanelWindow {
                 "vidrio": Qt.rgba(0.102, 0.106, 0.149, 0.78),
                 "canto": "#7aa2f7",
                 "barra": "#7aa2f7",
-                "radio": 7,
+                "radio": 6,
                 "brillo": 0,
                 "puntos": ["#7aa2f7", "#bb9af7", "#7dcfff"]
             },
@@ -99,7 +99,7 @@ PanelWindow {
                 "vidrio": "#282828",
                 "canto": "#fe8019",
                 "barra": "#fe8019",
-                "radio": 0,
+                "radio": 6,
                 "brillo": 0,
                 "puntos": ["#fabd2f", "#b8bb26", "#fb4934"]
             },
@@ -109,7 +109,7 @@ PanelWindow {
                 "vidrio": Qt.rgba(0.122, 0.122, 0.157, 0.86),
                 "canto": "#54546d",
                 "barra": "#7e9cd8",
-                "radio": 5,
+                "radio": 6,
                 "brillo": 0,
                 "puntos": ["#7e9cd8", "#98bb6c", "#e46876"]
             },
@@ -119,7 +119,7 @@ PanelWindow {
                 "vidrio": "#000000",
                 "canto": "#00ff00",
                 "barra": "#00ff00",
-                "radio": 0,
+                "radio": 6,
                 "brillo": 0,
                 "puntos": ["#00ff00", "#00a600", "#006a00"]
             }
@@ -172,7 +172,7 @@ PanelWindow {
         anchors.centerIn: parent
         width: root.cardW
         height: content.implicitHeight + root.pad * 2
-        radius: Theme.nombreTema === "default" ? 20 : Theme.radius
+        radius: 20
 
         // Mismo gesto de entrada y salida que el recordatorio y el lanzador.
         scale: root.shown ? 1 : 0.82
@@ -239,7 +239,7 @@ PanelWindow {
 
                         width: lista.width
                         height: root.filaH
-                        radius: Theme.nombreTema === "default" ? 12 : Theme.radiusSmall
+                        radius: 12
                         color: fila.marcada ? Qt.rgba(1, 1, 1, Theme.liquido ? 0.22 : 0.10) : (hover.hovered ? Qt.rgba(1, 1, 1, 0.05) : "transparent")
                         border.width: fila.activo ? 1 : 0
                         border.color: Theme.faint
@@ -327,7 +327,7 @@ PanelWindow {
 
                                                 width: 5
                                                 height: 5
-                                                radius: fila.m.radio === 0 ? 0 : 3
+                                                radius: 3
                                                 color: modelData
                                             }
                                         }

@@ -132,6 +132,8 @@ FIN
 cat >"$tmp/bin/notify-send" <<'FIN'
 #!/bin/sh
 echo "$*" >>"$PRUEBA_DIR/notify.log"
+# con -p, como el de verdad, imprime el id de la notificación
+case " $* " in *" -p "*) echo 42 ;; esac
 FIN
 cat >"$tmp/bin/sleep" <<FIN
 #!/bin/sh
@@ -156,6 +158,10 @@ esperar() { # hasta 3 s a que se cumpla
 sesion "$tema_sh" liquido >/dev/null
 si "en sesión, tema.sh recarga Hyprland (reload config-only)" grep -qx "reload config-only" "$tmp/hyprctl.log"
 si "y avisa" grep -q "Tema: liquido" "$tmp/notify.log"
+si "  sin icono (uno que falte sale como un cuadro rosa y negro)" eval '! grep -qE "(^| )-i " "$tmp/notify.log"'
+sesion "$tema_sh" default >/dev/null
+si "  y el aviso siguiente sustituye al anterior (-r con el id guardado)" grep -qE -- "-r 42 .*Tema: default" "$tmp/notify.log"
+sesion "$tema_sh" liquido >/dev/null
 si "y arranca el demonio de la aberración" esperar vivo
 pid=$(pid_demonio)
 si "el cerrojo guarda su PID" grep -qa aberracion "/proc/$pid/cmdline"
@@ -266,7 +272,13 @@ si "los dos temas dan las mismas claves de configuración" cmp -s <(grep '^confi
 si "fuera de lo del tema, liquido no cambia nada (mismas llamadas salvo borde, capas y la aberración)" cmp -s <(grep -vE '^(config |hl\.layer_rule|hl\.animation\(\{.*leaf="border"|aberracion\(|hl\.exec_cmd\(".*aberracion\.sh"\))' "$tmp/simulado/default.txt") <(grep -vE '^(config |hl\.layer_rule|hl\.animation\(\{.*leaf="border"|aberracion\(|hl\.exec_cmd\(".*aberracion\.sh"\))' "$tmp/simulado/liquido.txt")
 liq() { grep -F "config $1 = " "$tmp/simulado/liquido.txt" | sed 's/^[^=]*= //'; }
 si "liquido: blur más grande (12), 3-4 pasadas, vibrancy 0.5 y poco grano" test "$(liq decoration.blur.size)" = 12 -a "$(liq decoration.blur.vibrancy)" = 0.5 -a "$(liq decoration.blur.passes)" -ge 3 -a "$(liq decoration.blur.passes)" -le 4
-si "liquido: más redondeo que default" test "$(liq decoration.rounding)" -gt 10
+# La geometría es idéntica en los siete temas: sólo cambian color, sombra,
+# blur y opacidad.
+geo() { grep -E '^config (general\.(gaps_in|gaps_out|border_size)|decoration\.rounding(_power)?) = ' "$1" | sort; }
+for t in liquido catppuccin tokyonight gruvbox kanagawa phosphor; do
+	[[ $t == liquido ]] || simular "$t" >"$tmp/simulado/$t.txt"
+	si "$t: huecos, grosor del borde y redondeo (con su potencia) son los de default" test -n "$(geo "$tmp/simulado/default.txt")" && cmp -s <(geo "$tmp/simulado/default.txt") <(geo "$tmp/simulado/$t.txt")
+done
 bind=$(grep -c '^hl.bind("SUPER + SHIFT + T"' "$tmp/simulado/default.txt")
 si "SUPER+SHIFT+T está una sola vez" test "$bind" = 1
 si "  y abre/cierra el selector (qs -c temas)" grep -qE '^hl.bind\("SUPER \+ SHIFT \+ T", hl.dsp.exec_cmd\(".*qs -c temas.*"\)\)$' "$tmp/simulado/default.txt"

@@ -55,7 +55,7 @@ Item {
         id: body
 
         anchors.fill: parent
-        implicitHeight: content.implicitHeight + Theme.pad * 2
+        implicitHeight: content.implicitHeight + 9 * 2
         radius: Theme.radius
 
         // Las críticas llevan un filo rojo a la izquierda. Es la única
@@ -76,75 +76,75 @@ Item {
             anchors.left: parent.left
             anchors.right: parent.right
             anchors.top: parent.top
-            anchors.margins: Theme.pad
-            spacing: 6
+            anchors.leftMargin: 12
+            anchors.rightMargin: 12
+            anchors.topMargin: 9
+            spacing: 3
 
             RowLayout {
                 Layout.fillWidth: true
-                spacing: 10
+                spacing: 8
 
-                // La imagen que manda la aplicación manda sobre su icono: si
-                // hay una foto de quien escribe, dice más que el logotipo del
-                // programa.
+                // El icono sólo existe si carga de verdad: nada de hueco ni
+                // del cuadro rosa y negro de «falta el icono». La imagen que
+                // manda la aplicación (la foto de quien escribe) va antes que
+                // el logotipo del programa.
                 IconImage {
-                    Layout.alignment: Qt.AlignTop
-                    Layout.preferredWidth: 28
-                    Layout.preferredHeight: 28
-                    visible: source != ""
+                    id: icono
+
+                    Layout.alignment: Qt.AlignVCenter
+                    Layout.preferredWidth: 20
+                    Layout.preferredHeight: 20
+                    visible: status === Image.Ready
+                    // Sin icono que mostrar, ni ancho ni alto: el título
+                    // empieza donde empezaría la tarjeta.
+                    Layout.maximumWidth: visible ? 20 : 0
                     source: {
                         if (card.notif.image)
                             return card.notif.image;
-                        if (card.notif.appIcon)
-                            return Quickshell.iconPath(card.notif.appIcon, true);
-                        return "";
+                        const n = String(card.notif.appIcon || "");
+                        if (n === "")
+                            return "";
+                        if (n.startsWith("/") || n.startsWith("file:"))
+                            return n;
+                        return Quickshell.iconPath(n, true);
                     }
                 }
 
-                ColumnLayout {
+                Text {
                     Layout.fillWidth: true
-                    spacing: 1
+                    text: card.notif.summary
+                    color: Theme.strong
+                    font.family: Theme.font
+                    font.pixelSize: 12
+                    font.bold: true
+                    elide: Text.ElideRight
+                }
 
-                    RowLayout {
-                        Layout.fillWidth: true
-                        spacing: 8
+                Text {
+                    text: card.notif.appName || "Sistema"
+                    visible: !hover.hovered || card.history
+                    color: Theme.faint
+                    font.family: Theme.font
+                    font.pixelSize: 10
+                }
 
-                        Text {
-                            Layout.fillWidth: true
-                            text: card.notif.appName || "Sistema"
-                            color: Theme.muted
-                            font.family: Theme.font
-                            font.pixelSize: 10
-                            elide: Text.ElideRight
-                        }
+                // El aspa sólo aparece con el ratón encima: en reposo la
+                // tarjeta no necesita adornos.
+                Text {
+                    visible: hover.hovered && !card.history
+                    text: "󰅖"
+                    color: closeHover.hovered ? Theme.strong : Theme.faint
+                    font.family: Theme.font
+                    font.pixelSize: 12
 
-                        // El aspa sólo aparece con el ratón encima: en reposo
-                        // la tarjeta no necesita adornos.
-                        Text {
-                            visible: hover.hovered && !card.history
-                            text: "󰅖"
-                            color: closeHover.hovered ? Theme.strong : Theme.faint
-                            font.family: Theme.font
-                            font.pixelSize: 12
-
-                            HoverHandler {
-                                id: closeHover
-                                cursorShape: Qt.PointingHandCursor
-                            }
-
-                            TapHandler {
-                                onTapped: card.dismissed()
-                            }
-                        }
+                    HoverHandler {
+                        id: closeHover
+                        cursorShape: Qt.PointingHandCursor
                     }
 
-                    Text {
-                        Layout.fillWidth: true
-                        text: card.notif.summary
-                        color: Theme.strong
-                        font.family: Theme.font
-                        font.pixelSize: 13
-                        font.bold: true
-                        elide: Text.ElideRight
+                    TapHandler {
+                        onTapped: card.dismissed()
                     }
                 }
             }
@@ -155,14 +155,14 @@ Item {
                 text: card.notif.body
                 color: Theme.text
                 font.family: Theme.font
-                font.pixelSize: 12
+                font.pixelSize: 11
                 wrapMode: Text.WordWrap
                 // El cuerpo admite marcado, que es lo que se le ha dicho al
                 // servidor en bodyMarkupSupported.
                 textFormat: Text.StyledText
                 // Un mensaje largo no puede empujar el resto de la pila fuera
                 // de la pantalla.
-                maximumLineCount: 6
+                maximumLineCount: 4
                 elide: Text.ElideRight
             }
 
@@ -170,7 +170,7 @@ Item {
             // "default" no se pinta: es la que se invoca al pulsar la tarjeta.
             Flow {
                 Layout.fillWidth: true
-                Layout.topMargin: 4
+                Layout.topMargin: 2
                 spacing: 6
                 visible: children.length > 0
 
@@ -184,12 +184,12 @@ Item {
 
                         visible: modelData.identifier !== "default"
                         width: visible ? label.implicitWidth + 22 : 0
-                        height: visible ? 26 : 0
-                        radius: Theme.liquido ? Theme.radiusPill : 9
+                        height: visible ? 24 : 0
+                        radius: Theme.radiusSmall
 
-                        color: Qt.rgba(1, 1, 1, actionHover.hovered ? 0.20 : 0.10)
+                        color: actionHover.hovered ? Theme.rule : "transparent"
                         border.width: 1
-                        border.color: Qt.rgba(1, 1, 1, actionHover.hovered ? 0.38 : 0.20)
+                        border.color: Theme.rule
 
                         Behavior on color {
                             ColorAnimation {

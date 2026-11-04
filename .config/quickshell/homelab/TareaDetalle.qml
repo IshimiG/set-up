@@ -472,7 +472,7 @@ ColumnLayout {
             objectName: "claudeOff"
             implicitWidth: 36
             implicitHeight: 20
-            radius: Theme.liquido ? Theme.radiusSmall : 10
+            radius: 10
             color: detalle.t.claudeOff ? Qt.rgba(1, 1, 1, 0.34) : Qt.rgba(1, 1, 1, 0.08)
             border.width: 1
             border.color: detalle.t.claudeOff ? Qt.rgba(1, 1, 1, 0.5) : Theme.rule

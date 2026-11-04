@@ -125,16 +125,20 @@ choca.
 
 ## Temas
 
-El escritorio tiene siete temas intercambiables:
+El escritorio tiene siete temas intercambiables. **Ninguno cambia las
+dimensiones**: huecos, grosor del borde, redondeo, radios y grosor del canto
+son los de `default` en todos. Un tema sólo cambia el color (del borde, del
+texto, del acento), el material (transparencia, blur, sombra, brillo) y la
+letra de las aplicaciones.
+
 
 - `default`: el de siempre, cristal negro esmerilado con un filo blanco.
 - `liquido`: cristal claro a la manera del Liquid Glass de Apple. Lámina
   blanco azulada muy translúcida (alfa 0,26-0,34) con degradado, canto blanco
   marcado arriba y tenue abajo, brillo especular en el tercio de arriba,
-  tinte frío, texto blanco puro, radios grandes y cápsulas, sombra suave. En
-  Hyprland: blur más grande (12, 4 pasadas, vibrancy 0,5, casi sin grano),
-  esquinas de squircle (`rounding_power` 3), más aire entre ventanas y
-  aberración cromática a ratos en el borde.
+  tinte frío, texto blanco puro y sombra suave. En Hyprland: blur más grande
+  (12, 4 pasadas, vibrancy 0,5, casi sin grano) y aberración cromática a
+  ratos en el borde.
 - `catppuccin`: Catppuccin Mocha, pastel suave con el malva de acento.
 - `tokyonight`: Tokyo Night, índigo nocturno con acentos eléctricos.
 - `gruvbox`: Gruvbox Dark hard, cálido, mate y plano, sin transparencia.
@@ -182,10 +186,11 @@ encima) y, dentro de la sesión:
 
 1. Para la aberración cromática si estaba en marcha.
 2. `hyprctl reload config-only`: `hyprland.lua` vuelve a leer el tema y pone
-   el borde, el redondeo, la sombra, el blur, los huecos, la velocidad del
+   el color del borde, la sombra, el blur, la velocidad del
    borde y el `ignore_alpha` de las superficies de Quickshell de ese tema.
 3. Arranca la aberración si el tema la tiene.
-4. Avisa con una notificación.
+4. Avisa con una notificación sin icono; cada aviso sustituye al anterior
+   (guarda su id en `aviso-id`, junto al tema) en vez de apilarse.
 
 Quickshell no necesita nada: `shared/Theme.qml` vigila el fichero y la
 barra, la isla, el cajón del homelab y lo demás cambian en caliente. Fuera
