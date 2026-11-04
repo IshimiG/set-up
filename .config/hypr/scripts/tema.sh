@@ -3,19 +3,23 @@
 #
 #   tema.sh              dice el tema activo
 #   tema.sh lista        los temas que hay, uno por línea; el activo, con *
-#   tema.sh <tema>       pone ese tema: default o liquido
+#   tema.sh <tema>       pone ese tema (uno de los de `lista`)
 #   tema.sh alternar     pasa al siguiente de la lista (SUPER+SHIFT+CTRL+T)
 #
 # El tema es una palabra en ${XDG_STATE_HOME:-~/.local/state}/escritorio/tema,
 # de cada máquina y fuera del repo. Se escribe de una vez (un temporal que se
-# renombra encima), así que quien lo vigila nunca lo lee a medias. Lo leen dos:
+# renombra encima), así que quien lo vigila nunca lo lee a medias. Lo leen:
 #   - la paleta de Quickshell (quickshell/shared/Theme.qml), que lo vigila y
 #     repinta la barra, el cajón y lo demás en caliente;
 #   - hyprland.lua, al cargar: por eso, dentro de una sesión de Hyprland, este
 #     script hace "hyprctl reload config-only" después de escribirlo, y para o
-#     arranca la aberración cromática del borde (scripts/aberracion.sh).
-# Fuera de una sesión (sin HYPRLAND_INSTANCE_SIGNATURE) sólo escribe el
-# estado, que vale al entrar; así se prueba (pruebas/temas/prueba.sh).
+#     arranca la aberración cromática del borde (scripts/aberracion.sh);
+#   - tema-apps.sh, al que llama siempre, dentro o fuera de la sesión: escribe
+#     al lado lo de Ghostty, Neovim, fuzzel, foot y btop, y avisa a los que
+#     están abiertos (ver ese script).
+# Fuera de una sesión (sin HYPRLAND_INSTANCE_SIGNATURE) escribe el estado y lo
+# de las aplicaciones, y lo de Hyprland vale al entrar; así se prueba
+# (pruebas/temas/prueba.sh).
 #
 # Poner el tema que ya está no rompe nada: no reescribe el fichero y vuelve a
 # aplicarlo en Hyprland. Si falta el fichero o dice algo que no es un tema, el
@@ -24,8 +28,9 @@
 set -uo pipefail
 
 # Los temas, en orden: el de `lista` y el de `alternar`. Un tema nuevo va aquí,
-# en las paletas de Theme.qml y en la tabla `temas` de hyprland.lua.
-readonly TEMAS=(default liquido)
+# en las paletas de Theme.qml, en la tabla `temas` de hyprland.lua y en
+# .config/escritorio/temas/<tema>.conf (lo de las aplicaciones).
+readonly TEMAS=(default liquido catppuccin tokyonight gruvbox kanagawa phosphor)
 
 readonly DIR="${XDG_STATE_HOME:-$HOME/.local/state}/escritorio"
 readonly FICHERO="$DIR/tema"
@@ -58,6 +63,13 @@ en_sesion() {
 	[[ -n ${HYPRLAND_INSTANCE_SIGNATURE:-} ]] && command -v hyprctl >/dev/null
 }
 
+# Ghostty, Neovim, fuzzel, foot y btop, dentro o fuera de la sesión. Si falla,
+# el tema del escritorio queda puesto igual.
+aplicaciones() {
+	"$aqui/tema-apps.sh" "$1" ||
+		echo "tema.sh: tema-apps.sh ha fallado; las aplicaciones siguen con el tema de antes" >&2
+}
+
 poner() {
 	local nuevo=$1 carpeta_nueva=false tmp
 	if ! es_tema "$nuevo"; then
@@ -80,17 +92,21 @@ poner() {
 	echo "Tema: $nuevo"
 
 	if ! en_sesion; then
+		aplicaciones "$nuevo"
 		echo "  (sin sesión de Hyprland: se aplica al entrar)"
 		return
 	fi
 
 	# La aberración se para antes de recargar (deja el borde normal del tema
 	# que se va) y se vuelve a arrancar después: el propio aberracion.sh sale
-	# sin hacer nada si el tema nuevo no la tiene o si ABERRACION=0.
+	# sin hacer nada si el tema nuevo no la tiene o si ABERRACION=0. Las
+	# aplicaciones van detrás, para que esto siga justo después de escribir el
+	# tema.
 	"$aqui/aberracion.sh" --parar
 	hyprctl reload config-only >/dev/null 2>&1 ||
 		echo "tema.sh: hyprctl reload ha fallado; mira hyprctl configerrors" >&2
 	setsid -f "$aqui/aberracion.sh" </dev/null >/dev/null 2>&1
+	aplicaciones "$nuevo"
 
 	local cuerpo="SUPER+SHIFT+T para cambiar"
 	# El vigilante de Theme.qml no ve aparecer el fichero si la carpeta no
