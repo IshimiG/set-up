@@ -20,18 +20,13 @@ SideBlock {
 
     readonly property int minimos: 3
 
-    readonly property var colores: ({
-            "1": "#e90b25",
-            "2": "#e59625",
-            "3": "#ffd966",
-            "4": "#deffa0",
-            "5": "#6dc89e",
-            "6": "#40e0d0",
-            "7": "#00aef2",
-            "8": "#bf3e81",
-            "9": "#df6280",
-            "10": "#ffe9ff"
-        })
+    // Los colores salen del tema (Theme.workspaceColores, del 1 al 10).
+    readonly property var colores: {
+        const c = {};
+        for (let i = 0; i < Theme.workspaceColores.length; i++)
+            c[String(i + 1)] = Theme.workspaceColores[i];
+        return c;
+    }
 
     // Los escritorios que hay que pintar: los que existen, más los persistentes
     // que falten, ordenados por número.

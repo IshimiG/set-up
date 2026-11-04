@@ -54,20 +54,74 @@ PanelWindow {
     // la muestra de default. Se buscan por nombre, no por posición.
     readonly property var muestras: ({
             "default": {
+                "nombre": "Default",
                 "etiqueta": "Cristal negro",
                 "vidrio": Qt.rgba(0, 0, 0, 0.70),
                 "canto": Qt.rgba(1, 1, 1, 0.30),
                 "barra": Qt.rgba(1, 1, 1, 0.70),
                 "radio": 6,
-                "brillo": 0
+                "brillo": 0,
+                "puntos": ["#ffffff", "#6dc89e", "#e90b25"]
             },
             "liquido": {
+                "nombre": "Líquido",
                 "etiqueta": "Cristal claro",
                 "vidrio": Qt.rgba(0.84, 0.89, 1, 0.38),
                 "canto": Qt.rgba(1, 1, 1, 0.65),
                 "barra": Qt.rgba(1, 1, 1, 1),
                 "radio": 11,
-                "brillo": 0.33
+                "brillo": 0.33,
+                "puntos": ["#ffffff", "#30d158", "#ff453a"]
+            },
+            "catppuccin": {
+                "nombre": "Catppuccin Mocha",
+                "etiqueta": "Pastel redondeado",
+                "vidrio": Qt.rgba(0.118, 0.118, 0.180, 0.80),
+                "canto": "#cba6f7",
+                "barra": "#cba6f7",
+                "radio": 10,
+                "brillo": 0.2,
+                "puntos": ["#cba6f7", "#a6e3a1", "#f38ba8"]
+            },
+            "tokyonight": {
+                "nombre": "Tokyo Night",
+                "etiqueta": "Neón índigo",
+                "vidrio": Qt.rgba(0.102, 0.106, 0.149, 0.78),
+                "canto": "#7aa2f7",
+                "barra": "#7aa2f7",
+                "radio": 7,
+                "brillo": 0,
+                "puntos": ["#7aa2f7", "#bb9af7", "#7dcfff"]
+            },
+            "gruvbox": {
+                "nombre": "Gruvbox Dark",
+                "etiqueta": "Plano y retro",
+                "vidrio": "#282828",
+                "canto": "#fe8019",
+                "barra": "#fe8019",
+                "radio": 0,
+                "brillo": 0,
+                "puntos": ["#fabd2f", "#b8bb26", "#fb4934"]
+            },
+            "kanagawa": {
+                "nombre": "Kanagawa Wave",
+                "etiqueta": "Tinta sobria",
+                "vidrio": Qt.rgba(0.122, 0.122, 0.157, 0.86),
+                "canto": "#54546d",
+                "barra": "#7e9cd8",
+                "radio": 5,
+                "brillo": 0,
+                "puntos": ["#7e9cd8", "#98bb6c", "#e46876"]
+            },
+            "phosphor": {
+                "nombre": "Phosphor",
+                "etiqueta": "Fósforo verde",
+                "vidrio": "#000000",
+                "canto": "#00ff00",
+                "barra": "#00ff00",
+                "radio": 0,
+                "brillo": 0,
+                "puntos": ["#00ff00", "#00a600", "#006a00"]
             }
         })
 
@@ -118,7 +172,7 @@ PanelWindow {
         anchors.centerIn: parent
         width: root.cardW
         height: content.implicitHeight + root.pad * 2
-        radius: Theme.liquido ? Theme.radius : 20
+        radius: Theme.nombreTema === "default" ? 20 : Theme.radius
 
         // Mismo gesto de entrada y salida que el recordatorio y el lanzador.
         scale: root.shown ? 1 : 0.82
@@ -185,7 +239,7 @@ PanelWindow {
 
                         width: lista.width
                         height: root.filaH
-                        radius: Theme.liquido ? Theme.radiusSmall : 12
+                        radius: Theme.nombreTema === "default" ? 12 : Theme.radiusSmall
                         color: fila.marcada ? Qt.rgba(1, 1, 1, Theme.liquido ? 0.22 : 0.10) : (hover.hovered ? Qt.rgba(1, 1, 1, 0.05) : "transparent")
                         border.width: fila.activo ? 1 : 0
                         border.color: Theme.faint
@@ -251,11 +305,32 @@ PanelWindow {
                                     }
 
                                     Rectangle {
-                                        anchors.centerIn: parent
+                                        anchors.horizontalCenter: parent.horizontalCenter
+                                        y: parent.height * 0.32
                                         width: parent.width * 0.6
                                         height: 3
-                                        radius: 2
+                                        radius: Math.min(2, fila.m.radio)
                                         color: fila.m.barra
+                                    }
+
+                                    // Los acentos del tema: activo, bien y peligro.
+                                    Row {
+                                        anchors.horizontalCenter: parent.horizontalCenter
+                                        y: parent.height * 0.62
+                                        spacing: 4
+
+                                        Repeater {
+                                            model: fila.m.puntos
+
+                                            delegate: Rectangle {
+                                                required property string modelData
+
+                                                width: 5
+                                                height: 5
+                                                radius: fila.m.radio === 0 ? 0 : 3
+                                                color: modelData
+                                            }
+                                        }
                                     }
                                 }
                             }
@@ -269,7 +344,7 @@ PanelWindow {
                             spacing: 2
 
                             Text {
-                                text: fila.modelData
+                                text: fila.m.nombre
                                 color: fila.marcada ? Theme.strong : Theme.text
                                 font.family: Theme.font
                                 font.pixelSize: 14

@@ -112,6 +112,8 @@ local temas = {
 		inactive_border = "rgba(ffffff1a)",
 		rounding = 10,
 		rounding_power = 2,
+		opacidad_activa = 1.0,
+		opacidad_inactiva = 1.0,
 		shadow = {
 			enabled = true,
 			range = 4,
@@ -157,6 +159,8 @@ local temas = {
 		inactive_border = "rgba(dce8ff1f)",
 		rounding = 18,
 		rounding_power = 3,
+		opacidad_activa = 1.0,
+		opacidad_inactiva = 1.0,
 		shadow = {
 			enabled = true,
 			range = 26,
@@ -183,6 +187,163 @@ local temas = {
 			{ colors = { "rgba(ff3b6b99)", "rgba(ffffffe6)", "rgba(3be8ff99)" }, angle = 45 },
 			{ colors = { "rgba(3be8ff99)", "rgba(ffffffe6)", "rgba(ff3b6b99)" }, angle = 45 },
 		},
+	},
+	-- Catppuccin Mocha: pastel, redondo y aireado. Esquinas grandes casi de
+	-- squircle, huecos generosos, vidrio ligero y un borde que va de mauve a
+	-- azul. Opacidad algo baja en todas las ventanas.
+	catppuccin = {
+		gaps_in = 6,
+		gaps_out = 14,
+		border_size = 2,
+		active_border = { colors = { "rgba(cba6f7ff)", "rgba(89b4faff)" }, angle = 45 },
+		inactive_border = "rgba(313244ff)",
+		rounding = 16,
+		rounding_power = 3,
+		opacidad_activa = 0.95,
+		opacidad_inactiva = 0.88,
+		shadow = {
+			enabled = true,
+			range = 20,
+			render_power = 3,
+			color = 0x8011111b,
+		},
+		blur = {
+			enabled = true,
+			size = 8,
+			passes = 2,
+			vibrancy = 0.2,
+			noise = 0.01,
+			new_optimizations = true,
+		},
+		border_speed = 5.39,
+		ignore_alpha = 0.3,
+		aberracion = nil,
+	},
+
+	-- Tokyo Night (night): neón de ciudad. Esquinas medias, huecos justos,
+	-- un borde que se desliza de azul a magenta y cian, y una sombra azul que
+	-- hace de resplandor. Sin aberración cromática: el brillo ya hace de neón
+	-- y el demonio de aberracion.sh es cosa de liquido.
+	tokyonight = {
+		gaps_in = 4,
+		gaps_out = 10,
+		border_size = 2,
+		active_border = { colors = { "rgba(7aa2f7ff)", "rgba(bb9af7ff)", "rgba(7dcfffff)" }, angle = 60 },
+		inactive_border = "rgba(414868ff)",
+		rounding = 10,
+		rounding_power = 2,
+		opacidad_activa = 0.92,
+		opacidad_inactiva = 0.82,
+		shadow = {
+			enabled = true,
+			range = 30,
+			render_power = 2,
+			color = 0x597aa2f7,
+		},
+		blur = {
+			enabled = true,
+			size = 6,
+			passes = 3,
+			vibrancy = 0.2,
+			noise = 0.01,
+			new_optimizations = true,
+		},
+		border_speed = 3.5,
+		ignore_alpha = 0.3,
+		aberracion = nil,
+	},
+
+	-- Gruvbox dark hard: plano y retro. Cero redondeo, huecos mínimos, sin
+	-- blur ni sombra, bordes gruesos y sólidos, ventanas opacas.
+	gruvbox = {
+		gaps_in = 2,
+		gaps_out = 4,
+		border_size = 3,
+		active_border = "rgba(fe8019ff)",
+		inactive_border = "rgba(504945ff)",
+		rounding = 0,
+		rounding_power = 2,
+		opacidad_activa = 1.0,
+		opacidad_inactiva = 1.0,
+		shadow = {
+			enabled = false,
+			range = 4,
+			render_power = 3,
+			color = 0x00000000,
+		},
+		blur = {
+			enabled = false,
+			size = 1,
+			passes = 1,
+			vibrancy = 0,
+			noise = 0,
+			new_optimizations = true,
+		},
+		border_speed = 5.39,
+		ignore_alpha = 0.5,
+		aberracion = nil,
+	},
+
+	-- Kanagawa Wave: sobrio, tinta sobre papel. Esquinas discretas, blur
+	-- débil, sombra suave y un degradado muy sutil de violeta a azul.
+	kanagawa = {
+		gaps_in = 5,
+		gaps_out = 10,
+		border_size = 2,
+		active_border = { colors = { "rgba(957fb8ff)", "rgba(7e9cd8ff)" }, angle = 45 },
+		inactive_border = "rgba(363646ff)",
+		rounding = 8,
+		rounding_power = 2,
+		opacidad_activa = 0.94,
+		opacidad_inactiva = 0.88,
+		shadow = {
+			enabled = true,
+			range = 14,
+			render_power = 3,
+			color = 0x8016161d,
+		},
+		blur = {
+			enabled = true,
+			size = 5,
+			passes = 2,
+			vibrancy = 0.1,
+			noise = 0.02,
+			new_optimizations = true,
+		},
+		border_speed = 5.39,
+		ignore_alpha = 0.3,
+		aberracion = nil,
+	},
+
+	-- Phosphor: terminal de fósforo verde, brutalista. Sin huecos, sin
+	-- redondeo, sin blur ni sombra, borde duro de un solo verde y negro puro.
+	phosphor = {
+		gaps_in = 0,
+		gaps_out = 0,
+		border_size = 2,
+		active_border = "rgba(00ff00ff)",
+		inactive_border = "rgba(0a3a0aff)",
+		rounding = 0,
+		rounding_power = 2,
+		opacidad_activa = 1.0,
+		opacidad_inactiva = 1.0,
+		shadow = {
+			enabled = false,
+			range = 4,
+			render_power = 3,
+			color = 0x00000000,
+		},
+		blur = {
+			enabled = false,
+			size = 1,
+			passes = 1,
+			vibrancy = 0,
+			noise = 0,
+			new_optimizations = true,
+		},
+		border_speed = 2,
+		ignore_alpha = 0.5,
+		aberracion = nil,
 	},
 }
 
@@ -257,8 +418,8 @@ hl.config({
 		rounding_power = tema.rounding_power,
 
 		-- Change transparency of focused and unfocused windows
-		active_opacity = 1.0,
-		inactive_opacity = 1.0,
+		active_opacity = tema.opacidad_activa,
+		inactive_opacity = tema.opacidad_activa,
 
 		shadow = tema.shadow,
 
