@@ -29,3 +29,14 @@ hl.on("hyprland.start", function()
 	hl.exec_cmd("/usr/lib/polkit-gnome/polkit-gnome-authentication-agent-1")
 	hl.exec_cmd("hypridle")
 end)
+
+-- El bluetui que abre el botón de Bluetooth de la barra: una consulta rápida,
+-- flotante y en el centro, igual que el btop de la telemetría.
+hl.window_rule({
+	name = "bluetui-flotante",
+	match = { class = "^ghostty\\.bluetui$" },
+
+	float = true,
+	center = true,
+	pin = true,
+})

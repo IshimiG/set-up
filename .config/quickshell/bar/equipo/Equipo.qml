@@ -2,6 +2,7 @@ import QtQuick
 import QtQuick.Layouts
 import Quickshell
 import Quickshell.Io
+import Quickshell.Bluetooth
 import Quickshell.Services.UPower
 import ".."
 import "../shared"
@@ -94,6 +95,34 @@ Scope {
                 onPulsado: if (fila.bloque)
                     equipo.shell.toggle(fila.bloque.pantalla, "wifi")
                 onPulsadoDerecho: estadoWifi.abrirImpala()
+            }
+
+            // Bluetooth, junto a la wifi. El clic abre bluetui (emparejar y
+            // conectar auriculares) en una ventana flotante, como el btop de la
+            // telemetría (regla "bluetui-flotante" en equipo.lua); el clic
+            // derecho enciende o apaga el adaptador.
+            Modulo {
+                id: bluetooth
+
+                readonly property var adaptador: Bluetooth.defaultAdapter
+                readonly property bool encendido: bluetooth.adaptador !== null && bluetooth.adaptador.enabled
+                readonly property var conectados: bluetooth.adaptador ? bluetooth.adaptador.devices.values.filter(d => d.connected) : []
+
+                bloque: fila.bloque
+                // Sin adaptador no hay botón.
+                glifo: bluetooth.adaptador === null ? "" : (bluetooth.encendido ? (bluetooth.conectados.length > 0 ? "󰂱" : "󰂯") : "󰂲")
+                atenuado: bluetooth.encendido ? 1 : 0.45
+                pista: {
+                    if (!bluetooth.encendido)
+                        return "Bluetooth apagado";
+                    if (bluetooth.conectados.length === 0)
+                        return "Bluetooth\nSin dispositivos conectados";
+                    return "Bluetooth\n" + bluetooth.conectados.map(d => d.name).join("\n");
+                }
+
+                onPulsado: Quickshell.execDetached(["sh", "-c", "rfkill unblock bluetooth; exec " + Quickshell.env("HOME") + "/.local/bin/launch-or-focus '^ghostty\\.bluetui$' ghostty --class=ghostty.bluetui --title=Bluetooth --window-width=85 --window-height=26 -e bluetui"])
+                onPulsadoDerecho: if (bluetooth.adaptador)
+                    bluetooth.adaptador.enabled = !bluetooth.adaptador.enabled
             }
         }
     }

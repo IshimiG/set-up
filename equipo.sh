@@ -12,7 +12,8 @@
 # polkit-gnome  el agente de polkit (equipo.lua lo arranca)
 # brightnessctl  las teclas de brillo
 # upower  la batería de la barra
-PAQUETES=(hypridle iwd impala nwg-displays polkit-gnome brightnessctl upower)
+# bluetui  el panel de Bluetooth que abre el botón de la barra (bluez ya viene)
+PAQUETES=(hypridle iwd impala nwg-displays polkit-gnome brightnessctl upower bluetui)
 
 set -uo pipefail
 
